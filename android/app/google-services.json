@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "382952972400",
+    "project_id": "blindfriend-acea4",
+    "storage_bucket": "blindfriend-acea4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:382952972400:android:c20f6bf4f7d1dcc0ff54b5",
+        "android_client_info": {
+          "package_name": "com.example.flutter_blindfriend"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAxD5y660p_hyL3QR3J_Q02mB_TkQq5-WE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
