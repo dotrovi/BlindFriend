@@ -1,20 +1,24 @@
 import 'package:flutter/material.dart';
+import 'login_page.dart';
 
 void main() {
-  runApp(const MainApp());
+  runApp(const BlindFriendApp());
 }
 
-class MainApp extends StatelessWidget {
-  const MainApp({super.key});
+class BlindFriendApp extends StatelessWidget {
+  const BlindFriendApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
-      home: Scaffold(
-        body: Center(
-          child: Text('Hello World!'),
-        ),
+    return MaterialApp(
+      title: 'BlindFriend',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+        visualDensity: VisualDensity.adaptivePlatformDensity,
+        useMaterial3: true,
       ),
+      home: const LoginPage(),
+      debugShowCheckedModeBanner: false,
     );
   }
 }
