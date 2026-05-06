@@ -1,8 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'login_page.dart';
 import 'register_page.dart';
+import 'firebase_options.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  try {
+    // Initialize Firebase using FlutterFire
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    print("✅ Firebase initialized successfully!");
+  } catch (e) {
+    print("❌ Firebase initialization error: $e");
+  }
+  
   runApp(const BlindFriendApp());
 }
 
@@ -14,11 +28,15 @@ class BlindFriendApp extends StatelessWidget {
     return MaterialApp(
       title: 'BlindFriend',
       theme: ThemeData(
-        primarySwatch: Colors.blue,
+        primarySwatch: Colors.purple,
         visualDensity: VisualDensity.adaptivePlatformDensity,
         useMaterial3: true,
       ),
-      home: const LoginPage(),
+      initialRoute: '/',
+      routes: {
+        '/': (context) => const LoginPage(),
+        '/register': (context) => const RegisterPage(),
+      },
       debugShowCheckedModeBanner: false,
     );
   }
