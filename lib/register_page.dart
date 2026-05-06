@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'volunteer_details_page.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -11,13 +12,13 @@ class RegisterPage extends StatefulWidget {
 class _RegisterPageState extends State<RegisterPage> {
   final _formKey = GlobalKey<FormState>();
   String? _selectedUserType; // 'blind' or 'volunteer'
-  
+
   // Controllers for form fields
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -26,11 +27,11 @@ class _RegisterPageState extends State<RegisterPage> {
     _confirmPasswordController.dispose();
     super.dispose();
   }
-  
+
   void _speak(String message) {
     print('🔊 TTS: $message');
   }
-  
+
   void _handleRegister() {
     if (_formKey.currentState!.validate()) {
       if (_selectedUserType == null) {
@@ -40,31 +41,45 @@ class _RegisterPageState extends State<RegisterPage> {
         );
         return;
       }
-      
+
       // Check if passwords match
       if (_passwordController.text != _confirmPasswordController.text) {
         _speak('Passwords do not match');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Passwords do not match')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Passwords do not match')));
         return;
       }
-      
+
       _speak('Creating account as $_selectedUserType user');
-      // Add your registration logic here
-      
-      // Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Account created successfully!')),
-      );
-      
-      // Navigate back to login page after 2 seconds
-      Future.delayed(const Duration(seconds: 2), () {
-        Navigator.pop(context);
-      });
+
+      if (_selectedUserType == 'volunteer') {
+        // Navigate to volunteer details page
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => VolunteerDetailsPage(
+              name: _nameController.text,
+              email: _emailController.text,
+              password: _passwordController.text,
+            ),
+          ),
+        );
+      } else {
+        // Blind user registration
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Blind user account created! Please login.'),
+          ),
+        );
+        // Navigate back to login after 2 seconds
+        Future.delayed(const Duration(seconds: 2), () {
+          Navigator.pop(context);
+        });
+      }
     }
   }
-  
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -78,7 +93,7 @@ class _RegisterPageState extends State<RegisterPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 20),
-                
+
                 // App Title - Centered
                 const Center(
                   child: Text(
@@ -91,29 +106,23 @@ class _RegisterPageState extends State<RegisterPage> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                
+
                 // Create account title - Centered
                 const Center(
                   child: Text(
                     'Create your account',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w500),
                   ),
                 ),
                 const SizedBox(height: 40),
-                
+
                 // I am a:
                 const Text(
                   'I am a:',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                 ),
                 const SizedBox(height: 12),
-                
+
                 // User type selection (Blind User / Volunteer)
                 Row(
                   children: [
@@ -129,19 +138,27 @@ class _RegisterPageState extends State<RegisterPage> {
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           decoration: BoxDecoration(
                             border: Border.all(
-                              color: _selectedUserType == 'blind' ? Colors.blue : Colors.grey.shade300,
+                              color: _selectedUserType == 'blind'
+                                  ? Colors.blue
+                                  : Colors.grey.shade300,
                               width: 2,
                             ),
                             borderRadius: BorderRadius.circular(8),
-                            color: _selectedUserType == 'blind' ? Colors.blue.shade50 : Colors.white,
+                            color: _selectedUserType == 'blind'
+                                ? Colors.blue.shade50
+                                : Colors.white,
                           ),
                           child: Center(
                             child: Text(
                               'Blind User',
                               style: TextStyle(
                                 fontSize: 16,
-                                fontWeight: _selectedUserType == 'blind' ? FontWeight.w600 : FontWeight.normal,
-                                color: _selectedUserType == 'blind' ? Colors.blue : Colors.black87,
+                                fontWeight: _selectedUserType == 'blind'
+                                    ? FontWeight.w600
+                                    : FontWeight.normal,
+                                color: _selectedUserType == 'blind'
+                                    ? Colors.blue
+                                    : Colors.black87,
                               ),
                             ),
                           ),
@@ -161,19 +178,27 @@ class _RegisterPageState extends State<RegisterPage> {
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           decoration: BoxDecoration(
                             border: Border.all(
-                              color: _selectedUserType == 'volunteer' ? Colors.blue : Colors.grey.shade300,
+                              color: _selectedUserType == 'volunteer'
+                                  ? Colors.blue
+                                  : Colors.grey.shade300,
                               width: 2,
                             ),
                             borderRadius: BorderRadius.circular(8),
-                            color: _selectedUserType == 'volunteer' ? Colors.blue.shade50 : Colors.white,
+                            color: _selectedUserType == 'volunteer'
+                                ? Colors.blue.shade50
+                                : Colors.white,
                           ),
                           child: Center(
                             child: Text(
                               'Volunteer',
                               style: TextStyle(
                                 fontSize: 16,
-                                fontWeight: _selectedUserType == 'volunteer' ? FontWeight.w600 : FontWeight.normal,
-                                color: _selectedUserType == 'volunteer' ? Colors.blue : Colors.black87,
+                                fontWeight: _selectedUserType == 'volunteer'
+                                    ? FontWeight.w600
+                                    : FontWeight.normal,
+                                color: _selectedUserType == 'volunteer'
+                                    ? Colors.blue
+                                    : Colors.black87,
                               ),
                             ),
                           ),
@@ -183,14 +208,11 @@ class _RegisterPageState extends State<RegisterPage> {
                   ],
                 ),
                 const SizedBox(height: 32),
-                
+
                 // Name field
                 const Text(
                   'Name',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                 ),
                 const SizedBox(height: 8),
                 Row(
@@ -203,7 +225,10 @@ class _RegisterPageState extends State<RegisterPage> {
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
                           suffixIcon: IconButton(
                             icon: const Icon(Icons.volume_up, size: 20),
                             onPressed: () {
@@ -224,14 +249,11 @@ class _RegisterPageState extends State<RegisterPage> {
                   ],
                 ),
                 const SizedBox(height: 20),
-                
+
                 // Email field
                 const Text(
                   'Email',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                 ),
                 const SizedBox(height: 8),
                 Row(
@@ -245,7 +267,10 @@ class _RegisterPageState extends State<RegisterPage> {
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
                           suffixIcon: IconButton(
                             icon: const Icon(Icons.volume_up, size: 20),
                             onPressed: () {
@@ -269,14 +294,11 @@ class _RegisterPageState extends State<RegisterPage> {
                   ],
                 ),
                 const SizedBox(height: 20),
-                
+
                 // Password field
                 const Text(
                   'Password',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                 ),
                 const SizedBox(height: 8),
                 Row(
@@ -290,11 +312,16 @@ class _RegisterPageState extends State<RegisterPage> {
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
                           suffixIcon: IconButton(
                             icon: const Icon(Icons.volume_up, size: 20),
                             onPressed: () {
-                              _speak('Password field. Create a strong password.');
+                              _speak(
+                                'Password field. Create a strong password.',
+                              );
                             },
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
@@ -314,14 +341,11 @@ class _RegisterPageState extends State<RegisterPage> {
                   ],
                 ),
                 const SizedBox(height: 20),
-                
+
                 // Confirm Password field
                 const Text(
                   'Confirm Password',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                 ),
                 const SizedBox(height: 8),
                 Row(
@@ -335,11 +359,16 @@ class _RegisterPageState extends State<RegisterPage> {
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
                           suffixIcon: IconButton(
                             icon: const Icon(Icons.volume_up, size: 20),
                             onPressed: () {
-                              _speak('Confirm password field. Re-enter your password.');
+                              _speak(
+                                'Confirm password field. Re-enter your password.',
+                              );
                             },
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
@@ -359,7 +388,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   ],
                 ),
                 const SizedBox(height: 32),
-                
+
                 // Register Button
                 SizedBox(
                   width: double.infinity,
@@ -369,7 +398,10 @@ class _RegisterPageState extends State<RegisterPage> {
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       backgroundColor: Colors.blue,
                       foregroundColor: Colors.white,
-                      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      textStyle: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -378,7 +410,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Login link
                 Center(
                   child: TextButton(
@@ -388,15 +420,12 @@ class _RegisterPageState extends State<RegisterPage> {
                     },
                     child: const Text(
                       "Already have an account? Login",
-                      style: TextStyle(
-                        color: Colors.blue,
-                        fontSize: 14,
-                      ),
+                      style: TextStyle(color: Colors.blue, fontSize: 14),
                     ),
                   ),
                 ),
                 const SizedBox(height: 32),
-                
+
                 // Demo Accounts Section
                 Container(
                   width: double.infinity,
@@ -416,7 +445,7 @@ class _RegisterPageState extends State<RegisterPage> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      
+
                       // Blind User Demo
                       Container(
                         width: double.infinity,
@@ -439,17 +468,23 @@ class _RegisterPageState extends State<RegisterPage> {
                             const SizedBox(height: 4),
                             const Text(
                               'Just enter any email and password',
-                              style: TextStyle(fontSize: 13, color: Colors.grey),
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey,
+                              ),
                             ),
                             const Text(
                               'Select "Blind User" type',
-                              style: TextStyle(fontSize: 13, color: Colors.grey),
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey,
+                              ),
                             ),
                           ],
                         ),
                       ),
                       const SizedBox(height: 12),
-                      
+
                       // Volunteer Demo
                       Container(
                         width: double.infinity,
@@ -472,11 +507,17 @@ class _RegisterPageState extends State<RegisterPage> {
                             const SizedBox(height: 4),
                             const Text(
                               'Just enter any email and password',
-                              style: TextStyle(fontSize: 13, color: Colors.grey),
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey,
+                              ),
                             ),
                             const Text(
                               'Select "Volunteer" type',
-                              style: TextStyle(fontSize: 13, color: Colors.grey),
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey,
+                              ),
                             ),
                           ],
                         ),
@@ -485,7 +526,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                
+
                 // Accessibility hint
                 Center(
                   child: Row(
