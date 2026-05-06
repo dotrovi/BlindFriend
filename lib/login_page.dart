@@ -1,7 +1,9 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'register_page.dart';
+import 'services/firebase_service.dart';
 
 void main() {
   runApp(const BlindFriendApp());
@@ -36,6 +38,7 @@ class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  final FirebaseService _firebaseService = FirebaseService(); 
   String? _selectedUserType;
 
   @override
@@ -49,18 +52,55 @@ class _LoginPageState extends State<LoginPage> {
     print('🔊 TTS: $message');
   }
 
-  void _handleLogin() {
+  void _handleLogin() async {
     if (_formKey.currentState!.validate()) {
       if (_selectedUserType == null) {
-        _speak('Please select whether you are a blind user or volunteer');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please select user type')),
-        );
+        _speak('Please select user type');
         return;
       }
 
-      _speak('Logging in as $_selectedUserType user');
-      // Add your login logic here
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+
+      try {
+        User? user = await _firebaseService.loginUser(
+          email: _emailController.text,
+          password: _passwordController.text,
+        );
+
+        if (mounted) Navigator.pop(context);
+
+        if (user != null) {
+          _speak('Login successful');
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Login successful!')));
+        }
+      } catch (e) {
+        if (mounted) Navigator.pop(context);
+
+        String errorMessage = e.toString();
+        if (errorMessage.contains("verify your email")) {
+          _speak('Please verify your email before logging in');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please verify your email. Check your inbox!'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+          // Optionally add a resend button
+        } else {
+          _speak('Login failed');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Login failed. Check your credentials.'),
+            ),
+          );
+        }
+      }
     }
   }
 

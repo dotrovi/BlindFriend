@@ -5,7 +5,7 @@ class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Register User
+  // Register User with Email Verification
   Future<User?> registerUser({
     required String email,
     required String password,
@@ -15,26 +15,28 @@ class FirebaseService {
     try {
       print("STEP A: Creating auth user");
 
-      UserCredential userCredential =
-          await _auth.createUserWithEmailAndPassword(
+      UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
 
       print("STEP B: Auth user created");
 
+      // Update display name
       await userCredential.user?.updateDisplayName(name);
-
       print("STEP C: Display name updated");
 
-      await _firestore
-          .collection('users')
-          .doc(userCredential.user!.uid)
-          .set({
+      // ✅ SEND EMAIL VERIFICATION (NEW)
+      await userCredential.user?.sendEmailVerification();
+      print("STEP C.5: Verification email sent to $email");
+
+      // Save to Firestore with email verification status
+      await _firestore.collection('users').doc(userCredential.user!.uid).set({
         'uid': userCredential.user!.uid,
         'name': name,
         'email': email,
         'userType': userType,
+        'isEmailVerified': false,  // ✅ Track verification status
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -43,39 +45,68 @@ class FirebaseService {
       return userCredential.user;
     } on FirebaseAuthException catch (e) {
       print("Firebase Auth Error: ${e.code}");
-
-      throw Exception(
-        e.message ?? "Authentication failed",
-      );
+      throw Exception(e.message ?? "Authentication failed");
     } on FirebaseException catch (e) {
       print("Firestore Error: ${e.code}");
-
-      throw Exception(
-        e.message ?? "Database error",
-      );
+      throw Exception(e.message ?? "Database error");
     } catch (e) {
       print("Registration error: $e");
       throw Exception("Registration failed");
     }
   }
 
-  // Login User
+  // Login User with Email Verification Check
   Future<User?> loginUser({
     required String email,
     required String password,
   }) async {
     try {
-      UserCredential userCredential =
-          await _auth.signInWithEmailAndPassword(
+      UserCredential userCredential = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
 
+      // ✅ CHECK IF EMAIL IS VERIFIED (NEW)
+      if (!userCredential.user!.emailVerified) {
+        print("Email not verified");
+        throw Exception("Please verify your email before logging in. Check your inbox.");
+      }
+
+      print("Email verified successfully");
       return userCredential.user;
+    } on FirebaseAuthException catch (e) {
+      print("Login error: ${e.code}");
+      return null;
     } catch (e) {
       print("Login error: $e");
       return null;
     }
+  }
+
+  // ✅ NEW: Resend Verification Email
+  Future<bool> resendVerificationEmail() async {
+    try {
+      User? user = _auth.currentUser;
+      if (user != null && !user.emailVerified) {
+        await user.sendEmailVerification();
+        print("Verification email resent");
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print("Resend email error: $e");
+      return false;
+    }
+  }
+
+  // ✅ NEW: Check if email is verified
+  Future<bool> isEmailVerified() async {
+    User? user = _auth.currentUser;
+    if (user != null) {
+      await user.reload(); // Refresh user data
+      return user.emailVerified;
+    }
+    return false;
   }
 
   // Save Volunteer Details
@@ -98,7 +129,6 @@ class FirebaseService {
         'isVerified': false,
         'submittedAt': FieldValue.serverTimestamp(),
       });
-
       return true;
     } catch (e) {
       print("Save volunteer details error: $e");
