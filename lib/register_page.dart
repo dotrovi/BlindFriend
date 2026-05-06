@@ -1,6 +1,10 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'volunteer_details_page.dart';
+import 'services/firebase_service.dart';
+
+final FirebaseService _firebaseService = FirebaseService();
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -32,50 +36,78 @@ class _RegisterPageState extends State<RegisterPage> {
     print('🔊 TTS: $message');
   }
 
-  void _handleRegister() {
+  void _handleRegister() async {
     if (_formKey.currentState!.validate()) {
       if (_selectedUserType == null) {
-        _speak('Please select whether you are a blind user or volunteer');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Please select user type')),
         );
         return;
       }
 
-      // Check if passwords match
       if (_passwordController.text != _confirmPasswordController.text) {
-        _speak('Passwords do not match');
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('Passwords do not match')));
         return;
       }
 
-      _speak('Creating account as $_selectedUserType user');
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
 
-      if (_selectedUserType == 'volunteer') {
-        // Navigate to volunteer details page
-        Navigator.push(
+      try {
+        print("STARTING REGISTRATION");
+
+        User? user = await _firebaseService.registerUser(
+          email: _emailController.text.trim(),
+          password: _passwordController.text.trim(),
+          name: _nameController.text.trim(),
+          userType: _selectedUserType!,
+        );
+
+        if (mounted) {
+          Navigator.of(context, rootNavigator: true).pop();
+        }
+
+        print("REGISTRATION SUCCESS");
+        print("User UID: ${user?.uid}");
+
+        if (user != null) {
+          if (_selectedUserType == 'volunteer') {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => VolunteerDetailsPage(
+                  name: _nameController.text.trim(),
+                  email: _emailController.text.trim(),
+                  password: _passwordController.text.trim(),
+                  uid: user.uid,
+                ),
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Account created successfully! Please login.'),
+              ),
+            );
+
+            Navigator.pop(context);
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          Navigator.of(context, rootNavigator: true).pop();
+        }
+
+        print("REGISTER ERROR: $e");
+
+        ScaffoldMessenger.of(
           context,
-          MaterialPageRoute(
-            builder: (context) => VolunteerDetailsPage(
-              name: _nameController.text,
-              email: _emailController.text,
-              password: _passwordController.text,
-            ),
-          ),
-        );
-      } else {
-        // Blind user registration
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Blind user account created! Please login.'),
-          ),
-        );
-        // Navigate back to login after 2 seconds
-        Future.delayed(const Duration(seconds: 2), () {
-          Navigator.pop(context);
-        });
+        ).showSnackBar(SnackBar(content: Text(e.toString())));
       }
     }
   }
