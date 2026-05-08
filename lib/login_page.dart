@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'register_page.dart';
 import 'services/firebase_service.dart';
 
@@ -40,6 +41,38 @@ class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final FirebaseService _firebaseService = FirebaseService(); 
   String? _selectedUserType;
+  bool _rememberMe = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedCredentials();
+  }
+
+  Future<void> _loadSavedCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    final rememberMe = prefs.getBool('remember_me') ?? false;
+    if (rememberMe) {
+      setState(() {
+        _rememberMe = true;
+        _emailController.text = prefs.getString('saved_email') ?? '';
+        _passwordController.text = prefs.getString('saved_password') ?? '';
+      });
+    }
+  }
+
+  Future<void> _saveCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (_rememberMe) {
+      await prefs.setBool('remember_me', true);
+      await prefs.setString('saved_email', _emailController.text);
+      await prefs.setString('saved_password', _passwordController.text);
+    } else {
+      await prefs.setBool('remember_me', false);
+      await prefs.remove('saved_email');
+      await prefs.remove('saved_password');
+    }
+  }
 
   @override
   void dispose() {
@@ -74,6 +107,7 @@ class _LoginPageState extends State<LoginPage> {
         if (mounted) Navigator.pop(context);
 
         if (user != null) {
+          await _saveCredentials(); // Save credentials if remember me is checked
           _speak('Login successful');
           ScaffoldMessenger.of(
             context,
@@ -319,7 +353,25 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 16),
+
+                // Remember Me checkbox
+                Row(
+                  children: [
+                    Checkbox(
+                      value: _rememberMe,
+                      onChanged: (value) {
+                        setState(() {
+                          _rememberMe = value ?? false;
+                        });
+                        _speak(_rememberMe ? 'Remember me enabled' : 'Remember me disabled');
+                      },
+                    ),
+                    const Text('Remember me'),
+                    const Spacer(),
+                  ],
+                ),
+                const SizedBox(height: 16),
 
                 // Login Button
                 SizedBox(
@@ -328,7 +380,11 @@ class _LoginPageState extends State<LoginPage> {
                     onPressed: _handleLogin,
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      backgroundColor: Colors.blue,
+                      backgroundColor: _selectedUserType == 'blind'
+                          ? Colors.blue
+                          : _selectedUserType == 'volunteer'
+                              ? Colors.green
+                              : Colors.grey,
                       foregroundColor: Colors.white,
                       textStyle: const TextStyle(
                         fontSize: 16,
