@@ -327,7 +327,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 ),
                 const SizedBox(height: 20),
 
-                // Password field
+                // Password field - For both Blind Users and Volunteers
                 const Text(
                   'Password',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
@@ -374,7 +374,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 ),
                 const SizedBox(height: 20),
 
-                // Confirm Password field
+                // Confirm Password field - For both Blind Users and Volunteers
                 const Text(
                   'Confirm Password',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
@@ -428,7 +428,11 @@ class _RegisterPageState extends State<RegisterPage> {
                     onPressed: _handleRegister,
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      backgroundColor: Colors.blue,
+                      backgroundColor: _selectedUserType == 'blind'
+                          ? Colors.blue
+                          : _selectedUserType == 'volunteer'
+                              ? Colors.green
+                              : Colors.grey,
                       foregroundColor: Colors.white,
                       textStyle: const TextStyle(
                         fontSize: 16,
