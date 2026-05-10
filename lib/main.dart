@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_core/firebase_core.dart';
-import 'dart:io' show Platform;
 import 'login_page.dart';
 import 'register_page.dart';
 import 'firebase_options.dart';
 import 'admin_login_page.dart';
+import 'admin_dashboard_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,15 +38,8 @@ class BlindFriendApp extends StatelessWidget {
       routes: {
         '/': (context) => const LoginPage(),
         '/register': (context) => const RegisterPage(),
-        '/admin': (context) {
-          final isDesktop = !kIsWeb &&
-              (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
-          return isDesktop
-              ? const AdminLoginPage()
-              : const Scaffold(
-                  body: Center(child: Text('Admin portal is desktop only.')),
-                );
-        },
+        '/admin': (context) => const AdminLoginPage(),
+        '/admin-dashboard': (context) => const AdminDashboardPage(),
       },
       debugShowCheckedModeBanner: false,
     );

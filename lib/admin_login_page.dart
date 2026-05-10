@@ -2,6 +2,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+// admin details:
+// email: admin@admin.com
+// password: admin123
+
 class AdminLoginPage extends StatefulWidget {
   const AdminLoginPage({super.key});
 
