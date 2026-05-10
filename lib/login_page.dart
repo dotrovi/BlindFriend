@@ -4,6 +4,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'register_page.dart';
 import 'services/firebase_service.dart';
 import 'forgot_password_page.dart';
+import 'blind_home_page.dart';
+import 'volunteer_home_page.dart';
+
 void main() {
   runApp(const BlindFriendApp());
 }
@@ -104,13 +107,30 @@ class _LoginPageState extends State<LoginPage> {
 
         if (mounted) Navigator.pop(context);
 
-        if (user != null) {
-          await _saveCredentials(); // Save credentials if remember me is checked
-          _speak('Login successful');
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Login successful!')));
-        }
+       if (user != null) {
+  await _saveCredentials();
+  _speak('Login successful');
+
+  if (_selectedUserType == 'blind') {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => BlindHomePage(
+          userName: user.displayName ?? 'User',
+        ),
+      ),
+    );
+  } else if (_selectedUserType == 'volunteer') {
+  Navigator.pushReplacement(
+    context,
+    MaterialPageRoute(
+      builder: (context) => VolunteerHomePage(
+        userName: user.displayName ?? 'User',
+      ),
+    ),
+  );
+}
+}
       } catch (e) {
         if (mounted) Navigator.pop(context);
 
