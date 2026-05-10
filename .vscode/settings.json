@@ -1,3 +1,4 @@
 {
-    "cmake.sourceDirectory": "C:/Users/ying-/OneDrive/Documents/GitHub/BlindFriend/linux"
+    "cmake.sourceDirectory": "C:/Users/ying-/OneDrive/Documents/GitHub/BlindFriend/linux",
+    "cmake.ignoreCMakeListsMissing": true
 }

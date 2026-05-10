@@ -41,6 +41,10 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>BlindFriend needs microphone access to process your voice commands for navigation.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>BlindFriend uses speech recognition to understand voice commands like Shopping, Obstacle, Path, and Volunteers.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
