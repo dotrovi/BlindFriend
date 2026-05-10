@@ -45,13 +45,13 @@ class FirebaseService {
       return userCredential.user;
     } on FirebaseAuthException catch (e) {
       print("Firebase Auth Error: ${e.code}");
-      throw Exception(e.message ?? "Authentication failed");
+      throw Exception(e.code);
     } on FirebaseException catch (e) {
       print("Firestore Error: ${e.code}");
-      throw Exception(e.message ?? "Database error");
+      throw Exception(e.code);
     } catch (e) {
       print("Registration error: $e");
-      throw Exception("Registration failed");
+      throw Exception("registration-failed");
     }
   }
 
@@ -66,19 +66,9 @@ class FirebaseService {
         password: password,
       );
 
-      // ✅ CHECK IF EMAIL IS VERIFIED (NEW)
-      if (!userCredential.user!.emailVerified) {
-        print("Email not verified");
-        throw Exception("Please verify your email before logging in. Check your inbox.");
-      }
-
-      print("Email verified successfully");
       return userCredential.user;
     } on FirebaseAuthException catch (e) {
       print("Login error: ${e.code}");
-      return null;
-    } catch (e) {
-      print("Login error: $e");
       return null;
     }
   }
