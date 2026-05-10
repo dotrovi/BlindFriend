@@ -1,11 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'register_page.dart';
 import 'services/firebase_service.dart';
-
+import 'forgot_password_page.dart';
 void main() {
   runApp(const BlindFriendApp());
 }
@@ -398,6 +396,24 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
                 const SizedBox(height: 16),
+
+                // Forgot password link
+Center(
+  child: TextButton(
+    onPressed: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const ForgotPasswordPage(),
+        ),
+      );
+    },
+    child: const Text(
+      'Forgot Password?',
+      style: TextStyle(color: Colors.blue, fontSize: 14),
+    ),
+  ),
+),
 
                 // Register link
                 Center(
