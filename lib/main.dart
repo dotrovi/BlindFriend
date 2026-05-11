@@ -3,6 +3,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'login_page.dart';
 import 'register_page.dart';
 import 'firebase_options.dart';
+import 'admin_login_page.dart';
+import 'admin_dashboard_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,6 +38,8 @@ class BlindFriendApp extends StatelessWidget {
       routes: {
         '/': (context) => const LoginPage(),
         '/register': (context) => const RegisterPage(),
+        '/admin': (context) => const AdminLoginPage(),
+        '/admin-dashboard': (context) => const AdminDashboardPage(),
       },
       debugShowCheckedModeBanner: false,
     );

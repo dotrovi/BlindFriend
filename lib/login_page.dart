@@ -758,6 +758,19 @@ class _LoginPageState extends State<LoginPage> {
                     const SizedBox(height: 20),
                   ],
                 ),
+                const SizedBox(height: 20),
+
+                // Admin portal link
+                Center(
+                  child: TextButton(
+                    onPressed: () => Navigator.pushNamed(context, '/admin'),
+                    child: const Text(
+                      'Admin Portal',
+                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                    ),
+                  ),
+                ),
+              ],
               ),
             ),
           ],
