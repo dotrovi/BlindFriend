@@ -11,7 +11,7 @@ class AdminService {
   Stream<QuerySnapshot> getPendingVolunteers() {
     return _firestore
         .collection('volunteers')
-        .where('isVerified', isEqualTo: false)
+        .where('status', isEqualTo: 'pending')
         .snapshots();
   }
 
@@ -41,13 +41,12 @@ class AdminService {
       // 1. Update volunteer status
       batch.update(_firestore.collection('volunteers').doc(uid), {
         'status': 'approved',
-        'isVerified': true,
         'reviewedAt': FieldValue.serverTimestamp(),
       });
 
       // 2. Update user document
       batch.update(_firestore.collection('users').doc(uid), {
-        'isVerified': true,
+        'status': 'approved',
       });
 
       // 3. In-app notification
@@ -97,7 +96,6 @@ class AdminService {
       // 1. Update volunteer status
       batch.update(_firestore.collection('volunteers').doc(uid), {
         'status': 'rejected',
-        'isVerified': false,
         'rejectionReason': reason,
         'reviewedAt': FieldValue.serverTimestamp(),
       });
@@ -125,11 +123,10 @@ class AdminService {
           'createdAt': FieldValue.serverTimestamp(),
         },
       );
-
       await batch.commit();
-    } catch (e) {
-      print('Reject volunteer error: $e');
-      rethrow;
+      } catch (e) {
+        print('Reject volunteer error: $e');
+        rethrow;
+      }
     }
   }
-}

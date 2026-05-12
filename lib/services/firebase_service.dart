@@ -116,7 +116,7 @@ class FirebaseService {
         'language': language,
         'specialties': specialties,
         'availability': availability,
-        'isVerified': false,
+        'status': 'pending',
         'submittedAt': FieldValue.serverTimestamp(),
       });
       return true;
