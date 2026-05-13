@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_blindfriend/services/firebase_service.dart';
+import 'package:flutter_blindfriend/utils/ic_validator.dart';
 
 class VolunteerDetailsPage extends StatefulWidget {
   final String name;
@@ -61,10 +62,11 @@ class _VolunteerDetailsPageState extends State<VolunteerDetailsPage> {
 
   void _submit() async {
     // Validation checks
-    if (_idCardController.text.isEmpty) {
-      _speak('Please enter your ID card number');
+    final icResult = validateMalaysianIc(_idCardController.text);
+    if (!icResult.isValid) {
+      _speak('Please enter your valid ID card number');
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter your ID card number')),
+        const SnackBar(content: Text('Please enter your valid ID card number')),
       );
       return;
     }
@@ -112,7 +114,7 @@ class _VolunteerDetailsPageState extends State<VolunteerDetailsPage> {
     // ✅ SAVE TO FIRESTORE
     bool saved = await _firebaseService.saveVolunteerDetails(
       uid: widget.uid,
-      idCardNumber: _idCardController.text,
+      idCardNumber: _idCardController.text.trim(),
       phoneNumber: _phoneController.text,
       language: _selectedLanguage!,
       specialties: _selectedSpecialties,
