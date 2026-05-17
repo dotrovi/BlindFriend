@@ -21,62 +21,134 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Volunteers Management',
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.w600),
+    return Container(
+      color: const Color(0xFFF8F9FA),
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header with gradient
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.amber.shade700, Colors.amber.shade500],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.amber.withOpacity(0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'View and manage volunteer applications',
-                  style: TextStyle(fontSize: 15, color: Colors.grey.shade600),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.volunteer_activism, color: Colors.white, size: 28),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Volunteers Management',
+                            style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: Colors.white),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'View and manage volunteer applications',
+                            style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.8)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 24),
+              ),
+              const SizedBox(height: 32),
 
-                // Search bar
-                TextField(
+              // Search bar with enhanced styling
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade200),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.02),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+                ),
+                child: TextField(
                   onChanged: (value) =>
                       setState(() => _searchQuery = value.toLowerCase()),
                   decoration: InputDecoration(
                     hintText: 'Search volunteers by UID or phone number...',
-                    prefixIcon: const Icon(Icons.search),
+                    prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.close),
+                            onPressed: () => setState(() => _searchQuery = ''),
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: Colors.grey.shade50,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(10),
                       borderSide: BorderSide(color: Colors.grey.shade300),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
                     ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Colors.amber, width: 2),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   ),
                 ),
-                const SizedBox(height: 24),
+              ),
+              const SizedBox(height: 24),
 
-                /// FILTERS
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          return Wrap(
-                            spacing: 12,
-                            runSpacing: 12,
-                            children: [
+              /// FILTERS
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade200),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.02),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+                ),
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        return Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          children: [
                               // Language filter
                               SizedBox(
                                 width: (constraints.maxWidth - 48) / 4,
@@ -84,14 +156,26 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                                   value: _selectedLanguage,
                                   decoration: InputDecoration(
                                     labelText: 'Language',
+                                    labelStyle: const TextStyle(color: Colors.amber),
                                     border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide(color: Colors.grey.shade300),
                                     ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide(color: Colors.grey.shade300),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: const BorderSide(color: Colors.amber, width: 2),
+                                    ),
+                                    filled: true,
+                                    fillColor: Colors.grey.shade50,
+                                    isDense: true,
                                     contentPadding: const EdgeInsets.symmetric(
                                       horizontal: 12,
-                                      vertical: 8,
+                                      vertical: 12,
                                     ),
-                                    isDense: true,
                                   ),
                                   items: const [
                                     DropdownMenuItem(
@@ -138,13 +222,21 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                                   value: _selectedSpecialty,
                                   decoration: InputDecoration(
                                     labelText: 'Specialty',
+                                    labelStyle: const TextStyle(color: Colors.amber),
                                     border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide(color: Colors.grey.shade300),
                                     ),
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 8,
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide(color: Colors.grey.shade300),
                                     ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: const BorderSide(color: Colors.amber, width: 2),
+                                    ),
+                                    filled: true,
+                                    fillColor: Colors.grey.shade50,
                                     isDense: true,
                                   ),
                                   items: const [
@@ -196,13 +288,21 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                                   value: _selectedAvailability,
                                   decoration: InputDecoration(
                                     labelText: 'Availability',
+                                    labelStyle: const TextStyle(color: Colors.amber),
                                     border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide(color: Colors.grey.shade300),
                                     ),
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 8,
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide(color: Colors.grey.shade300),
                                     ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: const BorderSide(color: Colors.amber, width: 2),
+                                    ),
+                                    filled: true,
+                                    fillColor: Colors.grey.shade50,
                                     isDense: true,
                                   ),
                                   items: const [
@@ -242,13 +342,21 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                                   value: _filterStatus,
                                   decoration: InputDecoration(
                                     labelText: 'Status',
+                                    labelStyle: const TextStyle(color: Colors.amber),
                                     border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide(color: Colors.grey.shade300),
                                     ),
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 8,
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide(color: Colors.grey.shade300),
                                     ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: const BorderSide(color: Colors.amber, width: 2),
+                                    ),
+                                    filled: true,
+                                    fillColor: Colors.grey.shade50,
                                     isDense: true,
                                   ),
                                   items: const [
@@ -512,6 +620,13 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: Colors.grey.shade200),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.02),
+                            blurRadius: 4,
+                            offset: const Offset(0, 1),
+                          ),
+                        ],
                       ),
                       child: Column(
                         children: [
@@ -519,7 +634,9 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                           Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: Colors.grey.shade50,
+                              gradient: LinearGradient(
+                                colors: [Colors.grey.shade50, Colors.grey.shade100],
+                              ),
                               borderRadius: const BorderRadius.vertical(
                                 top: Radius.circular(12),
                               ),
@@ -715,8 +832,8 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
             ),
           ),
         ),
-      ],
     );
+  }
   }
 
   Widget _headerCell(String text) {
@@ -866,8 +983,8 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
+        
+        border: Border.all(color: const Color.fromARGB(255, 253, 231, 255)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -875,9 +992,9 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.grey.shade100,
+              color: const Color.fromARGB(255, 254, 244, 255),
               borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(8),
+                
               ),
               border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
             ),
@@ -925,4 +1042,4 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
       ),
     );
   }
-}
+
