@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'pending_verifications_page.dart';
+import 'admin_users_page.dart';
+import 'admin_volunteers_page.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -141,8 +143,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       case 'verification':
         return const PendingVerificationsPage();
       case 'volunteers':
+        return const AdminVolunteersPage();
       case 'users':
-        return _buildComingSoon(_activePage == 'volunteers' ? 'Volunteers' : 'Users');
+        return const AdminUsersPage();
       default:
         return _buildOverviewPage();
     }
@@ -271,23 +274,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       fontSize: 26, fontWeight: FontWeight.w600)),
             ],
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildComingSoon(String title) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.construction, size: 48, color: Colors.grey.shade400),
-          const SizedBox(height: 16),
-          Text(title,
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          Text('Coming in a future sprint',
-              style: TextStyle(color: Colors.grey.shade500)),
         ],
       ),
     );
