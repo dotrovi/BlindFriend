@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_tts/flutter_tts.dart';
@@ -6,6 +7,7 @@ import 'package:speech_to_text/speech_to_text.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'login_page.dart';
 import 'user_profile_page.dart';
+//import 'barcode_scanner_page.dart'; // You'll create this
 
 class BlindHomePage extends StatefulWidget {
   final String userName;
@@ -16,26 +18,20 @@ class BlindHomePage extends StatefulWidget {
 }
 
 class _BlindHomePageState extends State<BlindHomePage> {
+  int _selectedIndex = 0; // 0=Home, 1=Shopping, 2=Obstacles, 3=Path, 4=Help
+  
   final FlutterTts _tts = FlutterTts();
   final SpeechToText _stt = SpeechToText();
-
-  bool _shouldListen = true;
-  bool _isSpeaking = false;
+  
   bool _isListening = false;
+  bool _isSpeaking = false;
   bool _sttAvailable = false;
+  bool _shouldListen = true;
   int _speakGeneration = 0;
-
-  static const String _commandGuide =
-      'Press the button in the middle of the screen to speak. '
-      'You can say: '
-      'Shopping to open shopping helper. '
-      'Obstacle to start obstacle detection. '
-      'Path to activate path detection. '
-      'Volunteers to find help nearby. '
-      'Emergency to call emergency services. '
-      'Profile to open your profile. '
-      'Or Logout to sign out. '
-      'Say Repeat anytime to hear these commands again.';
+  DateTime? _pressStartTime;
+  
+  // Track if voice is currently processing to prevent duplicates
+  bool _isProcessingVoice = false;
 
   @override
   void initState() {
@@ -65,58 +61,95 @@ class _BlindHomePageState extends State<BlindHomePage> {
           setState(() => _isListening = false);
         }
       },
-      onError: (_) {
-        if (!mounted) return;
-        setState(() => _isListening = false);
+      onError: (error) {
+        debugPrint('STT error: ${error.errorMsg}');
+        if (mounted) setState(() => _isListening = false);
       },
     );
 
     if (mounted) {
       await _speak(
         'Welcome to BlindFriend, ${widget.userName}. '
-        '$_commandGuide',
+        'Tap the voice button and say: Shopping, Obstacle, Path, Volunteers, '
+        'Profile, or Logout. For emergency, press and hold the voice button.'
       );
     }
   }
 
-  Future<void> _speak(String text, {bool thenListen = false}) async {
-    _isSpeaking = true;
-    if (mounted) setState(() => _isListening = false);
+  Future<void> _speak(String text) async {
     final myGen = ++_speakGeneration;
-    _tts.setCompletionHandler(() {});
-    _tts.setErrorHandler((_) {});
     if (_stt.isListening) await _stt.cancel();
     await _tts.stop();
-    // 50 ms drain: flush any residual callbacks into the no-op handlers
     await Future.delayed(const Duration(milliseconds: 50));
-    if (myGen != _speakGeneration) {
-      _isSpeaking = false;
-      if (mounted) setState(() {});
-      return;
-    }
+    if (myGen != _speakGeneration) return;
+    
+    setState(() => _isSpeaking = true);
     final completer = Completer<void>();
+    
     _tts.setCompletionHandler(() {
       if (!completer.isCompleted) completer.complete();
     });
     _tts.setErrorHandler((msg) {
-      debugPrint('TTS error: $msg');
       if (!completer.isCompleted) completer.complete();
     });
+    
     await _tts.speak(text);
     await completer.future.timeout(const Duration(seconds: 90), onTimeout: () {});
-    _isSpeaking = false;
-    if (mounted) setState(() {});
-    if (myGen != _speakGeneration) return;
-    if (thenListen && mounted && _shouldListen) _startListening();
+    
+    if (mounted) setState(() => _isSpeaking = false);
   }
 
-  Future<void> _pressToSpeak() async {
-    if (!_sttAvailable || _isSpeaking || _isListening) return;
-    _startListening();
+  void _onTapDown(TapDownDetails details) {
+    _pressStartTime = DateTime.now();
+  }
+
+  void _onTapUp(TapUpDetails details) {
+    final pressDuration = DateTime.now().difference(_pressStartTime ?? DateTime.now());
+    if (pressDuration >= const Duration(seconds: 3)) {
+      // Long press - Emergency
+      _handleEmergency();
+    } else {
+      // Short tap - Voice command
+      if (!_isProcessingVoice && _sttAvailable && !_isSpeaking) {
+        _startListening();
+      }
+    }
+    _pressStartTime = null;
+  }
+
+  Future<void> _handleEmergency() async {
+    if (_isProcessingVoice) return;
+    _isProcessingVoice = true;
+    
+    await _speak('Emergency! Calling emergency services. Please stay calm. Help is on the way.');
+    
+    // In production, you would integrate with device's emergency call feature
+    if (mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Emergency'),
+          content: const Text('Emergency services have been notified. Stay where you are.'),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _isProcessingVoice = false;
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
+    _isProcessingVoice = false;
   }
 
   Future<void> _startListening() async {
     if (!_sttAvailable || !mounted || !_shouldListen || _stt.isListening) return;
+    
     setState(() => _isListening = true);
     await _stt.listen(
       onResult: (result) {
@@ -125,48 +158,48 @@ class _BlindHomePageState extends State<BlindHomePage> {
           _processCommand(result.recognizedWords.toLowerCase());
         }
       },
-      listenFor: const Duration(seconds: 15),
-      pauseFor: const Duration(seconds: 3),
+      listenFor: const Duration(seconds: 10),
+      pauseFor: const Duration(seconds: 2),
       localeId: 'en_US',
     );
   }
 
   Future<void> _processCommand(String command) async {
-    if (command.contains('repeat') ||
-        command.contains('forgot') ||
-        command.contains('again') ||
-        command.contains('command')) {
-      await _speak(_commandGuide);
-    } else if (command.contains('shopping')) {
-      await _speak('Shopping Helper. Scan barcodes and get audio feedback.');
-    } else if (command.contains('obstacle')) {
-      await _speak('Obstacle Detection. Real-time voice alerts for obstacles.');
-    } else if (command.contains('path')) {
-      await _speak('Path Detection. Tactile path guidance recognition.');
-    } else if (command.contains('volunteer') || command.contains('help')) {
-      await _speak('Finding Volunteers. Searching for verified volunteers nearby.');
-    } else if (command.contains('home')) {
-      await _speak('You are already on the home page.');
-    } else if (command.contains('emergency')) {
-      await _speak('Calling Emergency Services now. Stay calm, help is on the way.');
-    } else if (command.contains('profile')) {
+    if (_isProcessingVoice) return;
+    _isProcessingVoice = true;
+    
+    if (command.contains('shopping') || command.contains('scan')) {
+      await _speak('Opening shopping helper. Barcode scanner activated.');
+      _setSelectedIndex(1);
+    } 
+    else if (command.contains('obstacle')) {
+      await _speak('Obstacle detection. Real-time voice alerts for obstacles.');
+      _setSelectedIndex(2);
+    } 
+    else if (command.contains('path') || command.contains('navigation')) {
+      await _speak('Path detection. Tactile path guidance recognition.');
+      _setSelectedIndex(3);
+    } 
+    else if (command.contains('volunteer') || command.contains('help')) {
+      await _speak('Finding volunteers. Searching for verified volunteers nearby.');
+      _setSelectedIndex(4);
+    } 
+    else if (command.contains('home') || command.contains('dashboard')) {
+      await _speak('Returning to home page.');
+      _setSelectedIndex(0);
+    } 
+    else if (command.contains('profile')) {
       _shouldListen = false;
       await _speak('Opening your profile.');
       if (!mounted) return;
-      Navigator.push(
+      await Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const UserProfilePage()),
-      ).then((_) {
-        if (mounted) {
-          _shouldListen = true;
-          _speak(
-            'Back on the home page. '
-            'Press the button in the middle of the screen to speak. '
-            'Say Repeat to hear available commands.',
-          );
-        }
-      });
-    } else if (command.contains('logout') || command.contains('sign out')) {
+      );
+      _shouldListen = true;
+      await _speak('Back on home page. Tap the voice button to speak.');
+    } 
+    else if (command.contains('logout') || command.contains('sign out')) {
       _shouldListen = false;
       await _speak('Logging out. Goodbye, ${widget.userName}.');
       await FirebaseAuth.instance.signOut();
@@ -177,16 +210,45 @@ class _BlindHomePageState extends State<BlindHomePage> {
           (route) => false,
         );
       }
-    } else if (command.isEmpty) {
+      return;
+    } 
+    else if (command.contains('repeat') || command.contains('commands')) {
       await _speak(
-        'No command detected. Press the button and try again.',
-      );
-    } else {
-      await _speak(
-        'Command not recognized. '
-        'Press the button and say Repeat to hear available commands.',
+        'You can say: Shopping to scan barcodes. '
+        'Obstacle for obstacle detection. '
+        'Path for path detection. '
+        'Volunteers to find help nearby. '
+        'Profile to view your account. '
+        'Or Logout to sign out.'
       );
     }
+    else {
+      await _speak('Command not recognized. Say Repeat to hear available commands.');
+    }
+    
+    _isProcessingVoice = false;
+  }
+
+  void _setSelectedIndex(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
+
+  void _onNavBarTap(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+    // Speak the page name
+    String pageName = '';
+    switch (index) {
+      case 0: pageName = 'Home'; break;
+      case 1: pageName = 'Shopping Helper'; break;
+      case 2: pageName = 'Obstacle Detection'; break;
+      case 3: pageName = 'Path Detection'; break;
+      case 4: pageName = 'Find Volunteers'; break;
+    }
+    _speak('Opened $pageName page');
   }
 
   @override
@@ -199,175 +261,649 @@ class _BlindHomePageState extends State<BlindHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: _pressToSpeak,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: _isListening
-                  ? [const Color(0xFF27AE60), const Color(0xFF2ECC71)]
-                  : _isSpeaking
-                      ? [const Color(0xFF6C3483), const Color(0xFF9B59B6)]
-                      : [const Color(0xFF4A90E2), const Color(0xFF9B59B6)],
-            ),
-          ),
-          child: SafeArea(
-            child: Column(
-              children: [
-                // ── Top bar ──────────────────────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 12),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      backgroundColor: const Color(0xFFF0F2F5),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Top Header
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'BlindFriend',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                          Text(
-                            'Welcome, ${widget.userName}',
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: Colors.white70,
-                            ),
-                          ),
-                        ],
+                      const Text(
+                        'BlindFriend',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue,
+                        ),
                       ),
-                      Row(
-                        children: [
-                          Semantics(
-                            label: 'Open profile page',
-                            button: true,
-                            child: IconButton(
-                              onPressed: () {
-                                _shouldListen = false;
-                                _speak('Opening your profile.');
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const UserProfilePage(),
-                                  ),
-                                ).then((_) {
-                                  if (mounted) {
-                                    _shouldListen = true;
-                                    _speak(
-                                      'Back on the home page. '
-                                      'Press the button in the middle of the screen to speak.',
-                                    );
-                                  }
-                                });
-                              },
-                              icon: const Icon(Icons.person,
-                                  color: Colors.white, size: 26),
-                            ),
-                          ),
-                          Semantics(
-                            label: 'Logout',
-                            button: true,
-                            child: OutlinedButton.icon(
-                              onPressed: () async {
-                                _shouldListen = false;
-                                await _speak(
-                                  'Logging out. Goodbye, ${widget.userName}.',
-                                );
-                                await FirebaseAuth.instance.signOut();
-                                if (context.mounted) {
-                                  Navigator.pushAndRemoveUntil(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => const LoginPage(),
-                                    ),
-                                    (route) => false,
-                                  );
-                                }
-                              },
-                              icon: const Icon(Icons.logout,
-                                  size: 16, color: Colors.white),
-                              label: const Text('Logout',
-                                  style: TextStyle(color: Colors.white)),
-                              style: OutlinedButton.styleFrom(
-                                side:
-                                    const BorderSide(color: Colors.white54),
-                              ),
-                            ),
-                          ),
-                        ],
+                      Text(
+                        'Welcome, ${widget.userName}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey.shade600,
+                        ),
                       ),
                     ],
                   ),
-                ),
+                  Row(
+                    children: [
+                      IconButton(
+                        onPressed: () async {
+                          _shouldListen = false;
+                          await _speak('Opening your profile.');
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const UserProfilePage(),
+                            ),
+                          );
+                          _shouldListen = true;
+                        },
+                        icon: const Icon(Icons.person, size: 28),
+                        color: Colors.blue,
+                      ),
+                      IconButton(
+                        onPressed: () async {
+                          _shouldListen = false;
+                          await _speak('Logging out. Goodbye, ${widget.userName}.');
+                          await FirebaseAuth.instance.signOut();
+                          if (mounted) {
+                            Navigator.pushAndRemoveUntil(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const LoginPage(),
+                              ),
+                              (route) => false,
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.logout, size: 28),
+                        color: Colors.red,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            
+            // Main Content Area
+            Expanded(
+              child: IndexedStack(
+                index: _selectedIndex,
+                children: [
+                  _buildHomePage(),
+                  _buildShoppingHelper(),
+                  _buildObstacleDetection(),
+                  _buildPathDetection(),
+                  _buildFindVolunteers(),
+                ],
+              ),
+            ),
+            
+            // Bottom Navigation Bar
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: BottomNavigationBar(
+                currentIndex: _selectedIndex,
+                onTap: _onNavBarTap,
+                type: BottomNavigationBarType.fixed,
+                backgroundColor: Colors.white,
+                selectedItemColor: Colors.blue,
+                unselectedItemColor: Colors.grey,
+                selectedFontSize: 12,
+                unselectedFontSize: 12,
+                items: const [
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.home),
+                    label: 'Home',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.qr_code_scanner),
+                    label: 'Shopping',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.warning),
+                    label: 'Obstacles',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.map),
+                    label: 'Path',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.people),
+                    label: 'Help',
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-                // ── Centre: mic icon + status ─────────────────────────
-                Expanded(
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 250),
-                          child: Icon(
-                            _isListening ? Icons.mic : Icons.mic_none,
-                            key: ValueKey(_isListening),
-                            color: Colors.white,
-                            size: 100,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        Text(
-                          _isSpeaking
-                              ? 'Speaking...'
-                              : _isListening
-                                  ? 'Listening...'
-                                  : 'Tap to Speak',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          _isSpeaking
-                              ? 'Please wait...'
-                              : _isListening
-                                  ? 'Say your command now'
-                                  : 'Press anywhere on the screen',
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 17,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
+  // ===================== HOME PAGE =====================
+  Widget _buildHomePage() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          // Voice Command Button
+          GestureDetector(
+            onTapDown: _onTapDown,
+            onTapUp: _onTapUp,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: _isListening
+                      ? [Colors.green, Colors.lightGreen]
+                      : [Colors.blue, Colors.purple],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.blue.withOpacity(0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 250),
+                    child: Icon(
+                      _isListening ? Icons.mic : Icons.mic_none,
+                      key: ValueKey(_isListening),
+                      color: Colors.white,
+                      size: 64,
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _isListening ? 'Listening...' : 'Tap to Speak',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Press and hold for 3 seconds for Emergency',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.8),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          
+          // Feature Cards
+          _buildFeatureCard(
+            icon: Icons.qr_code_scanner,
+            title: 'Shopping Helper',
+            description: 'Scan barcodes and get audio feedback',
+            color: Colors.purple,
+            index: 1,
+          ),
+          _buildFeatureCard(
+            icon: Icons.warning_amber,
+            title: 'Obstacle Detection',
+            description: 'Real-time voice alerts for obstacles',
+            color: Colors.orange,
+            index: 2,
+          ),
+          _buildFeatureCard(
+            icon: Icons.map_outlined,
+            title: 'Path Detection',
+            description: 'Tactile path guidance recognition',
+            color: Colors.teal,
+            index: 3,
+          ),
+          _buildFeatureCard(
+            icon: Icons.people_alt,
+            title: 'Find Volunteers',
+            description: 'Get help from verified volunteers nearby',
+            color: Colors.green,
+            index: 4,
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // Emergency Section
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.red.shade200),
+            ),
+            child: Column(
+              children: [
+                const Icon(Icons.emergency, size: 32, color: Colors.red),
+                const SizedBox(height: 8),
+                const Text(
+                  'Emergency Contact',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: Colors.red,
+                  ),
                 ),
-
-                // ── Bottom hint ──────────────────────────────────────
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 40),
-                  child: Text(
-                    'Say "Repeat" to hear available commands',
-                    style: TextStyle(color: Colors.white60, fontSize: 13),
-                    textAlign: TextAlign.center,
+                const SizedBox(height: 4),
+                Text(
+                  'Press and hold the voice command button for 3 seconds',
+                  style: TextStyle(fontSize: 12, color: Colors.red.shade700),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton.icon(
+                  onPressed: _handleEmergency,
+                  icon: const Icon(Icons.call),
+                  label: const Text('Call Emergency Services'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
               ],
             ),
           ),
+          
+          const SizedBox(height: 16),
+          
+          // Voice Commands List
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Voice Commands',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _buildCommandTile('Shopping', 'Open shopping helper'),
+                _buildCommandTile('Obstacle', 'Start obstacle detection'),
+                _buildCommandTile('Path', 'Activate path detection'),
+                _buildCommandTile('Volunteers or Help', 'Find volunteers nearby'),
+                _buildCommandTile('Profile', 'Open your profile'),
+                _buildCommandTile('Logout', 'Sign out'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 80), // Bottom padding for nav bar
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeatureCard({
+    required IconData icon,
+    required String title,
+    required String description,
+    required Color color,
+    required int index,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ListTile(
+        leading: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, color: color, size: 28),
+        ),
+        title: Text(
+          title,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        subtitle: Text(description, style: TextStyle(color: Colors.grey.shade600)),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+        onTap: () => _setSelectedIndex(index),
+      ),
+    );
+  }
+
+  Widget _buildCommandTile(String command, String description) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade100,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              command,
+              style: TextStyle(
+                color: Colors.blue.shade700,
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              description,
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ===================== SHOPPING HELPER PAGE =====================
+  Widget _buildShoppingHelper() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.purple.withOpacity(0.2),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: const Icon(Icons.qr_code_scanner, size: 80, color: Colors.purple),
+            ),
+            const SizedBox(height: 32),
+            const Text(
+              'Shopping Helper',
+              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Scan product barcodes to get audio information about products.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16, color: Colors.grey),
+            ),
+            const SizedBox(height: 32),
+            ElevatedButton.icon(
+              onPressed: () {
+                // Navigate to barcode scanner
+                _speak('Opening barcode scanner. Point camera at product barcode.');
+                // Navigator.push(
+                //   context,
+                //   MaterialPageRoute(builder: (_) => const BarcodeScannerPage()),
+                // );
+              },
+              icon: const Icon(Icons.qr_code_scanner),
+              label: const Text('Start Scanning'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.purple,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                textStyle: const TextStyle(fontSize: 18),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ===================== OBSTACLE DETECTION PAGE =====================
+  Widget _buildObstacleDetection() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.orange.withOpacity(0.2),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: const Icon(Icons.warning_amber, size: 80, color: Colors.orange),
+            ),
+            const SizedBox(height: 32),
+            const Text(
+              'Obstacle Detection',
+              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Real-time voice alerts for obstacles in your path.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16, color: Colors.grey),
+            ),
+            const SizedBox(height: 32),
+            ElevatedButton.icon(
+              onPressed: () {
+                _speak('Starting obstacle detection. Camera is now active.');
+              },
+              icon: const Icon(Icons.play_arrow),
+              label: const Text('Start Detection'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                textStyle: const TextStyle(fontSize: 18),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ===================== PATH DETECTION PAGE =====================
+  Widget _buildPathDetection() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.teal.withOpacity(0.2),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: const Icon(Icons.map_outlined, size: 80, color: Colors.teal),
+            ),
+            const SizedBox(height: 32),
+            const Text(
+              'Path Detection',
+              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Tactile path guidance recognition for safe navigation.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16, color: Colors.grey),
+            ),
+            const SizedBox(height: 32),
+            ElevatedButton.icon(
+              onPressed: () {
+                _speak('Starting path detection. Follow the voice guidance.');
+              },
+              icon: const Icon(Icons.play_arrow),
+              label: const Text('Start Navigation'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.teal,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                textStyle: const TextStyle(fontSize: 18),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ===================== FIND VOLUNTEERS PAGE =====================
+  Widget _buildFindVolunteers() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.green.withOpacity(0.2),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: const Icon(Icons.people_alt, size: 80, color: Colors.green),
+            ),
+            const SizedBox(height: 32),
+            const Text(
+              'Find Volunteers',
+              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Get help from verified volunteers nearby.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16, color: Colors.grey),
+            ),
+            const SizedBox(height: 32),
+            ElevatedButton.icon(
+              onPressed: () {
+                _speak('Searching for volunteers nearby. Please wait.');
+              },
+              icon: const Icon(Icons.search),
+              label: const Text('Find Nearby Volunteers'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                textStyle: const TextStyle(fontSize: 18),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.green),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'When you request help, nearby volunteers will be notified and can respond to your request.',
+                      style: TextStyle(fontSize: 14),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
