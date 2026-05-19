@@ -2,12 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_blindfriend/shopping_helper_page.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'login_page.dart';
 import 'user_profile_page.dart';
-//import 'barcode_scanner_page.dart'; // You'll create this
 
 class BlindHomePage extends StatefulWidget {
   final String userName;
@@ -19,17 +19,17 @@ class BlindHomePage extends StatefulWidget {
 
 class _BlindHomePageState extends State<BlindHomePage> {
   int _selectedIndex = 0; // 0=Home, 1=Shopping, 2=Obstacles, 3=Path, 4=Help
-  
+
   final FlutterTts _tts = FlutterTts();
   final SpeechToText _stt = SpeechToText();
-  
+
   bool _isListening = false;
   bool _isSpeaking = false;
   bool _sttAvailable = false;
   bool _shouldListen = true;
   int _speakGeneration = 0;
   DateTime? _pressStartTime;
-  
+
   // Track if voice is currently processing to prevent duplicates
   bool _isProcessingVoice = false;
 
@@ -52,26 +52,28 @@ class _BlindHomePageState extends State<BlindHomePage> {
     final micStatus = await Permission.microphone.request();
     if (!mounted) return;
 
-    _sttAvailable = micStatus.isGranted && await _stt.initialize(
-      onStatus: (status) {
-        if (!mounted) return;
-        if (status == 'listening') {
-          setState(() => _isListening = true);
-        } else if (status == 'done' || status == 'notListening') {
-          setState(() => _isListening = false);
-        }
-      },
-      onError: (error) {
-        debugPrint('STT error: ${error.errorMsg}');
-        if (mounted) setState(() => _isListening = false);
-      },
-    );
+    _sttAvailable =
+        micStatus.isGranted &&
+        await _stt.initialize(
+          onStatus: (status) {
+            if (!mounted) return;
+            if (status == 'listening') {
+              setState(() => _isListening = true);
+            } else if (status == 'done' || status == 'notListening') {
+              setState(() => _isListening = false);
+            }
+          },
+          onError: (error) {
+            debugPrint('STT error: ${error.errorMsg}');
+            if (mounted) setState(() => _isListening = false);
+          },
+        );
 
     if (mounted) {
       await _speak(
         'Welcome to BlindFriend, ${widget.userName}. '
         'Tap the voice button and say: Shopping, Obstacle, Path, Volunteers, '
-        'Profile, or Logout. For emergency, press and hold the voice button.'
+        'Profile, or Logout. For emergency, press and hold the voice button.',
       );
     }
   }
@@ -82,20 +84,23 @@ class _BlindHomePageState extends State<BlindHomePage> {
     await _tts.stop();
     await Future.delayed(const Duration(milliseconds: 50));
     if (myGen != _speakGeneration) return;
-    
+
     setState(() => _isSpeaking = true);
     final completer = Completer<void>();
-    
+
     _tts.setCompletionHandler(() {
       if (!completer.isCompleted) completer.complete();
     });
     _tts.setErrorHandler((msg) {
       if (!completer.isCompleted) completer.complete();
     });
-    
+
     await _tts.speak(text);
-    await completer.future.timeout(const Duration(seconds: 90), onTimeout: () {});
-    
+    await completer.future.timeout(
+      const Duration(seconds: 90),
+      onTimeout: () {},
+    );
+
     if (mounted) setState(() => _isSpeaking = false);
   }
 
@@ -104,7 +109,9 @@ class _BlindHomePageState extends State<BlindHomePage> {
   }
 
   void _onTapUp(TapUpDetails details) {
-    final pressDuration = DateTime.now().difference(_pressStartTime ?? DateTime.now());
+    final pressDuration = DateTime.now().difference(
+      _pressStartTime ?? DateTime.now(),
+    );
     if (pressDuration >= const Duration(seconds: 3)) {
       // Long press - Emergency
       _handleEmergency();
@@ -120,9 +127,11 @@ class _BlindHomePageState extends State<BlindHomePage> {
   Future<void> _handleEmergency() async {
     if (_isProcessingVoice) return;
     _isProcessingVoice = true;
-    
-    await _speak('Emergency! Calling emergency services. Please stay calm. Help is on the way.');
-    
+
+    await _speak(
+      'Emergency! Calling emergency services. Please stay calm. Help is on the way.',
+    );
+
     // In production, you would integrate with device's emergency call feature
     if (mounted) {
       showDialog(
@@ -130,8 +139,12 @@ class _BlindHomePageState extends State<BlindHomePage> {
         barrierDismissible: false,
         builder: (ctx) => AlertDialog(
           title: const Text('Emergency'),
-          content: const Text('Emergency services have been notified. Stay where you are.'),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          content: const Text(
+            'Emergency services have been notified. Stay where you are.',
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           actions: [
             TextButton(
               onPressed: () {
@@ -148,8 +161,9 @@ class _BlindHomePageState extends State<BlindHomePage> {
   }
 
   Future<void> _startListening() async {
-    if (!_sttAvailable || !mounted || !_shouldListen || _stt.isListening) return;
-    
+    if (!_sttAvailable || !mounted || !_shouldListen || _stt.isListening)
+      return;
+
     setState(() => _isListening = true);
     await _stt.listen(
       onResult: (result) {
@@ -167,28 +181,25 @@ class _BlindHomePageState extends State<BlindHomePage> {
   Future<void> _processCommand(String command) async {
     if (_isProcessingVoice) return;
     _isProcessingVoice = true;
-    
+
     if (command.contains('shopping') || command.contains('scan')) {
       await _speak('Opening shopping helper. Barcode scanner activated.');
       _setSelectedIndex(1);
-    } 
-    else if (command.contains('obstacle')) {
+    } else if (command.contains('obstacle')) {
       await _speak('Obstacle detection. Real-time voice alerts for obstacles.');
       _setSelectedIndex(2);
-    } 
-    else if (command.contains('path') || command.contains('navigation')) {
+    } else if (command.contains('path') || command.contains('navigation')) {
       await _speak('Path detection. Tactile path guidance recognition.');
       _setSelectedIndex(3);
-    } 
-    else if (command.contains('volunteer') || command.contains('help')) {
-      await _speak('Finding volunteers. Searching for verified volunteers nearby.');
+    } else if (command.contains('volunteer') || command.contains('help')) {
+      await _speak(
+        'Finding volunteers. Searching for verified volunteers nearby.',
+      );
       _setSelectedIndex(4);
-    } 
-    else if (command.contains('home') || command.contains('dashboard')) {
+    } else if (command.contains('home') || command.contains('dashboard')) {
       await _speak('Returning to home page.');
       _setSelectedIndex(0);
-    } 
-    else if (command.contains('profile')) {
+    } else if (command.contains('profile')) {
       _shouldListen = false;
       await _speak('Opening your profile.');
       if (!mounted) return;
@@ -198,8 +209,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
       );
       _shouldListen = true;
       await _speak('Back on home page. Tap the voice button to speak.');
-    } 
-    else if (command.contains('logout') || command.contains('sign out')) {
+    } else if (command.contains('logout') || command.contains('sign out')) {
       _shouldListen = false;
       await _speak('Logging out. Goodbye, ${widget.userName}.');
       await FirebaseAuth.instance.signOut();
@@ -211,21 +221,21 @@ class _BlindHomePageState extends State<BlindHomePage> {
         );
       }
       return;
-    } 
-    else if (command.contains('repeat') || command.contains('commands')) {
+    } else if (command.contains('repeat') || command.contains('commands')) {
       await _speak(
         'You can say: Shopping to scan barcodes. '
         'Obstacle for obstacle detection. '
         'Path for path detection. '
         'Volunteers to find help nearby. '
         'Profile to view your account. '
-        'Or Logout to sign out.'
+        'Or Logout to sign out.',
+      );
+    } else {
+      await _speak(
+        'Command not recognized. Say Repeat to hear available commands.',
       );
     }
-    else {
-      await _speak('Command not recognized. Say Repeat to hear available commands.');
-    }
-    
+
     _isProcessingVoice = false;
   }
 
@@ -242,11 +252,21 @@ class _BlindHomePageState extends State<BlindHomePage> {
     // Speak the page name
     String pageName = '';
     switch (index) {
-      case 0: pageName = 'Home'; break;
-      case 1: pageName = 'Shopping Helper'; break;
-      case 2: pageName = 'Obstacle Detection'; break;
-      case 3: pageName = 'Path Detection'; break;
-      case 4: pageName = 'Find Volunteers'; break;
+      case 0:
+        pageName = 'Home';
+        break;
+      case 1:
+        pageName = 'Shopping Helper';
+        break;
+      case 2:
+        pageName = 'Obstacle Detection';
+        break;
+      case 3:
+        pageName = 'Path Detection';
+        break;
+      case 4:
+        pageName = 'Find Volunteers';
+        break;
     }
     _speak('Opened $pageName page');
   }
@@ -320,17 +340,41 @@ class _BlindHomePageState extends State<BlindHomePage> {
                       ),
                       IconButton(
                         onPressed: () async {
-                          _shouldListen = false;
-                          await _speak('Logging out. Goodbye, ${widget.userName}.');
-                          await FirebaseAuth.instance.signOut();
-                          if (mounted) {
-                            Navigator.pushAndRemoveUntil(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const LoginPage(),
-                              ),
-                              (route) => false,
+                          print("🔴 Logout button pressed");
+                          try {
+                            await _tts.stop();
+                            await _tts.speak(
+                              'Logging out. Goodbye, ${widget.userName}.',
                             );
+                            await Future.delayed(
+                              const Duration(milliseconds: 800),
+                            );
+
+                            print("🔴 Signing out from Firebase");
+                            await FirebaseAuth.instance.signOut();
+
+                            print("🔴 Navigating to LoginPage");
+                            // Force navigation to login page
+                            if (mounted) {
+                              Navigator.of(
+                                context,
+                              ).popUntil((route) => route.isFirst);
+                              Navigator.of(context).pushReplacement(
+                                MaterialPageRoute(
+                                  builder: (_) => const LoginPage(),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            print("🔴 Logout error: $e");
+                            // Force navigation even on error
+                            if (mounted) {
+                              Navigator.of(context).pushReplacement(
+                                MaterialPageRoute(
+                                  builder: (_) => const LoginPage(),
+                                ),
+                              );
+                            }
                           }
                         },
                         icon: const Icon(Icons.logout, size: 28),
@@ -341,7 +385,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
                 ],
               ),
             ),
-            
+
             // Main Content Area
             Expanded(
               child: IndexedStack(
@@ -355,7 +399,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
                 ],
               ),
             ),
-            
+
             // Bottom Navigation Bar
             Container(
               decoration: BoxDecoration(
@@ -390,10 +434,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
                     icon: Icon(Icons.warning),
                     label: 'Obstacles',
                   ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.map),
-                    label: 'Path',
-                  ),
+                  BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Path'),
                   BottomNavigationBarItem(
                     icon: Icon(Icons.people),
                     label: 'Help',
@@ -424,7 +465,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
                 gradient: LinearGradient(
                   colors: _isListening
                       ? [Colors.green, Colors.lightGreen]
-                      : [Colors.blue, Colors.purple],
+                      : [Colors.blue, Colors.blue],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -470,7 +511,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
             ),
           ),
           const SizedBox(height: 24),
-          
+
           // Feature Cards
           _buildFeatureCard(
             icon: Icons.qr_code_scanner,
@@ -500,9 +541,9 @@ class _BlindHomePageState extends State<BlindHomePage> {
             color: Colors.green,
             index: 4,
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // Emergency Section
           Container(
             width: double.infinity,
@@ -546,9 +587,9 @@ class _BlindHomePageState extends State<BlindHomePage> {
               ],
             ),
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // Voice Commands List
           Container(
             width: double.infinity,
@@ -562,16 +603,16 @@ class _BlindHomePageState extends State<BlindHomePage> {
               children: [
                 const Text(
                   'Voice Commands',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
                 const SizedBox(height: 12),
                 _buildCommandTile('Shopping', 'Open shopping helper'),
                 _buildCommandTile('Obstacle', 'Start obstacle detection'),
                 _buildCommandTile('Path', 'Activate path detection'),
-                _buildCommandTile('Volunteers or Help', 'Find volunteers nearby'),
+                _buildCommandTile(
+                  'Volunteers or Help',
+                  'Find volunteers nearby',
+                ),
                 _buildCommandTile('Profile', 'Open your profile'),
                 _buildCommandTile('Logout', 'Sign out'),
               ],
@@ -616,7 +657,10 @@ class _BlindHomePageState extends State<BlindHomePage> {
           title,
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
-        subtitle: Text(description, style: TextStyle(color: Colors.grey.shade600)),
+        subtitle: Text(
+          description,
+          style: TextStyle(color: Colors.grey.shade600),
+        ),
         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: () => _setSelectedIndex(index),
       ),
@@ -657,65 +701,9 @@ class _BlindHomePageState extends State<BlindHomePage> {
   }
 
   // ===================== SHOPPING HELPER PAGE =====================
+  // ===================== SHOPPING HELPER PAGE =====================
   Widget _buildShoppingHelper() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.purple.withOpacity(0.2),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: const Icon(Icons.qr_code_scanner, size: 80, color: Colors.purple),
-            ),
-            const SizedBox(height: 32),
-            const Text(
-              'Shopping Helper',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Scan product barcodes to get audio information about products.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, color: Colors.grey),
-            ),
-            const SizedBox(height: 32),
-            ElevatedButton.icon(
-              onPressed: () {
-                // Navigate to barcode scanner
-                _speak('Opening barcode scanner. Point camera at product barcode.');
-                // Navigator.push(
-                //   context,
-                //   MaterialPageRoute(builder: (_) => const BarcodeScannerPage()),
-                // );
-              },
-              icon: const Icon(Icons.qr_code_scanner),
-              label: const Text('Start Scanning'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.purple,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                textStyle: const TextStyle(fontSize: 18),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    return const ShoppingHelperPage();
   }
 
   // ===================== OBSTACLE DETECTION PAGE =====================
@@ -739,7 +727,11 @@ class _BlindHomePageState extends State<BlindHomePage> {
                   ),
                 ],
               ),
-              child: const Icon(Icons.warning_amber, size: 80, color: Colors.orange),
+              child: const Icon(
+                Icons.warning_amber,
+                size: 80,
+                color: Colors.orange,
+              ),
             ),
             const SizedBox(height: 32),
             const Text(
@@ -762,7 +754,10 @@ class _BlindHomePageState extends State<BlindHomePage> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 16,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -796,7 +791,11 @@ class _BlindHomePageState extends State<BlindHomePage> {
                   ),
                 ],
               ),
-              child: const Icon(Icons.map_outlined, size: 80, color: Colors.teal),
+              child: const Icon(
+                Icons.map_outlined,
+                size: 80,
+                color: Colors.teal,
+              ),
             ),
             const SizedBox(height: 32),
             const Text(
@@ -819,7 +818,10 @@ class _BlindHomePageState extends State<BlindHomePage> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.teal,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 16,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -853,7 +855,11 @@ class _BlindHomePageState extends State<BlindHomePage> {
                   ),
                 ],
               ),
-              child: const Icon(Icons.people_alt, size: 80, color: Colors.green),
+              child: const Icon(
+                Icons.people_alt,
+                size: 80,
+                color: Colors.green,
+              ),
             ),
             const SizedBox(height: 32),
             const Text(
@@ -876,7 +882,10 @@ class _BlindHomePageState extends State<BlindHomePage> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 16,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
