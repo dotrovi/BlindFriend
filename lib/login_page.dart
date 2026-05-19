@@ -91,7 +91,9 @@ class _LoginPageState extends State<LoginPage> {
     if (!mounted) return;
 
     if (micStatus.isDenied || micStatus.isPermanentlyDenied) {
-      await _speak('Microphone permission is required. Please allow it in settings.');
+      await _speak(
+        'Microphone permission is required. Please allow it in settings.',
+      );
       return;
     }
 
@@ -116,7 +118,9 @@ class _LoginPageState extends State<LoginPage> {
     if (!mounted) return;
 
     if (!_sttAvailable) {
-      await _speak('Speech recognition is not available. Please type your details instead.');
+      await _speak(
+        'Speech recognition is not available. Please type your details instead.',
+      );
       return;
     }
 
@@ -142,7 +146,10 @@ class _LoginPageState extends State<LoginPage> {
       if (!completer.isCompleted) completer.complete();
     });
     await _tts.speak(text);
-    await completer.future.timeout(const Duration(seconds: 30), onTimeout: () {});
+    await completer.future.timeout(
+      const Duration(seconds: 30),
+      onTimeout: () {},
+    );
     if (mounted) setState(() => _isSpeaking = false);
   }
 
@@ -152,8 +159,13 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void _scheduleReask() {
-    if (!mounted || _cancelledBySpeech || _gotResult || !_shouldListen ||
-        _reaskScheduled) { return; }
+    if (!mounted ||
+        _cancelledBySpeech ||
+        _gotResult ||
+        !_shouldListen ||
+        _reaskScheduled) {
+      return;
+    }
     _reaskScheduled = true;
     Future.delayed(const Duration(milliseconds: 100), () {
       _reaskScheduled = false;
@@ -164,7 +176,8 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _startListening() async {
-    if (!_sttAvailable || !mounted || !_shouldListen || _stt.isListening) return;
+    if (!_sttAvailable || !mounted || !_shouldListen || _stt.isListening)
+      return;
     _gotResult = false;
     _cancelledBySpeech = false;
     _reaskScheduled = false;
@@ -306,6 +319,7 @@ class _LoginPageState extends State<LoginPage> {
       if (mounted) Navigator.pop(context);
 
       if (user != null) {
+        // ✅ FETCH USER TYPE FROM FIRESTORE
         String userType = 'blind';
         try {
           final doc = await FirebaseFirestore.instance
@@ -313,8 +327,11 @@ class _LoginPageState extends State<LoginPage> {
               .doc(user.uid)
               .get();
           userType = doc.data()?['userType'] ?? 'blind';
-        } catch (_) {}
+        } catch (e) {
+          print('Error fetching user type: $e');
+        }
 
+        // ✅ CHECK EMAIL VERIFICATION FOR VOLUNTEERS
         if (userType == 'volunteer' && !user.emailVerified) {
           await FirebaseAuth.instance.signOut();
           _currentStep = 'email';
@@ -328,14 +345,16 @@ class _LoginPageState extends State<LoginPage> {
         }
 
         await _saveCredentials();
-        // Stop any current TTS/STT and navigate immediately — BlindHomePage
-        // speaks its own welcome message so no need to wait here.
+
+        // Stop TTS/STT
         _tts.setCompletionHandler(() {});
         _tts.setErrorHandler((_) {});
         if (_stt.isListening) await _stt.cancel();
         await _tts.stop();
 
         if (!mounted) return;
+
+        // ✅ NAVIGATE BASED ON USER TYPE
         if (userType == 'volunteer') {
           Navigator.pushReplacement(
             context,
@@ -444,8 +463,8 @@ class _LoginPageState extends State<LoginPage> {
                     colors: _isListening
                         ? [const Color(0xFF27AE60), const Color(0xFF2ECC71)]
                         : _isSpeaking
-                            ? [const Color(0xFF6C3483), const Color(0xFF9B59B6)]
-                            : [const Color(0xFF4A90E2), const Color(0xFF9B59B6)],
+                        ? [const Color(0xFF6C3483), const Color(0xFF9B59B6)]
+                        : [const Color(0xFF4A90E2), const Color(0xFF9B59B6)],
                   ),
                 ),
                 child: SafeArea(
@@ -465,10 +484,7 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                       const Text(
                         'Welcome back',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.white70,
-                        ),
+                        style: TextStyle(fontSize: 18, color: Colors.white70),
                       ),
 
                       // Centre: mic + status
@@ -491,8 +507,8 @@ class _LoginPageState extends State<LoginPage> {
                                 _isSpeaking
                                     ? 'Speaking...'
                                     : _isListening
-                                        ? 'Listening...'
-                                        : 'Tap to Speak',
+                                    ? 'Listening...'
+                                    : 'Tap to Speak',
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 32,
@@ -504,14 +520,14 @@ class _LoginPageState extends State<LoginPage> {
                                 _isSpeaking
                                     ? 'Please wait...'
                                     : _isListening
-                                        ? (_currentStep == 'email'
-                                            ? 'Say your email address'
-                                            : 'Say your password')
-                                        : (_currentStep == 'email'
-                                            ? 'Press to say your email'
-                                            : _currentStep == 'password'
-                                                ? 'Press to say your password'
-                                                : 'Processing...'),
+                                    ? (_currentStep == 'email'
+                                          ? 'Say your email address'
+                                          : 'Say your password')
+                                    : (_currentStep == 'email'
+                                          ? 'Press to say your email'
+                                          : _currentStep == 'password'
+                                          ? 'Press to say your password'
+                                          : 'Processing...'),
                                 style: const TextStyle(
                                   color: Colors.white70,
                                   fontSize: 17,
@@ -528,13 +544,18 @@ class _LoginPageState extends State<LoginPage> {
                         padding: EdgeInsets.only(bottom: 28),
                         child: Column(
                           children: [
-                            Icon(Icons.keyboard_arrow_down,
-                                color: Colors.white60, size: 28),
+                            Icon(
+                              Icons.keyboard_arrow_down,
+                              color: Colors.white60,
+                              size: 28,
+                            ),
                             SizedBox(height: 4),
                             Text(
                               'Scroll down to type manually',
                               style: TextStyle(
-                                  color: Colors.white60, fontSize: 13),
+                                color: Colors.white60,
+                                fontSize: 13,
+                              ),
                             ),
                           ],
                         ),
@@ -547,8 +568,7 @@ class _LoginPageState extends State<LoginPage> {
 
             // ── Manual form ────────────────────────────────────────────
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
               child: Form(
                 key: _formKey,
                 child: Column(
@@ -558,15 +578,21 @@ class _LoginPageState extends State<LoginPage> {
                       child: Text(
                         'Sign in manually',
                         style: TextStyle(
-                            fontSize: 22, fontWeight: FontWeight.bold),
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 24),
 
                     // User type
-                    const Text('I am a:',
-                        style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w500)),
+                    const Text(
+                      'I am a:',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                     const SizedBox(height: 12),
                     Row(
                       children: [
@@ -575,8 +601,7 @@ class _LoginPageState extends State<LoginPage> {
                             onTap: () =>
                                 setState(() => _selectedUserType = 'blind'),
                             child: Container(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 16),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
                               decoration: BoxDecoration(
                                 border: Border.all(
                                   color: _selectedUserType == 'blind'
@@ -590,16 +615,18 @@ class _LoginPageState extends State<LoginPage> {
                                     : Colors.white,
                               ),
                               child: Center(
-                                child: Text('Blind User',
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: _selectedUserType == 'blind'
-                                          ? FontWeight.w600
-                                          : FontWeight.normal,
-                                      color: _selectedUserType == 'blind'
-                                          ? Colors.blue
-                                          : Colors.black87,
-                                    )),
+                                child: Text(
+                                  'Blind User',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: _selectedUserType == 'blind'
+                                        ? FontWeight.w600
+                                        : FontWeight.normal,
+                                    color: _selectedUserType == 'blind'
+                                        ? Colors.blue
+                                        : Colors.black87,
+                                  ),
+                                ),
                               ),
                             ),
                           ),
@@ -610,8 +637,7 @@ class _LoginPageState extends State<LoginPage> {
                             onTap: () =>
                                 setState(() => _selectedUserType = 'volunteer'),
                             child: Container(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 16),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
                               decoration: BoxDecoration(
                                 border: Border.all(
                                   color: _selectedUserType == 'volunteer'
@@ -625,17 +651,18 @@ class _LoginPageState extends State<LoginPage> {
                                     : Colors.white,
                               ),
                               child: Center(
-                                child: Text('Volunteer',
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight:
-                                          _selectedUserType == 'volunteer'
-                                              ? FontWeight.w600
-                                              : FontWeight.normal,
-                                      color: _selectedUserType == 'volunteer'
-                                          ? Colors.blue
-                                          : Colors.black87,
-                                    )),
+                                child: Text(
+                                  'Volunteer',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: _selectedUserType == 'volunteer'
+                                        ? FontWeight.w600
+                                        : FontWeight.normal,
+                                    color: _selectedUserType == 'volunteer'
+                                        ? Colors.blue
+                                        : Colors.black87,
+                                  ),
+                                ),
                               ),
                             ),
                           ),
@@ -645,9 +672,13 @@ class _LoginPageState extends State<LoginPage> {
                     const SizedBox(height: 24),
 
                     // Email
-                    const Text('Email',
-                        style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w500)),
+                    const Text(
+                      'Email',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     TextFormField(
                       controller: _emailController,
@@ -655,21 +686,27 @@ class _LoginPageState extends State<LoginPage> {
                       decoration: InputDecoration(
                         hintText: 'Enter your email',
                         border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8)),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                         contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 14),
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
                       ),
-                      validator: (value) =>
-                          (value == null || value.isEmpty)
-                              ? 'Please enter your email'
-                              : null,
+                      validator: (value) => (value == null || value.isEmpty)
+                          ? 'Please enter your email'
+                          : null,
                     ),
                     const SizedBox(height: 24),
 
                     // Password
-                    const Text('Password',
-                        style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w500)),
+                    const Text(
+                      'Password',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     TextFormField(
                       controller: _passwordController,
@@ -677,14 +714,16 @@ class _LoginPageState extends State<LoginPage> {
                       decoration: InputDecoration(
                         hintText: 'Enter your password',
                         border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8)),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                         contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 14),
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
                       ),
-                      validator: (value) =>
-                          (value == null || value.isEmpty)
-                              ? 'Please enter your password'
-                              : null,
+                      validator: (value) => (value == null || value.isEmpty)
+                          ? 'Please enter your password'
+                          : null,
                     ),
                     const SizedBox(height: 16),
 
@@ -717,9 +756,12 @@ class _LoginPageState extends State<LoginPage> {
                               : Colors.blue,
                           foregroundColor: Colors.white,
                           textStyle: const TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.w600),
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                          ),
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8)),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                         ),
                         child: const Text('Login'),
                       ),
@@ -734,11 +776,14 @@ class _LoginPageState extends State<LoginPage> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                                builder: (_) => const ForgotPasswordPage()),
+                              builder: (_) => const ForgotPasswordPage(),
+                            ),
                           ).then((_) => _resumeOnReturn(_loginGuide));
                         },
-                        child: const Text('Forgot Password?',
-                            style: TextStyle(color: Colors.blue)),
+                        child: const Text(
+                          'Forgot Password?',
+                          style: TextStyle(color: Colors.blue),
+                        ),
                       ),
                     ),
                     Center(
@@ -748,11 +793,14 @@ class _LoginPageState extends State<LoginPage> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                                builder: (_) => const RegisterPage()),
+                              builder: (_) => const RegisterPage(),
+                            ),
                           ).then((_) => _resumeOnReturn(_loginGuide));
                         },
-                        child: const Text("Don't have an account? Register",
-                            style: TextStyle(color: Colors.blue)),
+                        child: const Text(
+                          "Don't have an account? Register",
+                          style: TextStyle(color: Colors.blue),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 20),

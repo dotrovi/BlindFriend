@@ -5,6 +5,7 @@ import 'register_page.dart';
 import 'firebase_options.dart';
 import 'admin_login_page.dart';
 import 'admin_dashboard_page.dart';
+import 'blind_home_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -40,6 +41,7 @@ class BlindFriendApp extends StatelessWidget {
         '/register': (context) => const RegisterPage(),
         '/admin': (context) => const AdminLoginPage(),
         '/admin-dashboard': (context) => const AdminDashboardPage(),
+        '/blind-home': (context) => const BlindHomePage(userName: 'User'),
       },
       debugShowCheckedModeBanner: false,
     );
