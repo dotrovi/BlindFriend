@@ -183,27 +183,27 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                                       child: Text('All Languages'),
                                     ),
                                     DropdownMenuItem(
-                                      value: 'english',
+                                      value: 'English',
                                       child: Text('English'),
                                     ),
                                     DropdownMenuItem(
-                                      value: 'spanish',
+                                      value: 'Spanish',
                                       child: Text('Spanish'),
                                     ),
                                     DropdownMenuItem(
-                                      value: 'mandarin',
+                                      value: 'Mandarin',
                                       child: Text('Mandarin'),
                                     ),
                                     DropdownMenuItem(
-                                      value: 'french',
+                                      value: 'French',
                                       child: Text('French'),
                                     ),
                                     DropdownMenuItem(
-                                      value: 'german',
+                                      value: 'German',
                                       child: Text('German'),
                                     ),
                                     DropdownMenuItem(
-                                      value: 'korean',
+                                      value: 'Korean',
                                       child: Text('Korean'),
                                     ),
                                   ],
@@ -245,7 +245,7 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                                       child: Text('All Specialties'),
                                     ),
                                     DropdownMenuItem(
-                                      value: 'shopping',
+                                      value: 'Shopping',
                                       child: Text('Shopping'),
                                     ),
                                     DropdownMenuItem(
