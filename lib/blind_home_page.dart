@@ -8,6 +8,8 @@ import 'package:speech_to_text/speech_to_text.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'login_page.dart';
 import 'user_profile_page.dart';
+import 'blind_send_help_request.dart'; // Add this import
+import 'blind_track_help_request.dart'; // Add this import
 
 class BlindHomePage extends StatefulWidget {
   final String userName;
@@ -72,7 +74,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
     if (mounted) {
       await _speak(
         'Welcome to BlindFriend, ${widget.userName}. '
-        'Tap the voice button and say: Shopping, Obstacle, Path, Volunteers, '
+        'Tap the voice button and say: Shopping, Obstacle, Path, Request Help, Track Requests, Volunteers, '
         'Profile, or Logout. For emergency, press and hold the voice button.',
       );
     }
@@ -182,7 +184,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
     if (_isProcessingVoice) return;
     _isProcessingVoice = true;
 
-    if (command.contains('shopping') || command.contains('scan')) {
+    if (command.contains('Shopping') || command.contains('scan')) {
       await _speak('Opening shopping helper. Barcode scanner activated.');
       _setSelectedIndex(1);
     } else if (command.contains('obstacle')) {
@@ -191,10 +193,15 @@ class _BlindHomePageState extends State<BlindHomePage> {
     } else if (command.contains('path') || command.contains('navigation')) {
       await _speak('Path detection. Tactile path guidance recognition.');
       _setSelectedIndex(3);
+    } else if (command.contains('request help') || 
+               (command.contains('send') && command.contains('help'))) {
+      await _speak('Opening request help page. Please describe your need.');
+      _navigateToSendHelpRequest();
+    } else if (command.contains('track') && command.contains('request')) {
+      await _speak('Opening your help requests. Here are your recent requests.');
+      _navigateToTrackRequests();
     } else if (command.contains('volunteer') || command.contains('help')) {
-      await _speak(
-        'Finding volunteers. Searching for verified volunteers nearby.',
-      );
+      await _speak('Finding volunteers. You can request help or track your requests.');
       _setSelectedIndex(4);
     } else if (command.contains('home') || command.contains('dashboard')) {
       await _speak('Returning to home page.');
@@ -226,6 +233,8 @@ class _BlindHomePageState extends State<BlindHomePage> {
         'You can say: Shopping to scan barcodes. '
         'Obstacle for obstacle detection. '
         'Path for path detection. '
+        'Request Help to send a new help request. '
+        'Track Requests to see your request status. '
         'Volunteers to find help nearby. '
         'Profile to view your account. '
         'Or Logout to sign out.',
@@ -265,10 +274,34 @@ class _BlindHomePageState extends State<BlindHomePage> {
         pageName = 'Path Detection';
         break;
       case 4:
-        pageName = 'Find Volunteers';
+        pageName = 'Help Center';
         break;
     }
     _speak('Opened $pageName page');
+  }
+
+  void _navigateToSendHelpRequest() async {
+    _shouldListen = false;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const BlindSendHelpRequestScreen()),
+    );
+    _shouldListen = true;
+    if (mounted) {
+      await _speak('Back on help center page.');
+    }
+  }
+
+  void _navigateToTrackRequests() async {
+    _shouldListen = false;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const BlindTrackRequestsScreen()),
+    );
+    _shouldListen = true;
+    if (mounted) {
+      await _speak('Back on help center page.');
+    }
   }
 
   @override
@@ -609,10 +642,9 @@ class _BlindHomePageState extends State<BlindHomePage> {
                 _buildCommandTile('Shopping', 'Open shopping helper'),
                 _buildCommandTile('Obstacle', 'Start obstacle detection'),
                 _buildCommandTile('Path', 'Activate path detection'),
-                _buildCommandTile(
-                  'Volunteers or Help',
-                  'Find volunteers nearby',
-                ),
+                _buildCommandTile('Request Help', 'Send a new help request'),
+                _buildCommandTile('Track Requests', 'View your request status'),
+                _buildCommandTile('Volunteers or Help', 'Find volunteers nearby'),
                 _buildCommandTile('Profile', 'Open your profile'),
                 _buildCommandTile('Logout', 'Sign out'),
               ],
@@ -700,7 +732,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
     );
   }
 
-  // ===================== SHOPPING HELPER PAGE =====================
   // ===================== SHOPPING HELPER PAGE =====================
   Widget _buildShoppingHelper() {
     return const ShoppingHelperPage();
@@ -834,85 +865,172 @@ class _BlindHomePageState extends State<BlindHomePage> {
     );
   }
 
-  // ===================== FIND VOLUNTEERS PAGE =====================
+  // ===================== FIND VOLUNTEERS PAGE (UPDATED) =====================
   Widget _buildFindVolunteers() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.green.withOpacity(0.2),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        children: [
+          // Header
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.green.shade700, Colors.green.shade500],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                ],
-              ),
-              child: const Icon(
-                Icons.people_alt,
-                size: 80,
-                color: Colors.green,
-              ),
-            ),
-            const SizedBox(height: 32),
-            const Text(
-              'Find Volunteers',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Get help from verified volunteers nearby.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, color: Colors.grey),
-            ),
-            const SizedBox(height: 32),
-            ElevatedButton.icon(
-              onPressed: () {
-                _speak('Searching for volunteers nearby. Please wait.');
-              },
-              icon: const Icon(Icons.search),
-              label: const Text('Find Nearby Volunteers'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 16,
+                  child: const Icon(Icons.people_alt, color: Colors.white, size: 28),
                 ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                textStyle: const TextStyle(fontSize: 18),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.green.shade50,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.info_outline, color: Colors.green),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'When you request help, nearby volunteers will be notified and can respond to your request.',
-                      style: TextStyle(fontSize: 14),
-                    ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Help Center',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Get help from verified volunteers',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.8),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
+          ),
+          const SizedBox(height: 24),
+
+          // Request Help Button
+          _buildHelpActionCard(
+            icon: Icons.add_circle_outline,
+            title: 'Request Help',
+            description: 'Send a new help request to nearby volunteers',
+            color: Colors.blue,
+            onTap: _navigateToSendHelpRequest,
+          ),
+          const SizedBox(height: 16),
+
+          // Track Requests Button
+          _buildHelpActionCard(
+            icon: Icons.track_changes,
+            title: 'Track My Requests',
+            description: 'View status of your help requests',
+            color: Colors.orange,
+            onTap: _navigateToTrackRequests,
+          ),
+          const SizedBox(height: 16),
+
+          // Information Card
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.green.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, color: Colors.green.shade700),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'When you request help, nearby volunteers will be notified and can respond to your request. You can track the status in real-time.',
+                    style: TextStyle(fontSize: 14, color: Colors.green.shade700),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 80), // Bottom padding
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHelpActionCard({
+    required IconData icon,
+    required String title,
+    required String description,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: color, size: 28),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        description,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey.shade400),
+              ],
+            ),
+          ),
         ),
       ),
     );

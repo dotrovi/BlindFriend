@@ -296,6 +296,7 @@ class _LoginPageState extends State<LoginPage> {
   void _handleLogin() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
+    final selectedType = _selectedUserType ?? 'blind'; // Default to blind
 
     if (email.isEmpty || password.isEmpty) {
       _currentStep = 'email';
@@ -319,16 +320,60 @@ class _LoginPageState extends State<LoginPage> {
       if (mounted) Navigator.pop(context);
 
       if (user != null) {
-        // ✅ FETCH USER TYPE FROM FIRESTORE
+        // ✅ FETCH USER TYPE FROM FIRESTORE 'users' COLLECTION
         String userType = 'blind';
+        String userName = user.displayName ?? 'User';
+
         try {
-          final doc = await FirebaseFirestore.instance
+          final userDoc = await FirebaseFirestore.instance
               .collection('users')
               .doc(user.uid)
               .get();
-          userType = doc.data()?['userType'] ?? 'blind';
+
+          if (userDoc.exists) {
+            userType = userDoc.data()?['userType'] ?? 'blind';
+            userName = userDoc.data()?['name'] ?? user.displayName ?? 'User';
+            print(
+              '✅ User found in users collection. Type: $userType, Name: $userName',
+            );
+
+            // If user selected volunteer but type is blind, show error
+            if (selectedType == 'volunteer' && userType != 'volunteer') {
+              await _speak(
+                'This account is not registered as a volunteer. '
+                'Please select Blind User or register as a volunteer.',
+              );
+              _currentStep = 'email';
+              _shouldListen = true;
+              return;
+            }
+
+            // If user selected blind but type is volunteer, show error
+            if (selectedType == 'blind' && userType == 'volunteer') {
+              await _speak(
+                'This account is registered as a volunteer. '
+                'Please select Volunteer to login.',
+              );
+              _currentStep = 'email';
+              _shouldListen = true;
+              return;
+            }
+          } else {
+            // User exists in Firebase Auth but not in Firestore
+            print('❌ User document not found in Firestore');
+            await _speak(
+              'Your account is not fully registered. Please register first.',
+            );
+            _currentStep = 'email';
+            _shouldListen = true;
+            return;
+          }
         } catch (e) {
           print('Error fetching user type: $e');
+          await _speak('Error verifying account. Please try again.');
+          _currentStep = 'email';
+          _shouldListen = true;
+          return;
         }
 
         // ✅ CHECK EMAIL VERIFICATION FOR VOLUNTEERS
@@ -356,19 +401,19 @@ class _LoginPageState extends State<LoginPage> {
 
         // ✅ NAVIGATE BASED ON USER TYPE
         if (userType == 'volunteer') {
+          print('✅ Navigating to VolunteerHomePage');
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (_) =>
-                  VolunteerHomePage(userName: user.displayName ?? 'User'),
+              builder: (_) => VolunteerHomePage(userName: userName),
             ),
           );
         } else {
+          print('✅ Navigating to BlindHomePage');
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (_) =>
-                  BlindHomePage(userName: user.displayName ?? 'User'),
+              builder: (_) => BlindHomePage(userName: userName),
             ),
           );
         }
