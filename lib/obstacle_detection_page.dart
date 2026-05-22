@@ -8,6 +8,9 @@ import 'package:google_mlkit_object_detection/google_mlkit_object_detection.dart
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+
+// left wall & human detection
+
 class ObstacleDetectionPage extends StatefulWidget {
   const ObstacleDetectionPage({super.key});
 
@@ -32,6 +35,13 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
   bool _isDetecting = false; // user has detection turned on
   bool _isStarting = false; // camera is initializing
   bool _isBusy = false; // a frame is currently being processed
+
+  // On-screen diagnostics so detection problems are visible during field
+  // testing, without needing a USB log connection.
+  int _framesReceived = 0;
+  int _framesConverted = 0;
+  int _lastObjectCount = 0;
+  String? _lastFrameError;
 
   _Detection? _currentAlert;
   final List<_Detection> _recent = [];
@@ -173,6 +183,10 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
         _isDetecting = true;
         _isStarting = false;
         _currentAlert = null;
+        _framesReceived = 0;
+        _framesConverted = 0;
+        _lastObjectCount = 0;
+        _lastFrameError = null;
       });
       _lastSpokenAt = DateTime.now();
       _lastObstacleAt = DateTime.now();
@@ -242,18 +256,29 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
   Future<void> _processCameraImage(CameraImage image) async {
     if (_isBusy || !_isDetecting || _detector == null) return;
     _isBusy = true;
+    _framesReceived++;
     try {
       final inputImage = _inputImageFromCameraImage(image);
-      if (inputImage != null) {
+      if (inputImage == null) {
+        _lastFrameError =
+            'Camera frame could not be converted '
+            '(format ${image.format.raw}, planes ${image.planes.length}).';
+      } else {
+        _framesConverted++;
         final objects = await _detector!.processImage(inputImage);
+        _lastObjectCount = objects.length;
+        _lastFrameError = null;
         if (mounted && _isDetecting) {
           _analyzeObjects(objects, inputImage.metadata!);
         }
       }
     } catch (e) {
+      _lastFrameError = e.toString();
       debugPrint('Frame processing error: $e');
     } finally {
       _isBusy = false;
+      // Refresh the on-screen diagnostics roughly once per second.
+      if (_framesReceived % 15 == 0 && mounted) setState(() {});
     }
   }
 
@@ -280,25 +305,90 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
     }
     if (rotation == null) return null;
 
-    final format = InputImageFormatValue.fromRawValue(image.format.raw);
-    if (format == null ||
-        (Platform.isAndroid && format != InputImageFormat.nv21) ||
-        (Platform.isIOS && format != InputImageFormat.bgra8888)) {
+    // iOS delivers a single BGRA8888 plane.
+    if (Platform.isIOS) {
+      if (image.planes.length != 1) return null;
+      final plane = image.planes.first;
+      return InputImage.fromBytes(
+        bytes: plane.bytes,
+        metadata: InputImageMetadata(
+          size: Size(image.width.toDouble(), image.height.toDouble()),
+          rotation: rotation,
+          format: InputImageFormat.bgra8888,
+          bytesPerRow: plane.bytesPerRow,
+        ),
+      );
+    }
+
+    // Android: use NV21 directly if the camera provides it, otherwise convert
+    // the YUV_420_888 frame (3 planes) that most devices actually deliver.
+    final Uint8List bytes;
+    final int bytesPerRow;
+    if (image.planes.length == 1) {
+      bytes = image.planes.first.bytes;
+      bytesPerRow = image.planes.first.bytesPerRow;
+    } else if (image.planes.length == 3) {
+      bytes = _yuv420ToNv21(image);
+      bytesPerRow = image.width;
+    } else {
       return null;
     }
 
-    if (image.planes.length != 1) return null;
-    final plane = image.planes.first;
-
     return InputImage.fromBytes(
-      bytes: plane.bytes,
+      bytes: bytes,
       metadata: InputImageMetadata(
         size: Size(image.width.toDouble(), image.height.toDouble()),
         rotation: rotation,
-        format: format,
-        bytesPerRow: plane.bytesPerRow,
+        format: InputImageFormat.nv21,
+        bytesPerRow: bytesPerRow,
       ),
     );
+  }
+
+  // Converts a YUV_420_888 camera frame (3 planes) into a packed NV21 buffer,
+  // the format ML Kit expects on Android. Needed because many devices ignore
+  // the requested nv21 image-format group and deliver YUV_420_888 anyway.
+  Uint8List _yuv420ToNv21(CameraImage image) {
+    final int width = image.width;
+    final int height = image.height;
+    final yP = image.planes[0];
+    final uP = image.planes[1];
+    final vP = image.planes[2];
+
+    final int ySize = width * height;
+    final Uint8List out = Uint8List(ySize + ySize ~/ 2);
+
+    // Y plane.
+    int o = 0;
+    final int yRowStride = yP.bytesPerRow;
+    final int yPixStride = yP.bytesPerPixel ?? 1;
+    if (yPixStride == 1 && yRowStride == width) {
+      out.setRange(0, ySize, yP.bytes);
+      o = ySize;
+    } else {
+      for (int r = 0; r < height; r++) {
+        final int base = r * yRowStride;
+        for (int c = 0; c < width; c++) {
+          out[o++] = yP.bytes[base + c * yPixStride];
+        }
+      }
+    }
+
+    // Interleaved V/U (NV21 = the Y plane followed by V,U,V,U...).
+    final int uvRowStride = uP.bytesPerRow;
+    final int uvPixStride = uP.bytesPerPixel ?? 2;
+    final int chromaH = height ~/ 2;
+    final int chromaW = width ~/ 2;
+    for (int r = 0; r < chromaH; r++) {
+      final int uBase = r * uvRowStride;
+      final int vBase = r * vP.bytesPerRow;
+      for (int c = 0; c < chromaW; c++) {
+        final int j = c * uvPixStride;
+        out[o++] = vP.bytes[vBase + j];
+        out[o++] = uP.bytes[uBase + j];
+      }
+    }
+    return out;
   }
 
   void _analyzeObjects(List<DetectedObject> objects, InputImageMetadata meta) {
@@ -532,6 +622,56 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
                   ? 'Using custom obstacle model'
                   : 'Using built-in detector',
               style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
+            _buildDiagnostics(),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // Live diagnostics panel — shows whether camera frames are reaching ML Kit
+  // and surfaces any error so the feature can be debugged in the field.
+  Widget _buildDiagnostics() {
+    final err = _lastFrameError;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: err != null ? Colors.red.shade50 : Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: err != null ? Colors.red.shade200 : Colors.grey.shade300,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Diagnostics',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey.shade700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Frames received: $_framesReceived\n'
+            'Frames converted: $_framesConverted\n'
+            'Objects (last frame): $_lastObjectCount',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+          ),
+          if (err != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Error: $err',
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.red.shade700,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ],
