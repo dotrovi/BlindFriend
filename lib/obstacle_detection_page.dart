@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:google_mlkit_object_detection/google_mlkit_object_detection.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class ObstacleDetectionPage extends StatefulWidget {
@@ -22,6 +23,11 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
   ObjectDetector? _detector;
   List<CameraDescription> _cameras = [];
   int _cameraIndex = -1;
+
+  // Drop a trained TFLite image-classification model at this asset path to
+  // enable custom obstacle labels. If absent, ML Kit's built-in detector runs.
+  static const _customModelAsset = 'assets/models/obstacle_model.tflite';
+  bool _usingCustomModel = false;
 
   bool _isDetecting = false; // user has detection turned on
   bool _isStarting = false; // camera is initializing
@@ -78,7 +84,13 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
         state == AppLifecycleState.paused) {
       _disposeCamera();
     } else if (state == AppLifecycleState.resumed && _controller == null) {
-      _initCamera();
+      _initCamera()
+          .then((_) {
+            if (mounted) setState(() {});
+          })
+          .catchError((Object e) {
+            debugPrint('Camera resume error: $e');
+          });
     }
   }
 
@@ -92,6 +104,51 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
   }
 
   // ===================== DETECTION CONTROL =====================
+
+  // Uses the bundled custom TFLite model when present, otherwise falls back
+  // to ML Kit's built-in object detector.
+  Future<ObjectDetector> _createDetector() async {
+    try {
+      final modelPath = await _copyModelToFile(_customModelAsset);
+      final detector = ObjectDetector(
+        options: LocalObjectDetectorOptions(
+          mode: DetectionMode.stream,
+          modelPath: modelPath,
+          classifyObjects: true,
+          multipleObjects: true,
+        ),
+      );
+      _usingCustomModel = true;
+      return detector;
+    } catch (e) {
+      debugPrint('Custom model unavailable, using built-in detector: $e');
+      _usingCustomModel = false;
+      return ObjectDetector(
+        options: ObjectDetectorOptions(
+          mode: DetectionMode.stream,
+          classifyObjects: true,
+          multipleObjects: true,
+        ),
+      );
+    }
+  }
+
+  // ML Kit needs a real file path, so the bundled asset is copied to disk.
+  Future<String> _copyModelToFile(String assetPath) async {
+    final dir = await getApplicationSupportDirectory();
+    final fileName = assetPath.split('/').last;
+    final file = File('${dir.path}/$fileName');
+    final assetData = await rootBundle.load(assetPath);
+    final bytes = assetData.buffer.asUint8List(
+      assetData.offsetInBytes,
+      assetData.lengthInBytes,
+    );
+    // Re-copy when the bundled model changes (e.g. after an app update).
+    if (!await file.exists() || await file.length() != bytes.length) {
+      await file.writeAsBytes(bytes, flush: true);
+    }
+    return file.path;
+  }
 
   Future<void> _startDetection() async {
     if (_isStarting || _isDetecting) return;
@@ -109,13 +166,7 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
     }
 
     try {
-      _detector ??= ObjectDetector(
-        options: ObjectDetectorOptions(
-          mode: DetectionMode.stream,
-          classifyObjects: true,
-          multipleObjects: true,
-        ),
-      );
+      _detector ??= await _createDetector();
       await _initCamera();
       if (!mounted) return;
       setState(() {
@@ -300,12 +351,43 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
     return 'ahead';
   }
 
+  // Labels that mean "no specific obstacle" — fall back to a generic alert
+  // instead of announcing the class name literally.
+  static const _ignoredLabels = {'background', 'none', 'other', 'unknown'};
+
+  // The custom model ships without TFLite metadata, so ML Kit returns numeric
+  // class indices instead of names. This list maps index -> name and MUST be
+  // in the same order the model was trained on (the alphabetical class list
+  // printed by image_dataset_from_directory during training).
+  static const _customModelLabels = [
+    'chair',
+    'door',
+    'fence',
+    'garbage_bin',
+    'obstacle',
+    'plant',
+    'pothole',
+    'stairs',
+    'table',
+    'vehicle',
+  ];
+
   String? _labelFor(DetectedObject object) {
     if (object.labels.isEmpty) return null;
     final best = object.labels
         .reduce((a, b) => a.confidence >= b.confidence ? a : b);
     if (best.confidence < 0.5) return null;
-    return best.text;
+
+    var text = best.text;
+    if (_usingCustomModel &&
+        best.index >= 0 &&
+        best.index < _customModelLabels.length) {
+      text = _customModelLabels[best.index];
+    }
+    if (text.isEmpty || _ignoredLabels.contains(text.toLowerCase())) {
+      return null;
+    }
+    return text;
   }
 
   void _registerDetection(
@@ -407,7 +489,7 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
       ),
       child: Column(
         children: [
-          const Icon(Icons.photo_camera, size: 46, color: Colors.red),
+          _buildPreviewOrIcon(),
           const SizedBox(height: 12),
           const Text(
             'Real-time Detection',
@@ -444,8 +526,54 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
                 ),
               ],
             ),
+            const SizedBox(height: 6),
+            Text(
+              _usingCustomModel
+                  ? 'Using custom obstacle model'
+                  : 'Using built-in detector',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildPreviewOrIcon() {
+    final controller = _controller;
+    final showPreview =
+        _isDetecting && controller != null && controller.value.isInitialized;
+
+    if (!showPreview) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: Icon(Icons.photo_camera, size: 46, color: Colors.red),
+      );
+    }
+
+    final accent = _currentAlert == null
+        ? Colors.grey.shade300
+        : (_currentAlert!.urgent ? Colors.red : Colors.orange);
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: accent, width: 3),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(11),
+        child: SizedBox(
+          height: 260,
+          width: double.infinity,
+          child: FittedBox(
+            fit: BoxFit.cover,
+            child: SizedBox(
+              width: controller.value.previewSize!.height,
+              height: controller.value.previewSize!.width,
+              child: CameraPreview(controller),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -692,8 +820,14 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
     );
   }
 
-  static String _cap(String s) =>
-      s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
+  // Turns model label names like "traffic_cone" into spoken-friendly
+  // "Traffic cone".
+  static String _cap(String s) {
+    final cleaned = s.replaceAll(RegExp(r'[_-]+'), ' ').trim();
+    return cleaned.isEmpty
+        ? cleaned
+        : '${cleaned[0].toUpperCase()}${cleaned.substring(1)}';
+  }
 }
 
 class _Detection {
