@@ -9,9 +9,10 @@ plugins {
 }
 
 android {
+    compileSdk = 36
+    ndkVersion = "27.0.12077973"
     namespace = "com.example.flutter_blindfriend"
-    compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -27,7 +28,8 @@ android {
         applicationId = "com.example.flutter_blindfriend"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        // minSdk 24: required by flutter_tts, camera and google_mlkit plugins.
+        minSdk = 24
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

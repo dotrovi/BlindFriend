@@ -41,6 +41,8 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>BlindFriend needs camera access to detect obstacles in your path and scan product barcodes.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>BlindFriend needs microphone access to process your voice commands for navigation.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
