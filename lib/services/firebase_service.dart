@@ -126,6 +126,63 @@ class FirebaseService {
     }
   }
 
+  Future<bool> updateVolunteerProfile({
+    required String uid,
+    required String name,
+    required String phoneNumber,
+    required String language,
+    required List<String> specialties,
+    required String availability,
+  }) async {
+    try {
+      await _auth.currentUser?.updateDisplayName(name);
+      await _firestore.collection('users').doc(uid).update({'name': name});
+      await _firestore.collection('volunteers').doc(uid).update({
+        'phoneNumber': phoneNumber,
+        'language': language,
+        'specialties': specialties,
+        'availability': availability,
+      });
+      return true;
+    } catch (e) {
+      print('Update volunteer profile error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> updateVolunteerLocation({
+    required String uid,
+    required double latitude,
+    required double longitude,
+  }) async {
+    try {
+      await _firestore.collection('volunteers').doc(uid).update({
+        'location': GeoPoint(latitude, longitude),
+        'locationUpdatedAt': FieldValue.serverTimestamp(),
+        'isLocationSharing': true,
+      });
+      return true;
+    } catch (e) {
+      print('Update location error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> updateVolunteerAvailability({
+    required String uid,
+    required bool isAvailable,
+  }) async {
+    try {
+      await _firestore.collection('volunteers').doc(uid).update({
+        'isAvailable': isAvailable,
+      });
+      return true;
+    } catch (e) {
+      print('Update availability error: $e');
+      return false;
+    }
+  }
+
   User? getCurrentUser() {
     return _auth.currentUser;
   }
