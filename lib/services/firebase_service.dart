@@ -104,7 +104,7 @@ class FirebaseService {
     required String uid,
     required String idCardNumber,
     required String phoneNumber,
-    required String language,
+    required List<String> languages,
     required List<String> specialties,
     required String availability,
   }) async {
@@ -113,7 +113,7 @@ class FirebaseService {
         'uid': uid,
         'idCardNumber': idCardNumber,
         'phoneNumber': phoneNumber,
-        'language': language,
+        'language': languages,
         'specialties': specialties,
         'availability': availability,
         'status': 'pending',
@@ -130,7 +130,7 @@ class FirebaseService {
     required String uid,
     required String name,
     required String phoneNumber,
-    required String language,
+    required List<String> languages,
     required List<String> specialties,
     required String availability,
   }) async {
@@ -139,7 +139,7 @@ class FirebaseService {
       await _firestore.collection('users').doc(uid).update({'name': name});
       await _firestore.collection('volunteers').doc(uid).update({
         'phoneNumber': phoneNumber,
-        'language': language,
+        'language': languages,
         'specialties': specialties,
         'availability': availability,
       });

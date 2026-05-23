@@ -1,11 +1,9 @@
-import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter_tts/flutter_tts.dart';
-import 'package:speech_to_text/speech_to_text.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
 import 'login_page.dart';
 import 'volunteer_profile_page.dart';
 import 'volunteer_received_request.dart';
@@ -20,18 +18,7 @@ class VolunteerHomePage extends StatefulWidget {
 }
 
 class _VolunteerHomePageState extends State<VolunteerHomePage> {
-  int _selectedIndex = 0; // 0=Home, 1=Requests, 2=Profile
-
-  // Voice
-  final FlutterTts _tts = FlutterTts();
-  final SpeechToText _stt = SpeechToText();
-  bool _isListening = false;
-  bool _isSpeaking = false;
-  bool _sttAvailable = false;
-  bool _shouldListen = true;
-  int _speakGeneration = 0;
-  DateTime? _pressStartTime;
-  bool _isProcessingVoice = false;
+  int _selectedIndex = 0;
 
   // Location & availability
   final FirebaseService _firebaseService = FirebaseService();
@@ -41,213 +28,26 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
   String _locationText = 'Not set';
   DateTime? _locationLastUpdated;
 
+  // Profile data for profile tab
+  String _profilePhone = '';
+  List<String> _profileLanguages = [];
+  List<String> _profileSpecialties = [];
+  String _profileAvailability = '';
+
+  static const _emerald = Color(0xFF059669);
+  static const _emeraldDark = Color(0xFF047857);
+  static const _emeraldLight = Color(0xFFD1FAE5);
+  static const _mintBg = Color(0xFFF0FDF4);
+
   String? get _uid => FirebaseAuth.instance.currentUser?.uid;
 
   @override
   void initState() {
     super.initState();
-    _initVoice();
-    _checkVolunteerStatus();
     _loadVolunteerData();
   }
 
-  // ── Voice ──────────────────────────────────────────────────────────────
-
-  Future<void> _checkVolunteerStatus() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      final doc = await FirebaseFirestore.instance
-          .collection('volunteers')
-          .doc(user.uid)
-          .get();
-      if (doc.exists) {
-        final status = doc.data()?['status'] ?? 'pending';
-        if (status == 'approved') {
-          await _speak(
-              'Welcome volunteer ${widget.userName}. Your account is approved. You can now help blind users.');
-        } else if (status == 'pending') {
-          await _speak(
-              'Welcome ${widget.userName}. Your volunteer application is pending approval. You will be notified once approved.');
-        } else if (status == 'rejected') {
-          await _speak(
-              'Welcome ${widget.userName}. Your application was rejected. Please contact support.');
-        }
-      }
-    }
-  }
-
-  Future<void> _initVoice() async {
-    try {
-      await _tts.setLanguage('en-US');
-    } catch (_) {
-      await _tts.setLanguage('en');
-    }
-    await _tts.setSpeechRate(0.5);
-    await _tts.setVolume(1.0);
-    await _tts.setPitch(1.0);
-
-    final micStatus = await Permission.microphone.request();
-    if (!mounted) return;
-
-    _sttAvailable = micStatus.isGranted &&
-        await _stt.initialize(
-          onStatus: (status) {
-            if (!mounted) return;
-            if (status == 'listening') {
-              setState(() => _isListening = true);
-            } else if (status == 'done' || status == 'notListening') {
-              setState(() => _isListening = false);
-            }
-          },
-          onError: (error) {
-            debugPrint('STT error: ${error.errorMsg}');
-            if (mounted) setState(() => _isListening = false);
-          },
-        );
-
-    if (mounted) {
-      await _speak(
-        'Welcome to BlindFriend Volunteer Portal, ${widget.userName}. '
-        'Tap the voice button and say: Help Requests, Profile, or Logout. '
-        'For emergency, press and hold the voice button.',
-      );
-    }
-  }
-
-  Future<void> _speak(String text) async {
-    final myGen = ++_speakGeneration;
-    if (_stt.isListening) await _stt.cancel();
-    await _tts.stop();
-    await Future.delayed(const Duration(milliseconds: 50));
-    if (myGen != _speakGeneration) return;
-    if (mounted) setState(() => _isSpeaking = true);
-    final completer = Completer<void>();
-    _tts.setCompletionHandler(() {
-      if (!completer.isCompleted) completer.complete();
-    });
-    _tts.setErrorHandler((msg) {
-      if (!completer.isCompleted) completer.complete();
-    });
-    await _tts.speak(text);
-    await completer.future.timeout(const Duration(seconds: 90), onTimeout: () {});
-    if (mounted) setState(() => _isSpeaking = false);
-  }
-
-  void _onTapDown(TapDownDetails details) {
-    _pressStartTime = DateTime.now();
-  }
-
-  void _onTapUp(TapUpDetails details) {
-    final pressDuration =
-        DateTime.now().difference(_pressStartTime ?? DateTime.now());
-    if (pressDuration >= const Duration(seconds: 3)) {
-      _handleEmergency();
-    } else {
-      if (!_isProcessingVoice && _sttAvailable && !_isSpeaking) {
-        _startListening();
-      }
-    }
-    _pressStartTime = null;
-  }
-
-  Future<void> _handleEmergency() async {
-    if (_isProcessingVoice) return;
-    _isProcessingVoice = true;
-    await _speak('Emergency! Calling emergency services. Please stay calm.');
-    if (mounted) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Emergency'),
-          content: const Text('Emergency services have been notified.'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                _isProcessingVoice = false;
-              },
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
-    }
-    _isProcessingVoice = false;
-  }
-
-  Future<void> _startListening() async {
-    if (!_sttAvailable || !mounted || !_shouldListen || _stt.isListening) {
-      return;
-    }
-    setState(() => _isListening = true);
-    await _stt.listen(
-      onResult: (result) {
-        if (!mounted) return;
-        if (result.finalResult) {
-          _processCommand(result.recognizedWords.toLowerCase());
-        }
-      },
-      listenFor: const Duration(seconds: 10),
-      pauseFor: const Duration(seconds: 2),
-      localeId: 'en_US',
-    );
-  }
-
-  Future<void> _processCommand(String command) async {
-    if (_isProcessingVoice) return;
-    _isProcessingVoice = true;
-
-    if (command.contains('help') && command.contains('request')) {
-      await _speak('Opening help requests. Here are requests from blind users.');
-      _setSelectedIndex(1);
-    } else if (command.contains('profile')) {
-      _shouldListen = false;
-      await _speak('Opening your profile.');
-      if (!mounted) return;
-      await Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const VolunteerProfilePage()),
-      );
-      _shouldListen = true;
-      await _speak('Back on volunteer home page.');
-    } else if (command.contains('logout') || command.contains('sign out')) {
-      _shouldListen = false;
-      await _speak('Logging out. Goodbye, ${widget.userName}.');
-      await FirebaseAuth.instance.signOut();
-      if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const LoginPage()),
-          (route) => false,
-        );
-      }
-      return;
-    } else if (command.contains('home') || command.contains('dashboard')) {
-      await _speak('Returning to home page.');
-      _setSelectedIndex(0);
-    } else if (command.contains('repeat') || command.contains('commands')) {
-      await _speak(
-        'You can say: Help Requests to view incoming requests. '
-        'Profile to view your account. '
-        'Or Logout to sign out.',
-      );
-    } else {
-      await _speak(
-          'Command not recognized. Say Repeat to hear available commands.');
-    }
-
-    _isProcessingVoice = false;
-  }
-
-  void _setSelectedIndex(int index) {
-    setState(() => _selectedIndex = index);
-    final pageName =
-        index == 0 ? 'Home' : index == 1 ? 'Help Requests' : 'Profile';
-    _speak('Opened $pageName page');
-  }
-
-  // ── Location & availability ────────────────────────────────────────────
+  // ── Data ──────────────────────────────────────────────────────────────
 
   Future<void> _loadVolunteerData() async {
     final uid = _uid;
@@ -261,9 +61,23 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
       if (data == null || !mounted) return;
       final geoPoint = data['location'] as GeoPoint?;
       final updatedAt = data['locationUpdatedAt'] as Timestamp?;
+      final savedAddress = data['locationAddress'] as String?;
       setState(() {
         _isAvailable = data['isAvailable'] ?? true;
-        if (geoPoint != null) {
+        _profilePhone = data['phoneNumber'] ?? '';
+        final rawLang = data['language'];
+        if (rawLang is List) {
+          _profileLanguages = List<String>.from(rawLang);
+        } else if (rawLang is String && rawLang.isNotEmpty) {
+          _profileLanguages = [rawLang];
+        } else {
+          _profileLanguages = [];
+        }
+        _profileSpecialties = List<String>.from(data['specialties'] ?? []);
+        _profileAvailability = data['availability'] ?? '';
+        if (savedAddress != null && savedAddress.isNotEmpty) {
+          _locationText = savedAddress;
+        } else if (geoPoint != null) {
           _locationText =
               '${geoPoint.latitude.toStringAsFixed(5)}, ${geoPoint.longitude.toStringAsFixed(5)}';
         }
@@ -293,20 +107,33 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
         }
         return;
       }
+
       final position = await Geolocator.getCurrentPosition(
         locationSettings:
             const LocationSettings(accuracy: LocationAccuracy.high),
       );
+
+      // Reverse geocode to get readable address
+      final address = await _reverseGeocode(position.latitude, position.longitude);
+
       final success = await _firebaseService.updateVolunteerLocation(
         uid: uid,
         latitude: position.latitude,
         longitude: position.longitude,
       );
+
+      if (success) {
+        // Save readable address alongside the GeoPoint
+        await FirebaseFirestore.instance
+            .collection('volunteers')
+            .doc(uid)
+            .update({'locationAddress': address});
+      }
+
       if (!mounted) return;
       if (success) {
         setState(() {
-          _locationText =
-              '${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)}';
+          _locationText = address;
           _locationLastUpdated = DateTime.now();
         });
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -329,6 +156,37 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
     } finally {
       if (mounted) setState(() => _isUpdatingLocation = false);
     }
+  }
+
+  Future<String> _reverseGeocode(double lat, double lng) async {
+    try {
+      final url = Uri.parse(
+        'https://nominatim.openstreetmap.org/reverse'
+        '?format=json&lat=$lat&lon=$lng&zoom=14&addressdetails=1',
+      );
+      final response = await http.get(url, headers: {
+        'User-Agent': 'BlindFriend/1.0',
+        'Accept-Language': 'en',
+      }).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final addr = data['address'] as Map<String, dynamic>? ?? {};
+        final parts = <String>[];
+        for (final key in [
+          'suburb', 'village', 'town', 'city_district',
+          'city', 'county', 'state', 'country',
+        ]) {
+          final val = addr[key] as String?;
+          if (val != null && val.isNotEmpty && !parts.contains(val)) {
+            parts.add(val);
+          }
+          if (parts.length >= 3) break;
+        }
+        if (parts.isNotEmpty) return parts.join(', ');
+      }
+    } catch (_) {}
+    return '${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}';
   }
 
   Future<void> _toggleAvailability() async {
@@ -361,479 +219,308 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
     return '${diff.inDays}d ago';
   }
 
-  @override
-  void dispose() {
-    _shouldListen = false;
-    _stt.stop();
-    super.dispose();
-  }
-
   // ── Build ──────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F5),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Top Header
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'BlindFriend - Volunteer',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green,
-                        ),
-                      ),
-                      Text(
-                        'Welcome, ${widget.userName}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Row(
-                    children: [
-                      IconButton(
-                        onPressed: () async {
-                          _shouldListen = false;
-                          await _speak('Opening your profile.');
-                          if (!mounted) return;
-                          final nav = Navigator.of(context);
-                          await nav.push(MaterialPageRoute(
-                            builder: (context) => const VolunteerProfilePage(),
-                          ));
-                          _shouldListen = true;
-                        },
-                        icon: const Icon(Icons.person, size: 28),
-                        color: Colors.green,
-                      ),
-                      IconButton(
-                        onPressed: () async {
-                          await _speak(
-                              'Logging out. Goodbye, ${widget.userName}.');
-                          await FirebaseAuth.instance.signOut();
-                          if (mounted) {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => const LoginPage()),
-                            );
-                          }
-                        },
-                        icon: const Icon(Icons.logout, size: 28),
-                        color: Colors.red,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            // Main Content Area
-            Expanded(
-              child: IndexedStack(
-                index: _selectedIndex,
-                children: [
-                  _buildHomePage(),
-                  const VolunteerReceivedRequestsScreen(),
-                  _buildProfilePage(),
-                ],
-              ),
-            ),
-
-            // Bottom Navigation Bar
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, -2),
-                  ),
-                ],
-              ),
-              child: BottomNavigationBar(
-                currentIndex: _selectedIndex,
-                onTap: (index) {
-                  setState(() => _selectedIndex = index);
-                  final pageName = index == 0
-                      ? 'Home'
-                      : index == 1
-                          ? 'Help Requests'
-                          : 'Profile';
-                  _speak('Opened $pageName page');
-                },
-                type: BottomNavigationBarType.fixed,
-                backgroundColor: Colors.white,
-                selectedItemColor: Colors.green,
-                unselectedItemColor: Colors.grey,
-                items: const [
-                  BottomNavigationBarItem(
-                      icon: Icon(Icons.home), label: 'Home'),
-                  BottomNavigationBarItem(
-                      icon: Icon(Icons.help_center), label: 'Help Requests'),
-                  BottomNavigationBarItem(
-                      icon: Icon(Icons.person), label: 'Profile'),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHomePage() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
+      backgroundColor: _mintBg,
+      body: Column(
         children: [
-          // Voice Command Button
-          GestureDetector(
-            onTapDown: _onTapDown,
-            onTapUp: _onTapUp,
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: _isListening
-                      ? [Colors.green, Colors.lightGreen]
-                      : [Colors.green.shade700, Colors.green.shade500],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.green.withValues(alpha: 0.3),
-                    blurRadius: 12,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 250),
-                    child: Icon(
-                      _isListening ? Icons.mic : Icons.mic_none,
-                      key: ValueKey(_isListening),
-                      color: Colors.white,
-                      size: 64,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    _isSpeaking
-                        ? 'Speaking...'
-                        : _isListening
-                            ? 'Listening...'
-                            : 'Tap to Speak',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Press and hold 3 seconds for Emergency',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.8),
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // Availability card
-          _buildCard(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          _buildHeader(),
+          Expanded(
+            child: IndexedStack(
+              index: _selectedIndex,
               children: [
-                Row(
-                  children: [
-                    Icon(Icons.notifications_active,
-                        color: _isAvailable ? Colors.green : Colors.grey,
-                        size: 28),
-                    const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Availability Status',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 15)),
-                        Text(
-                          _isAvailable
-                              ? 'Accepting requests'
-                              : 'Not accepting requests',
-                          style: const TextStyle(
-                              color: Colors.grey, fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                _isTogglingAvailability
-                    ? const SizedBox(
-                        width: 28,
-                        height: 28,
-                        child:
-                            CircularProgressIndicator(strokeWidth: 2))
-                    : ElevatedButton(
-                        onPressed: _toggleAvailability,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor:
-                              _isAvailable ? Colors.green : Colors.grey,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8)),
-                        ),
-                        child: Text(
-                            _isAvailable ? 'Available' : 'Unavailable'),
-                      ),
+                _buildHomePage(),
+                const VolunteerReceivedRequestsScreen(),
+                _buildProfilePage(),
               ],
             ),
           ),
-          const SizedBox(height: 12),
-
-          // Location card
-          _buildCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.location_on,
-                            color: Colors.purple, size: 28),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Your Location',
-                                style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 15)),
-                            Text('Updated: ${_formatLastUpdated()}',
-                                style: const TextStyle(
-                                    color: Colors.grey, fontSize: 12)),
-                          ],
-                        ),
-                      ],
-                    ),
-                    _isUpdatingLocation
-                        ? const SizedBox(
-                            width: 28,
-                            height: 28,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2))
-                        : ElevatedButton(
-                            onPressed: _updateLocation,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.purple,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8)),
-                            ),
-                            child: const Text('Update'),
-                          ),
-                  ],
-                ),
-                if (_locationText != 'Not set') ...[
-                  const SizedBox(height: 10),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.purple.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.gps_fixed,
-                            size: 14, color: Colors.purple),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(_locationText,
-                              style: const TextStyle(
-                                  fontSize: 13, color: Colors.purple)),
-                        ),
-                        const Icon(Icons.check_circle,
-                            size: 14, color: Colors.green),
-                        const SizedBox(width: 4),
-                        const Text('Shared',
-                            style: TextStyle(
-                                fontSize: 12, color: Colors.green)),
-                      ],
-                    ),
-                  ),
-                ] else ...[
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Tap Update to share your location with nearby blind users.',
-                    style: TextStyle(color: Colors.grey, fontSize: 12),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // Stats
-          _buildStatCard(
-            title: 'Pending Requests',
-            value: '0',
-            icon: Icons.pending_actions,
-            color: Colors.orange,
-          ),
-          const SizedBox(height: 12),
-          _buildStatCard(
-            title: 'Accepted Requests',
-            value: '0',
-            icon: Icons.check_circle,
-            color: Colors.blue,
-          ),
-          const SizedBox(height: 12),
-          _buildStatCard(
-            title: 'Completed Help',
-            value: '0',
-            icon: Icons.verified,
-            color: Colors.green,
-          ),
-          const SizedBox(height: 20),
-
-          // Quick Actions
-          _buildCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Quick Actions',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 18)),
-                const SizedBox(height: 12),
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade100,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child:
-                        const Icon(Icons.help_center, color: Colors.blue),
-                  ),
-                  title: const Text('View Help Requests'),
-                  trailing:
-                      const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () => _setSelectedIndex(1),
-                ),
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.green.shade100,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(Icons.person, color: Colors.green),
-                  ),
-                  title: const Text('My Profile'),
-                  trailing:
-                      const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () => _setSelectedIndex(2),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 80),
+          _buildBottomNav(),
         ],
       ),
     );
   }
 
-  Widget _buildCard({required Widget child}) {
+  Widget _buildHeader() {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF047857), Color(0xFF059669)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
       ),
-      child: child,
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 8, 16),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'BlindFriend',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        Container(
+                          width: 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                            color: _isAvailable
+                                ? const Color(0xFF6EE7B7)
+                                : Colors.grey.shade400,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          _isAvailable ? 'Available' : 'Unavailable',
+                          style: const TextStyle(
+                            color: Color(0xFFBBF7D0),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Row(
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        widget.userName,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const Text(
+                        'Volunteer',
+                        style: TextStyle(
+                            color: Color(0xFFBBF7D0), fontSize: 11),
+                      ),
+                    ],
+                  ),
+                  IconButton(
+                    onPressed: () async {
+                      await FirebaseAuth.instance.signOut();
+                      if (mounted) {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const LoginPage()),
+                        );
+                      }
+                    },
+                    icon: Icon(Icons.logout,
+                        color: Colors.white.withValues(alpha: 0.85)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
-  Widget _buildStatCard({
-    required String title,
-    required String value,
-    required IconData icon,
-    required Color color,
-  }) {
+  Widget _buildBottomNav() {
+    const navItems = [
+      {'icon': Icons.home_rounded, 'label': 'Home'},
+      {'icon': Icons.handshake_outlined, 'label': 'Requests'},
+      {'icon': Icons.person_rounded, 'label': 'Profile'},
+    ];
+
     return Container(
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius:
+            const BorderRadius.vertical(top: Radius.circular(22)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 18,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          child: Row(
+            children: List.generate(navItems.length, (i) {
+              final isSelected = _selectedIndex == i;
+              final icon = navItems[i]['icon'] as IconData;
+              final label = navItems[i]['label'] as String;
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _selectedIndex = i),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? _emerald.withValues(alpha: 0.1)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(icon,
+                            color: isSelected
+                                ? _emerald
+                                : Colors.grey.shade400,
+                            size: 24),
+                        const SizedBox(height: 3),
+                        Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isSelected
+                                ? _emerald
+                                : Colors.grey.shade500,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.normal,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Home tab ──────────────────────────────────────────────────────────
+
+  Widget _buildHomePage() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+      child: Column(
+        children: [
+          _buildWelcomeBanner(),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(child: _buildAvailabilityCard()),
+              const SizedBox(width: 12),
+              Expanded(child: _buildLocationMiniCard()),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildLocationFullCard(),
+          const SizedBox(height: 16),
+          _buildStatsRow(),
+          const SizedBox(height: 16),
+          _buildQuickActions(),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWelcomeBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF047857), Color(0xFF059669)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: _emerald.withValues(alpha: 0.3),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: color, size: 28),
-          ),
-          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title,
-                    style: TextStyle(
-                        fontSize: 14, color: Colors.grey.shade600)),
-                Text(value,
-                    style: const TextStyle(
-                        fontSize: 24, fontWeight: FontWeight.bold)),
+                Text(
+                  'Good day,',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.8),
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  widget.userName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: _isAvailable
+                            ? const Color(0xFF6EE7B7)
+                            : Colors.grey.shade300,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      _isAvailable
+                          ? 'Available for help requests'
+                          : 'Not accepting requests',
+                      style: const TextStyle(
+                        color: Color(0xFFBBF7D0),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
               ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.2),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.volunteer_activism_rounded,
+              color: Colors.white,
+              size: 32,
             ),
           ),
         ],
@@ -841,72 +528,712 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
     );
   }
 
-  Widget _buildProfilePage() {
-    final user = FirebaseAuth.instance.currentUser;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircleAvatar(
-              radius: 60,
-              backgroundColor: Colors.green.shade100,
-              child: Icon(Icons.volunteer_activism,
-                  size: 60, color: Colors.green.shade700),
+  Widget _buildAvailabilityCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: _isAvailable
+              ? _emerald.withValues(alpha: 0.3)
+              : Colors.grey.shade200,
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: _isAvailable
+                ? _emerald.withValues(alpha: 0.08)
+                : Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _isAvailable ? _emeraldLight : Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  _isAvailable
+                      ? Icons.wifi_tethering_rounded
+                      : Icons.wifi_tethering_off_rounded,
+                  color: _isAvailable ? _emerald : Colors.grey.shade500,
+                  size: 18,
+                ),
+              ),
+              const Spacer(),
+              _isTogglingAvailability
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : GestureDetector(
+                      onTap: _toggleAvailability,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 250),
+                        width: 40,
+                        height: 22,
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: _isAvailable
+                              ? _emerald
+                              : Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(11),
+                        ),
+                        child: AnimatedAlign(
+                          duration: const Duration(milliseconds: 250),
+                          alignment: _isAvailable
+                              ? Alignment.centerRight
+                              : Alignment.centerLeft,
+                          child: Container(
+                            width: 18,
+                            height: 18,
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            _isAvailable ? 'Available' : 'Unavailable',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+              color: _isAvailable ? _emeraldDark : Colors.grey.shade700,
             ),
-            const SizedBox(height: 24),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            _isAvailable ? 'Accepting requests' : 'Not accepting',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLocationMiniCard() {
+    final hasLocation = _locationText != 'Not set';
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: hasLocation
+              ? const Color(0xFF7C3AED).withValues(alpha: 0.25)
+              : Colors.grey.shade200,
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: hasLocation
+                      ? const Color(0xFFEDE9FE)
+                      : Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  hasLocation
+                      ? Icons.location_on_rounded
+                      : Icons.location_off_rounded,
+                  color: hasLocation
+                      ? const Color(0xFF7C3AED)
+                      : Colors.grey.shade500,
+                  size: 18,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: hasLocation
+                      ? const Color(0xFF7C3AED)
+                      : Colors.grey.shade300,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Location',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            _formatLastUpdated(),
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLocationFullCard() {
+    final hasLocation = _locationText != 'Not set';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.my_location_rounded,
+                  color: Color(0xFF7C3AED), size: 20),
+              const SizedBox(width: 8),
+              const Text(
+                'Your Location',
+                style:
+                    TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              ),
+              const Spacer(),
+              _isUpdatingLocation
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : GestureDetector(
+                      onTap: _updateLocation,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 7),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF7C3AED), Color(0xFF9F67FA)],
+                          ),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.gps_fixed_rounded,
+                                color: Colors.white, size: 13),
+                            SizedBox(width: 5),
+                            Text(
+                              'Update GPS',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            width: double.infinity,
+            padding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: hasLocation
+                  ? const Color(0xFFEDE9FE)
+                  : Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  hasLocation
+                      ? Icons.location_on_rounded
+                      : Icons.location_searching_rounded,
+                  color: hasLocation
+                      ? const Color(0xFF7C3AED)
+                      : Colors.grey.shade400,
+                  size: 18,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _locationText,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: hasLocation
+                          ? const Color(0xFF5B21B6)
+                          : Colors.grey.shade500,
+                    ),
+                  ),
+                ),
+                if (hasLocation)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.check_circle_rounded,
+                          size: 14, color: Color(0xFF059669)),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Shared',
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+          if (!hasLocation) ...[
+            const SizedBox(height: 8),
             Text(
-              widget.userName,
-              style: const TextStyle(
-                  fontSize: 24, fontWeight: FontWeight.bold),
+              'Tap "Update GPS" to share your location with nearby blind users.',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatsRow() {
+    return Row(
+      children: [
+        _buildStatItem('Pending', '0',
+            Icons.pending_actions_rounded, Colors.orange),
+        const SizedBox(width: 10),
+        _buildStatItem('Accepted', '0',
+            Icons.check_circle_outline_rounded, Colors.blue),
+        const SizedBox(width: 10),
+        _buildStatItem('Done', '0', Icons.verified_rounded, _emerald),
+      ],
+    );
+  }
+
+  Widget _buildStatItem(
+      String label, String value, IconData icon, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: color, size: 20),
             ),
             const SizedBox(height: 8),
             Text(
-              user?.email ?? 'No email',
-              style:
-                  TextStyle(fontSize: 16, color: Colors.grey.shade600),
+              value,
+              style: const TextStyle(
+                  fontSize: 22, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                  fontSize: 10, color: Colors.grey.shade500),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuickActions() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Quick Actions',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          const SizedBox(height: 14),
+          _buildActionTile(
+            icon: Icons.handshake_outlined,
+            iconColor: Colors.blue.shade600,
+            iconBg: Colors.blue.shade50,
+            title: 'View Help Requests',
+            subtitle: 'See requests from blind users',
+            onTap: () => setState(() => _selectedIndex = 1),
+          ),
+          const SizedBox(height: 10),
+          _buildActionTile(
+            icon: Icons.person_rounded,
+            iconColor: _emerald,
+            iconBg: _emeraldLight,
+            title: 'My Profile',
+            subtitle: 'Update your information',
+            onTap: () => setState(() => _selectedIndex = 2),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionTile({
+    required IconData icon,
+    required Color iconColor,
+    required Color iconBg,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
             Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.green.shade100,
-                borderRadius: BorderRadius.circular(20),
+                color: iconBg,
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: const Text('Volunteer',
-                  style: TextStyle(
-                      color: Colors.green,
-                      fontWeight: FontWeight.w600)),
+              child: Icon(icon, color: iconColor, size: 22),
             ),
-            const SizedBox(height: 32),
-            ElevatedButton.icon(
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w600, fontSize: 14)),
+                  Text(subtitle,
+                      style: TextStyle(
+                          fontSize: 12, color: Colors.grey.shade500)),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded,
+                color: Colors.grey.shade400, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Profile tab ───────────────────────────────────────────────────────
+
+  Widget _buildProfilePage() {
+    final user = FirebaseAuth.instance.currentUser;
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          // Gradient header with avatar
+          Container(
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF047857), Color(0xFF10B981)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.3),
+                    shape: BoxShape.circle,
+                  ),
+                  child: CircleAvatar(
+                    radius: 40,
+                    backgroundColor: Colors.white.withValues(alpha: 0.2),
+                    child: Text(
+                      widget.userName.isNotEmpty
+                          ? widget.userName[0].toUpperCase()
+                          : 'V',
+                      style: const TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  widget.userName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  user?.email ?? '',
+                  style: const TextStyle(
+                      color: Color(0xFFBBF7D0), fontSize: 12),
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.4)),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.verified_rounded,
+                          color: Colors.white, size: 13),
+                      SizedBox(width: 5),
+                      Text('Volunteer',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Info cards
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Column(
+              children: [
+                _profileInfoCard(
+                  title: 'CONTACT',
+                  accentColor: Colors.blue.shade600,
+                  icon: Icons.phone_rounded,
+                  children: [
+                    _profileInfoRow(Icons.phone_outlined, 'Phone',
+                        _profilePhone.isEmpty ? '—' : _profilePhone),
+                  ],
+                ),
+                _profileInfoCard(
+                  title: 'LANGUAGE',
+                  accentColor: const Color(0xFF7C3AED),
+                  icon: Icons.language_rounded,
+                  children: [
+                    _profileInfoRow(Icons.translate_rounded, 'Speaks',
+                        _profileLanguages.isEmpty ? '—' : _profileLanguages.join(', ')),
+                  ],
+                ),
+                _profileInfoCard(
+                  title: 'SPECIALTIES',
+                  accentColor: Colors.orange.shade700,
+                  icon: Icons.star_rounded,
+                  children: [
+                    if (_profileSpecialties.isEmpty)
+                      const Text('—',
+                          style: TextStyle(
+                              fontSize: 14, fontWeight: FontWeight.w500))
+                    else
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _profileSpecialties
+                            .map((s) => Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        Colors.orange.shade400,
+                                        Colors.orange.shade600,
+                                      ],
+                                    ),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Text(
+                                    s,
+                                    style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600),
+                                  ),
+                                ))
+                            .toList(),
+                      ),
+                  ],
+                ),
+                _profileInfoCard(
+                  title: 'AVAILABILITY',
+                  accentColor: Colors.teal.shade600,
+                  icon: Icons.schedule_rounded,
+                  children: [
+                    _profileInfoRow(Icons.access_time_rounded, 'Schedule',
+                        _profileAvailability.isEmpty
+                            ? '—'
+                            : _profileAvailability),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // Edit button
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+            child: ElevatedButton.icon(
               onPressed: () async {
-                _shouldListen = false;
-                await _speak('Opening profile settings.');
-                if (!mounted) return;
                 await Navigator.push(
                   context,
                   MaterialPageRoute(
                       builder: (_) => const VolunteerProfilePage()),
                 );
-                _shouldListen = true;
+                _loadVolunteerData();
               },
-              icon: const Icon(Icons.edit),
+              icon: const Icon(Icons.edit_rounded, size: 18),
               label: const Text('Edit Profile'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
+                backgroundColor: _emerald,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 32, vertical: 12),
+                minimumSize: const Size(double.infinity, 52),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                    borderRadius: BorderRadius.circular(14)),
+                elevation: 0,
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _profileInfoCard({
+    required String title,
+    required Color accentColor,
+    required IconData icon,
+    required List<Widget> children,
+  }) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border(left: BorderSide(color: accentColor, width: 4)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: accentColor, size: 14),
+                const SizedBox(width: 6),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: accentColor,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ...children,
           ],
         ),
       ),
+    );
+  }
+
+  Widget _profileInfoRow(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, color: _emerald, size: 17),
+        const SizedBox(width: 10),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label,
+                style: const TextStyle(
+                    color: Colors.grey, fontSize: 11)),
+            const SizedBox(height: 1),
+            Text(value,
+                style: const TextStyle(
+                    fontSize: 14, fontWeight: FontWeight.w500)),
+          ],
+        ),
+      ],
     );
   }
 }
