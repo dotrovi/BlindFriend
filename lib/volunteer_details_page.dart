@@ -25,7 +25,7 @@ class _VolunteerDetailsPageState extends State<VolunteerDetailsPage> {
   final _phoneController = TextEditingController();
 
   // Languages
-  String? _selectedLanguage;
+  final List<String> _selectedLanguages = [];
   final List<String> _languages = [
     'English',
     'Spanish',
@@ -77,11 +77,11 @@ class _VolunteerDetailsPageState extends State<VolunteerDetailsPage> {
       );
       return;
     }
-    if (_selectedLanguage == null) {
-      _speak('Please select a language');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Please select a language')));
+    if (_selectedLanguages.isEmpty) {
+      _speak('Please select at least one language');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select at least one language')),
+      );
       return;
     }
     if (_selectedSpecialties.isEmpty) {
@@ -116,7 +116,7 @@ class _VolunteerDetailsPageState extends State<VolunteerDetailsPage> {
       uid: widget.uid,
       idCardNumber: _idCardController.text.trim(),
       phoneNumber: _phoneController.text,
-      language: _selectedLanguage!,
+      languages: _selectedLanguages,
       specialties: _selectedSpecialties,
       availability: _selectedAvailability!,
     );
@@ -135,7 +135,7 @@ class _VolunteerDetailsPageState extends State<VolunteerDetailsPage> {
             builder: (context) => VolunteerCompletePage(
               name: widget.name,
               email: widget.email,
-              languages: [_selectedLanguage!],
+              languages: _selectedLanguages,
               specialties: _selectedSpecialties,
               availability: _selectedAvailability!,
             ),
@@ -308,11 +308,15 @@ class _VolunteerDetailsPageState extends State<VolunteerDetailsPage> {
                 itemCount: _languages.length,
                 itemBuilder: (context, index) {
                   final language = _languages[index];
-                  final isSelected = _selectedLanguage == language;
+                  final isSelected = _selectedLanguages.contains(language);
                   return GestureDetector(
                     onTap: () {
                       setState(() {
-                        _selectedLanguage = isSelected ? null : language;
+                        if (isSelected) {
+                          _selectedLanguages.remove(language);
+                        } else {
+                          _selectedLanguages.add(language);
+                        }
                       });
                       if (!isSelected) _speak('Selected $language');
                     },
