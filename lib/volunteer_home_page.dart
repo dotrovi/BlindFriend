@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -27,6 +28,17 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
   bool _isTogglingAvailability = false;
   String _locationText = 'Not set';
   DateTime? _locationLastUpdated;
+  late StreamSubscription<QuerySnapshot> _helpRequestsSubscription;
+
+  // Stats
+  int _pendingCount = 0;
+  int _acceptedCount = 0;
+  int _completedCount = 0;
+  bool _isLoadingStats = true;
+
+  // Volunteer matching data (for counting pending requests)
+  List<String> _volunteerSpecialties = [];
+  List<String> _volunteerLanguages = ['english'];
 
   // Profile data for profile tab
   String _profilePhone = '';
@@ -41,10 +53,98 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
 
   String? get _uid => FirebaseAuth.instance.currentUser?.uid;
 
+
   @override
   void initState() {
     super.initState();
     _loadVolunteerData();
+    _setupRealtimeStats();
+  }
+
+  void _setupRealtimeStats() {
+    final uid = _uid;
+    if (uid == null) return;
+
+    _helpRequestsSubscription = FirebaseFirestore.instance
+        .collection('help_requests')
+        .snapshots()
+        .listen((snapshot) {
+          _updateStatsFromSnapshot(snapshot);
+        });
+  }
+
+void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
+  final uid = _uid;
+  if (uid == null) return;
+
+  int pending = 0;
+  int accepted = 0;
+  int completed = 0;
+
+  for (var doc in snapshot.docs) {
+    final data = doc.data() as Map<String, dynamic>;
+    final rawStatus = data['status'] ?? '';
+    final status = rawStatus.toString().toLowerCase();
+
+    // Get volunteer ID
+    final volunteerField = data['volunteerId'] ?? 
+                           data['volunteer'] ?? 
+                           data['assignedVolunteerId'];
+    String? volunteerIdStr;
+    if (volunteerField is DocumentReference) {
+      volunteerIdStr = volunteerField.id;
+    } else if (volunteerField != null) {
+      volunteerIdStr = volunteerField.toString();
+    }
+
+    // Check if request is assigned to this volunteer
+    final isAssignedToMe = volunteerIdStr == uid;
+    
+    // Count accepted/in_progress requests assigned to this volunteer
+    if (status == 'accepted' || status == 'assigned' || status == 'in_progress') {
+      if (isAssignedToMe) {
+        accepted++;
+      }
+    } 
+    else if (status == 'completed' || status == 'done' || status == 'finished') {
+      if (isAssignedToMe) {
+        completed++;
+      }
+    }
+    else if (status == 'pending' || status == 'awaiting' || status == 'requested') {
+      // IMPORTANT: Only count if NOT assigned to anyone yet
+      final isUnassigned = volunteerIdStr == null || volunteerIdStr.isEmpty;
+      
+      if (isUnassigned) {
+        final requestType = (data['requestType'] ?? '').toString().toLowerCase();
+        final requestLanguage = (data['preferredLanguage'] ?? 'english').toString().toLowerCase();
+        
+        final matchesSpecialty = _volunteerSpecialties.contains(requestType);
+        final matchesLanguage = _volunteerLanguages.contains(requestLanguage);
+        
+        // Count if BOTH specialty AND language match
+        if (matchesSpecialty && matchesLanguage) {
+          pending++;
+        }
+      }
+    }
+  }
+
+  if (mounted) {
+    setState(() {
+      _pendingCount = pending;
+      _acceptedCount = accepted;
+      _completedCount = completed;
+      _isLoadingStats = false;
+    });
+  }
+}
+
+
+  @override
+  void dispose() {
+    _helpRequestsSubscription.cancel();
+    super.dispose();
   }
 
   // ── Data ──────────────────────────────────────────────────────────────
@@ -59,13 +159,30 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
           .get();
       final data = doc.data();
       if (data == null || !mounted) return;
+
       final geoPoint = data['location'] as GeoPoint?;
       final updatedAt = data['locationUpdatedAt'] as Timestamp?;
       final savedAddress = data['locationAddress'] as String?;
+
+      // Load volunteer specialties and languages for stats matching
+      _volunteerSpecialties = List<String>.from(
+        data['specialties'] ?? [],
+      ).map((s) => s.toString().toLowerCase()).toList();
+
+      final rawLang = data['language'];
+      if (rawLang is List) {
+        _volunteerLanguages = List<String>.from(
+          rawLang,
+        ).map((s) => s.toString().toLowerCase()).toList();
+      } else if (rawLang is String && rawLang.isNotEmpty) {
+        _volunteerLanguages = [rawLang.toLowerCase()];
+      } else {
+        _volunteerLanguages = ['english'];
+      }
+
       setState(() {
         _isAvailable = data['isAvailable'] ?? true;
         _profilePhone = data['phoneNumber'] ?? '';
-        final rawLang = data['language'];
         if (rawLang is List) {
           _profileLanguages = List<String>.from(rawLang);
         } else if (rawLang is String && rawLang.isNotEmpty) {
@@ -83,6 +200,8 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
         }
         _locationLastUpdated = updatedAt?.toDate();
       });
+
+  
     } catch (_) {}
   }
 
@@ -98,23 +217,30 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(permission == LocationPermission.deniedForever
-                ? 'Location permission permanently denied. Please enable in Settings.'
-                : 'Location permission denied.'),
-            backgroundColor: Colors.red,
-          ));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                permission == LocationPermission.deniedForever
+                    ? 'Location permission permanently denied. Please enable in Settings.'
+                    : 'Location permission denied.',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
         }
         return;
       }
 
       final position = await Geolocator.getCurrentPosition(
-        locationSettings:
-            const LocationSettings(accuracy: LocationAccuracy.high),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
 
-      // Reverse geocode to get readable address
-      final address = await _reverseGeocode(position.latitude, position.longitude);
+      final address = await _reverseGeocode(
+        position.latitude,
+        position.longitude,
+      );
 
       final success = await _firebaseService.updateVolunteerLocation(
         uid: uid,
@@ -123,7 +249,6 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
       );
 
       if (success) {
-        // Save readable address alongside the GeoPoint
         await FirebaseFirestore.instance
             .collection('volunteers')
             .doc(uid)
@@ -136,22 +261,28 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
           _locationText = address;
           _locationLastUpdated = DateTime.now();
         });
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Location updated successfully!'),
-          backgroundColor: Colors.green,
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Location updated successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Failed to save location. Please try again.'),
-          backgroundColor: Colors.red,
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to save location. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Could not get location: $e'),
-          backgroundColor: Colors.red,
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not get location: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _isUpdatingLocation = false);
@@ -164,18 +295,26 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
         'https://nominatim.openstreetmap.org/reverse'
         '?format=json&lat=$lat&lon=$lng&zoom=14&addressdetails=1',
       );
-      final response = await http.get(url, headers: {
-        'User-Agent': 'BlindFriend/1.0',
-        'Accept-Language': 'en',
-      }).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            url,
+            headers: {'User-Agent': 'BlindFriend/1.0', 'Accept-Language': 'en'},
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         final addr = data['address'] as Map<String, dynamic>? ?? {};
         final parts = <String>[];
         for (final key in [
-          'suburb', 'village', 'town', 'city_district',
-          'city', 'county', 'state', 'country',
+          'suburb',
+          'village',
+          'town',
+          'city_district',
+          'city',
+          'county',
+          'state',
+          'country',
         ]) {
           final val = addr[key] as String?;
           if (val != null && val.isNotEmpty && !parts.contains(val)) {
@@ -202,10 +341,12 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
     if (success) {
       setState(() => _isAvailable = newValue);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Failed to update availability. Please try again.'),
-        backgroundColor: Colors.red,
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to update availability. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
     setState(() => _isTogglingAvailability = false);
   }
@@ -313,7 +454,9 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
                       const Text(
                         'Volunteer',
                         style: TextStyle(
-                            color: Color(0xFFBBF7D0), fontSize: 11),
+                          color: Color(0xFFBBF7D0),
+                          fontSize: 11,
+                        ),
                       ),
                     ],
                   ),
@@ -323,13 +466,14 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
                       if (mounted) {
                         Navigator.pushReplacement(
                           context,
-                          MaterialPageRoute(
-                              builder: (_) => const LoginPage()),
+                          MaterialPageRoute(builder: (_) => const LoginPage()),
                         );
                       }
                     },
-                    icon: Icon(Icons.logout,
-                        color: Colors.white.withValues(alpha: 0.85)),
+                    icon: Icon(
+                      Icons.logout,
+                      color: Colors.white.withValues(alpha: 0.85),
+                    ),
                   ),
                 ],
               ),
@@ -350,8 +494,7 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius:
-            const BorderRadius.vertical(top: Radius.circular(22)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.08),
@@ -384,19 +527,17 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(icon,
-                            color: isSelected
-                                ? _emerald
-                                : Colors.grey.shade400,
-                            size: 24),
+                        Icon(
+                          icon,
+                          color: isSelected ? _emerald : Colors.grey.shade400,
+                          size: 24,
+                        ),
                         const SizedBox(height: 3),
                         Text(
                           label,
                           style: TextStyle(
                             fontSize: 11,
-                            color: isSelected
-                                ? _emerald
-                                : Colors.grey.shade500,
+                            color: isSelected ? _emerald : Colors.grey.shade500,
                             fontWeight: isSelected
                                 ? FontWeight.w600
                                 : FontWeight.normal,
@@ -417,27 +558,38 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
   // ── Home tab ──────────────────────────────────────────────────────────
 
   Widget _buildHomePage() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-      child: Column(
-        children: [
-          _buildWelcomeBanner(),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(child: _buildAvailabilityCard()),
-              const SizedBox(width: 12),
-              Expanded(child: _buildLocationMiniCard()),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _buildLocationFullCard(),
-          const SizedBox(height: 16),
-          _buildStatsRow(),
-          const SizedBox(height: 16),
-          _buildQuickActions(),
-          const SizedBox(height: 24),
-        ],
+    return RefreshIndicator(
+      onRefresh: () async {
+        final snapshot = await FirebaseFirestore.instance
+            .collection('help_requests')
+            .get();
+        _updateStatsFromSnapshot(snapshot);
+        await _loadVolunteerData();
+      },
+      color: _emerald,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+        child: Column(
+          children: [
+            _buildWelcomeBanner(),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(child: _buildAvailabilityCard()),
+                const SizedBox(width: 12),
+                Expanded(child: _buildLocationMiniCard()),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildLocationFullCard(),
+            const SizedBox(height: 16),
+            _buildStatsRow(),
+            const SizedBox(height: 16),
+            _buildQuickActions(),
+            const SizedBox(height: 24),
+          ],
+        ),
       ),
     );
   }
@@ -584,9 +736,7 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
                         height: 22,
                         padding: const EdgeInsets.all(2),
                         decoration: BoxDecoration(
-                          color: _isAvailable
-                              ? _emerald
-                              : Colors.grey.shade300,
+                          color: _isAvailable ? _emerald : Colors.grey.shade300,
                           borderRadius: BorderRadius.circular(11),
                         ),
                         child: AnimatedAlign(
@@ -719,25 +869,30 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
         children: [
           Row(
             children: [
-              const Icon(Icons.my_location_rounded,
-                  color: Color(0xFF7C3AED), size: 20),
+              const Icon(
+                Icons.my_location_rounded,
+                color: Color(0xFF7C3AED),
+                size: 20,
+              ),
               const SizedBox(width: 8),
               const Text(
                 'Your Location',
-                style:
-                    TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
               ),
               const Spacer(),
               _isUpdatingLocation
                   ? const SizedBox(
                       width: 22,
                       height: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2))
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
                   : GestureDetector(
                       onTap: _updateLocation,
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 7),
+                          horizontal: 14,
+                          vertical: 7,
+                        ),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
                             colors: [Color(0xFF7C3AED), Color(0xFF9F67FA)],
@@ -747,8 +902,11 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.gps_fixed_rounded,
-                                color: Colors.white, size: 13),
+                            Icon(
+                              Icons.gps_fixed_rounded,
+                              color: Colors.white,
+                              size: 13,
+                            ),
                             SizedBox(width: 5),
                             Text(
                               'Update GPS',
@@ -767,8 +925,7 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
           const SizedBox(height: 14),
           Container(
             width: double.infinity,
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
               color: hasLocation
                   ? const Color(0xFFEDE9FE)
@@ -803,14 +960,18 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.check_circle_rounded,
-                          size: 14, color: Color(0xFF059669)),
+                      const Icon(
+                        Icons.check_circle_rounded,
+                        size: 14,
+                        color: Color(0xFF059669),
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         'Shared',
                         style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey.shade600),
+                          fontSize: 11,
+                          color: Colors.grey.shade600,
+                        ),
                       ),
                     ],
                   ),
@@ -830,21 +991,60 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
   }
 
   Widget _buildStatsRow() {
+    if (_isLoadingStats) {
+      return Row(
+        children: [
+          _buildStatItem(
+            'Pending',
+            '...',
+            Icons.pending_actions_rounded,
+            Colors.orange,
+          ),
+          const SizedBox(width: 10),
+          _buildStatItem(
+            'Accepted',
+            '...',
+            Icons.check_circle_outline_rounded,
+            Colors.blue,
+          ),
+          const SizedBox(width: 10),
+          _buildStatItem('Done', '...', Icons.verified_rounded, _emerald),
+        ],
+      );
+    }
+
     return Row(
       children: [
-        _buildStatItem('Pending', '0',
-            Icons.pending_actions_rounded, Colors.orange),
+        _buildStatItem(
+          'Pending',
+          _pendingCount.toString(),
+          Icons.pending_actions_rounded,
+          Colors.orange,
+        ),
         const SizedBox(width: 10),
-        _buildStatItem('Accepted', '0',
-            Icons.check_circle_outline_rounded, Colors.blue),
+        _buildStatItem(
+          'Accepted',
+          _acceptedCount.toString(),
+          Icons.check_circle_outline_rounded,
+          Colors.blue,
+        ),
         const SizedBox(width: 10),
-        _buildStatItem('Done', '0', Icons.verified_rounded, _emerald),
+        _buildStatItem(
+          'Done',
+          _completedCount.toString(),
+          Icons.verified_rounded,
+          _emerald,
+        ),
       ],
     );
   }
 
   Widget _buildStatItem(
-      String label, String value, IconData icon, Color color) {
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 10),
@@ -872,14 +1072,12 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
             const SizedBox(height: 8),
             Text(
               value,
-              style: const TextStyle(
-                  fontSize: 22, fontWeight: FontWeight.bold),
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 2),
             Text(
               label,
-              style: TextStyle(
-                  fontSize: 10, color: Colors.grey.shade500),
+              style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
               textAlign: TextAlign.center,
             ),
           ],
@@ -963,17 +1161,25 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w600, fontSize: 14)),
-                  Text(subtitle,
-                      style: TextStyle(
-                          fontSize: 12, color: Colors.grey.shade500)),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                  ),
                 ],
               ),
             ),
-            Icon(Icons.chevron_right_rounded,
-                color: Colors.grey.shade400, size: 20),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: Colors.grey.shade400,
+              size: 20,
+            ),
           ],
         ),
       ),
@@ -987,7 +1193,6 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
     return SingleChildScrollView(
       child: Column(
         children: [
-          // Gradient header with avatar
           Container(
             padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
             decoration: const BoxDecoration(
@@ -1013,9 +1218,10 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
                           ? widget.userName[0].toUpperCase()
                           : 'V',
                       style: const TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white),
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
@@ -1030,31 +1236,42 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  user?.email ?? '',
+                  user?.email ?? 'No email',
                   style: const TextStyle(
-                      color: Color(0xFFBBF7D0), fontSize: 12),
+                    color: Color(0xFFBBF7D0),
+                    fontSize: 12,
+                  ),
                 ),
                 const SizedBox(height: 10),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 5),
+                    horizontal: 14,
+                    vertical: 5,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.4)),
+                      color: Colors.white.withValues(alpha: 0.4),
+                    ),
                   ),
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.verified_rounded,
-                          color: Colors.white, size: 13),
+                      Icon(
+                        Icons.verified_rounded,
+                        color: Colors.white,
+                        size: 13,
+                      ),
                       SizedBox(width: 5),
-                      Text('Volunteer',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 12)),
+                      Text(
+                        'Volunteer',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -1062,7 +1279,6 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
             ),
           ),
 
-          // Info cards
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Column(
@@ -1072,8 +1288,11 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
                   accentColor: Colors.blue.shade600,
                   icon: Icons.phone_rounded,
                   children: [
-                    _profileInfoRow(Icons.phone_outlined, 'Phone',
-                        _profilePhone.isEmpty ? '—' : _profilePhone),
+                    _profileInfoRow(
+                      Icons.phone_outlined,
+                      'Phone',
+                      _profilePhone.isEmpty ? '—' : _profilePhone,
+                    ),
                   ],
                 ),
                 _profileInfoCard(
@@ -1081,8 +1300,13 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
                   accentColor: const Color(0xFF7C3AED),
                   icon: Icons.language_rounded,
                   children: [
-                    _profileInfoRow(Icons.translate_rounded, 'Speaks',
-                        _profileLanguages.isEmpty ? '—' : _profileLanguages.join(', ')),
+                    _profileInfoRow(
+                      Icons.translate_rounded,
+                      'Speaks',
+                      _profileLanguages.isEmpty
+                          ? '—'
+                          : _profileLanguages.join(', '),
+                    ),
                   ],
                 ),
                 _profileInfoCard(
@@ -1091,34 +1315,43 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
                   icon: Icons.star_rounded,
                   children: [
                     if (_profileSpecialties.isEmpty)
-                      const Text('—',
-                          style: TextStyle(
-                              fontSize: 14, fontWeight: FontWeight.w500))
+                      const Text(
+                        '—',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      )
                     else
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
                         children: _profileSpecialties
-                            .map((s) => Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        Colors.orange.shade400,
-                                        Colors.orange.shade600,
-                                      ],
-                                    ),
-                                    borderRadius: BorderRadius.circular(20),
+                            .map(
+                              (s) => Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      Colors.orange.shade400,
+                                      Colors.orange.shade600,
+                                    ],
                                   ),
-                                  child: Text(
-                                    s,
-                                    style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  s,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
                                   ),
-                                ))
+                                ),
+                              ),
+                            )
                             .toList(),
                       ),
                   ],
@@ -1128,17 +1361,17 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
                   accentColor: Colors.teal.shade600,
                   icon: Icons.schedule_rounded,
                   children: [
-                    _profileInfoRow(Icons.access_time_rounded, 'Schedule',
-                        _profileAvailability.isEmpty
-                            ? '—'
-                            : _profileAvailability),
+                    _profileInfoRow(
+                      Icons.access_time_rounded,
+                      'Schedule',
+                      _profileAvailability.isEmpty ? '—' : _profileAvailability,
+                    ),
                   ],
                 ),
               ],
             ),
           ),
 
-          // Edit button
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
             child: ElevatedButton.icon(
@@ -1146,9 +1379,14 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
                 await Navigator.push(
                   context,
                   MaterialPageRoute(
-                      builder: (_) => const VolunteerProfilePage()),
+                    builder: (_) => const VolunteerProfilePage(),
+                  ),
                 );
                 _loadVolunteerData();
+                final snapshot = await FirebaseFirestore.instance
+                    .collection('help_requests')
+                    .get();
+                _updateStatsFromSnapshot(snapshot);
               },
               icon: const Icon(Icons.edit_rounded, size: 18),
               label: const Text('Edit Profile'),
@@ -1157,7 +1395,8 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
                 foregroundColor: Colors.white,
                 minimumSize: const Size(double.infinity, 52),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
+                  borderRadius: BorderRadius.circular(14),
+                ),
                 elevation: 0,
               ),
             ),
@@ -1224,13 +1463,15 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label,
-                style: const TextStyle(
-                    color: Colors.grey, fontSize: 11)),
+            Text(
+              label,
+              style: const TextStyle(color: Colors.grey, fontSize: 11),
+            ),
             const SizedBox(height: 1),
-            Text(value,
-                style: const TextStyle(
-                    fontSize: 14, fontWeight: FontWeight.w500)),
+            Text(
+              value,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+            ),
           ],
         ),
       ],

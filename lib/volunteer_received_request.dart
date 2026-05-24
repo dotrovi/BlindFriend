@@ -1,3 +1,6 @@
+/// The `VolunteerReceivedRequestsScreen` class in Dart manages the display and interaction with help
+/// requests for a volunteer, including filtering, accepting, marking as in progress, and completing
+/// requests.
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
