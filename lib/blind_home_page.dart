@@ -8,8 +8,9 @@ import 'package:speech_to_text/speech_to_text.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'login_page.dart';
 import 'user_profile_page.dart';
-import 'blind_send_help_request.dart'; // Add this import
-import 'blind_track_help_request.dart'; // Add this import
+import 'blind_send_help_request.dart';
+import 'blind_track_help_request.dart';
+import 'browse_volunteers_page.dart';
 
 class BlindHomePage extends StatefulWidget {
   final String userName;
@@ -20,7 +21,7 @@ class BlindHomePage extends StatefulWidget {
 }
 
 class _BlindHomePageState extends State<BlindHomePage> {
-  int _selectedIndex = 0; // 0=Home, 1=Shopping, 2=Obstacles, 3=Path, 4=Help
+  int _selectedIndex = 0; // 0=Home, 1=Shopping, 2=Obstacles, 3=Path
 
   final FlutterTts _tts = FlutterTts();
   final SpeechToText _stt = SpeechToText();
@@ -31,8 +32,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
   bool _shouldListen = true;
   int _speakGeneration = 0;
   DateTime? _pressStartTime;
-
-  // Track if voice is currently processing to prevent duplicates
   bool _isProcessingVoice = false;
 
   @override
@@ -74,7 +73,8 @@ class _BlindHomePageState extends State<BlindHomePage> {
     if (mounted) {
       await _speak(
         'Welcome to BlindFriend, ${widget.userName}. '
-        'Tap the voice button and say: Shopping, Obstacle, Path, Request Help, Track Requests, Volunteers, '
+        'Tap the voice button and say: Shopping, Obstacle, Path, '
+        'Volunteers to find help nearby, Request Help, Track Requests, '
         'Profile, or Logout. For emergency, press and hold the voice button.',
       );
     }
@@ -115,10 +115,8 @@ class _BlindHomePageState extends State<BlindHomePage> {
       _pressStartTime ?? DateTime.now(),
     );
     if (pressDuration >= const Duration(seconds: 3)) {
-      // Long press - Emergency
       _handleEmergency();
     } else {
-      // Short tap - Voice command
       if (!_isProcessingVoice && _sttAvailable && !_isSpeaking) {
         _startListening();
       }
@@ -134,7 +132,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
       'Emergency! Calling emergency services. Please stay calm. Help is on the way.',
     );
 
-    // In production, you would integrate with device's emergency call feature
     if (mounted) {
       showDialog(
         context: context,
@@ -163,8 +160,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
   }
 
   Future<void> _startListening() async {
-    if (!_sttAvailable || !mounted || !_shouldListen || _stt.isListening)
-      return;
+    if (!_sttAvailable || !mounted || !_shouldListen || _stt.isListening) return;
 
     setState(() => _isListening = true);
     await _stt.listen(
@@ -184,7 +180,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
     if (_isProcessingVoice) return;
     _isProcessingVoice = true;
 
-    if (command.contains('Shopping') || command.contains('scan')) {
+    if (command.contains('shopping') || command.contains('scan')) {
       await _speak('Opening shopping helper. Barcode scanner activated.');
       _setSelectedIndex(1);
     } else if (command.contains('obstacle')) {
@@ -193,16 +189,16 @@ class _BlindHomePageState extends State<BlindHomePage> {
     } else if (command.contains('path') || command.contains('navigation')) {
       await _speak('Path detection. Tactile path guidance recognition.');
       _setSelectedIndex(3);
-    } else if (command.contains('request help') || 
-               (command.contains('send') && command.contains('help'))) {
+    } else if (command.contains('volunteer') || command.contains('find')) {
+      await _speak('Opening nearby volunteers.');
+      await _navigateToBrowseVolunteers();
+    } else if (command.contains('request help') ||
+        (command.contains('send') && command.contains('help'))) {
       await _speak('Opening request help page. Please describe your need.');
-      _navigateToSendHelpRequest();
+      await _navigateToSendHelpRequest();
     } else if (command.contains('track') && command.contains('request')) {
-      await _speak('Opening your help requests. Here are your recent requests.');
-      _navigateToTrackRequests();
-    } else if (command.contains('volunteer') || command.contains('help')) {
-      await _speak('Finding volunteers. You can request help or track your requests.');
-      _setSelectedIndex(4);
+      await _speak('Opening your help requests.');
+      await _navigateToTrackRequests();
     } else if (command.contains('home') || command.contains('dashboard')) {
       await _speak('Returning to home page.');
       _setSelectedIndex(0);
@@ -233,75 +229,61 @@ class _BlindHomePageState extends State<BlindHomePage> {
         'You can say: Shopping to scan barcodes. '
         'Obstacle for obstacle detection. '
         'Path for path detection. '
+        'Volunteers to find help nearby. '
         'Request Help to send a new help request. '
         'Track Requests to see your request status. '
-        'Volunteers to find help nearby. '
         'Profile to view your account. '
         'Or Logout to sign out.',
       );
     } else {
-      await _speak(
-        'Command not recognized. Say Repeat to hear available commands.',
-      );
+      await _speak('Command not recognized. Say Repeat to hear available commands.');
     }
 
     _isProcessingVoice = false;
   }
 
   void _setSelectedIndex(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+    setState(() => _selectedIndex = index);
   }
 
   void _onNavBarTap(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-    // Speak the page name
-    String pageName = '';
+    setState(() => _selectedIndex = index);
     switch (index) {
-      case 0:
-        pageName = 'Home';
-        break;
-      case 1:
-        pageName = 'Shopping Helper';
-        break;
-      case 2:
-        pageName = 'Obstacle Detection';
-        break;
-      case 3:
-        pageName = 'Path Detection';
-        break;
-      case 4:
-        pageName = 'Help Center';
-        break;
+      case 0: _speak('Home'); break;
+      case 1: _speak('Shopping Helper'); break;
+      case 2: _speak('Obstacle Detection'); break;
+      case 3: _speak('Path Detection'); break;
     }
-    _speak('Opened $pageName page');
   }
 
-  void _navigateToSendHelpRequest() async {
+  Future<void> _navigateToBrowseVolunteers() async {
+    _shouldListen = false;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const BrowseVolunteersPage()),
+    );
+    _shouldListen = true;
+    if (mounted) await _speak('Back on home page.');
+  }
+
+  Future<void> _navigateToSendHelpRequest() async {
     _shouldListen = false;
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const BlindSendHelpRequestScreen()),
     );
     _shouldListen = true;
-    if (mounted) {
-      await _speak('Back on help center page.');
-    }
+    if (mounted) await _speak('Back on home page.');
   }
 
-  void _navigateToTrackRequests() async {
+  Future<void> _navigateToTrackRequests() async {
     _shouldListen = false;
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const BlindTrackRequestsScreen()),
     );
     _shouldListen = true;
-    if (mounted) {
-      await _speak('Back on help center page.');
-    }
+    if (mounted) await _speak('Back on home page.');
   }
 
   @override
@@ -318,7 +300,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
       body: SafeArea(
         child: Column(
           children: [
-            // Top Header
+            // Header
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               decoration: BoxDecoration(
@@ -373,39 +355,27 @@ class _BlindHomePageState extends State<BlindHomePage> {
                       ),
                       IconButton(
                         onPressed: () async {
-                          print("🔴 Logout button pressed");
                           try {
                             await _tts.stop();
                             await _tts.speak(
                               'Logging out. Goodbye, ${widget.userName}.',
                             );
                             await Future.delayed(
-                              const Duration(milliseconds: 800),
-                            );
-
-                            print("🔴 Signing out from Firebase");
+                                const Duration(milliseconds: 800));
                             await FirebaseAuth.instance.signOut();
-
-                            print("🔴 Navigating to LoginPage");
-                            // Force navigation to login page
                             if (mounted) {
-                              Navigator.of(
-                                context,
-                              ).popUntil((route) => route.isFirst);
+                              Navigator.of(context)
+                                  .popUntil((route) => route.isFirst);
                               Navigator.of(context).pushReplacement(
                                 MaterialPageRoute(
-                                  builder: (_) => const LoginPage(),
-                                ),
+                                    builder: (_) => const LoginPage()),
                               );
                             }
                           } catch (e) {
-                            print("🔴 Logout error: $e");
-                            // Force navigation even on error
                             if (mounted) {
                               Navigator.of(context).pushReplacement(
                                 MaterialPageRoute(
-                                  builder: (_) => const LoginPage(),
-                                ),
+                                    builder: (_) => const LoginPage()),
                               );
                             }
                           }
@@ -419,7 +389,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
               ),
             ),
 
-            // Main Content Area
+            // Main content — only 4 tabs now, no Help tab in IndexedStack
             Expanded(
               child: IndexedStack(
                 index: _selectedIndex,
@@ -428,12 +398,11 @@ class _BlindHomePageState extends State<BlindHomePage> {
                   _buildShoppingHelper(),
                   _buildObstacleDetection(),
                   _buildPathDetection(),
-                  _buildFindVolunteers(),
                 ],
               ),
             ),
 
-            // Bottom Navigation Bar
+            // Bottom nav — 4 items
             Container(
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -456,22 +425,13 @@ class _BlindHomePageState extends State<BlindHomePage> {
                 unselectedFontSize: 12,
                 items: const [
                   BottomNavigationBarItem(
-                    icon: Icon(Icons.home),
-                    label: 'Home',
-                  ),
+                      icon: Icon(Icons.home), label: 'Home'),
                   BottomNavigationBarItem(
-                    icon: Icon(Icons.qr_code_scanner),
-                    label: 'Shopping',
-                  ),
+                      icon: Icon(Icons.qr_code_scanner), label: 'Shopping'),
                   BottomNavigationBarItem(
-                    icon: Icon(Icons.warning),
-                    label: 'Obstacles',
-                  ),
-                  BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Path'),
+                      icon: Icon(Icons.warning), label: 'Obstacles'),
                   BottomNavigationBarItem(
-                    icon: Icon(Icons.people),
-                    label: 'Help',
-                  ),
+                      icon: Icon(Icons.map), label: 'Path'),
                 ],
               ),
             ),
@@ -481,13 +441,16 @@ class _BlindHomePageState extends State<BlindHomePage> {
     );
   }
 
-  // ===================== HOME PAGE =====================
+  // ---------------------------------------------------------------------------
+  // HOME PAGE
+  // ---------------------------------------------------------------------------
+
   Widget _buildHomePage() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // Voice Command Button
+          // Voice button
           GestureDetector(
             onTapDown: _onTapDown,
             onTapUp: _onTapUp,
@@ -545,39 +508,40 @@ class _BlindHomePageState extends State<BlindHomePage> {
           ),
           const SizedBox(height: 24),
 
-          // Feature Cards
+          // Feature cards
           _buildFeatureCard(
             icon: Icons.qr_code_scanner,
             title: 'Shopping Helper',
             description: 'Scan barcodes and get audio feedback',
             color: Colors.purple,
-            index: 1,
+            onTap: () => _setSelectedIndex(1),
           ),
           _buildFeatureCard(
             icon: Icons.warning_amber,
             title: 'Obstacle Detection',
             description: 'Real-time voice alerts for obstacles',
             color: Colors.orange,
-            index: 2,
+            onTap: () => _setSelectedIndex(2),
           ),
           _buildFeatureCard(
             icon: Icons.map_outlined,
             title: 'Path Detection',
             description: 'Tactile path guidance recognition',
             color: Colors.teal,
-            index: 3,
+            onTap: () => _setSelectedIndex(3),
           ),
+          // Find Volunteers navigates to BrowseVolunteersPage directly
           _buildFeatureCard(
             icon: Icons.people_alt,
             title: 'Find Volunteers',
             description: 'Get help from verified volunteers nearby',
             color: Colors.green,
-            index: 4,
+            onTap: _navigateToBrowseVolunteers,
           ),
 
           const SizedBox(height: 16),
 
-          // Emergency Section
+          // Emergency
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -623,7 +587,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
 
           const SizedBox(height: 16),
 
-          // Voice Commands List
+          // Voice commands list
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -642,15 +606,15 @@ class _BlindHomePageState extends State<BlindHomePage> {
                 _buildCommandTile('Shopping', 'Open shopping helper'),
                 _buildCommandTile('Obstacle', 'Start obstacle detection'),
                 _buildCommandTile('Path', 'Activate path detection'),
+                _buildCommandTile('Volunteers', 'Browse nearby volunteers'),
                 _buildCommandTile('Request Help', 'Send a new help request'),
                 _buildCommandTile('Track Requests', 'View your request status'),
-                _buildCommandTile('Volunteers or Help', 'Find volunteers nearby'),
                 _buildCommandTile('Profile', 'Open your profile'),
                 _buildCommandTile('Logout', 'Sign out'),
               ],
             ),
           ),
-          const SizedBox(height: 80), // Bottom padding for nav bar
+          const SizedBox(height: 80),
         ],
       ),
     );
@@ -661,7 +625,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
     required String title,
     required String description,
     required Color color,
-    required int index,
+    required VoidCallback onTap,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -694,7 +658,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
           style: TextStyle(color: Colors.grey.shade600),
         ),
         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-        onTap: () => _setSelectedIndex(index),
+        onTap: onTap,
       ),
     );
   }
@@ -732,12 +696,14 @@ class _BlindHomePageState extends State<BlindHomePage> {
     );
   }
 
-  // ===================== SHOPPING HELPER PAGE =====================
+  // ---------------------------------------------------------------------------
+  // OTHER PAGES
+  // ---------------------------------------------------------------------------
+
   Widget _buildShoppingHelper() {
     return const ShoppingHelperPage();
   }
 
-  // ===================== OBSTACLE DETECTION PAGE =====================
   Widget _buildObstacleDetection() {
     return Center(
       child: Padding(
@@ -758,17 +724,11 @@ class _BlindHomePageState extends State<BlindHomePage> {
                   ),
                 ],
               ),
-              child: const Icon(
-                Icons.warning_amber,
-                size: 80,
-                color: Colors.orange,
-              ),
+              child: const Icon(Icons.warning_amber, size: 80, color: Colors.orange),
             ),
             const SizedBox(height: 32),
-            const Text(
-              'Obstacle Detection',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-            ),
+            const Text('Obstacle Detection',
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             const Text(
               'Real-time voice alerts for obstacles in your path.',
@@ -777,21 +737,16 @@ class _BlindHomePageState extends State<BlindHomePage> {
             ),
             const SizedBox(height: 32),
             ElevatedButton.icon(
-              onPressed: () {
-                _speak('Starting obstacle detection. Camera is now active.');
-              },
+              onPressed: () =>
+                  _speak('Starting obstacle detection. Camera is now active.'),
               icon: const Icon(Icons.play_arrow),
               label: const Text('Start Detection'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 16,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                    borderRadius: BorderRadius.circular(12)),
                 textStyle: const TextStyle(fontSize: 18),
               ),
             ),
@@ -801,7 +756,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
     );
   }
 
-  // ===================== PATH DETECTION PAGE =====================
   Widget _buildPathDetection() {
     return Center(
       child: Padding(
@@ -822,17 +776,11 @@ class _BlindHomePageState extends State<BlindHomePage> {
                   ),
                 ],
               ),
-              child: const Icon(
-                Icons.map_outlined,
-                size: 80,
-                color: Colors.teal,
-              ),
+              child: const Icon(Icons.map_outlined, size: 80, color: Colors.teal),
             ),
             const SizedBox(height: 32),
-            const Text(
-              'Path Detection',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-            ),
+            const Text('Path Detection',
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             const Text(
               'Tactile path guidance recognition for safe navigation.',
@@ -841,196 +789,20 @@ class _BlindHomePageState extends State<BlindHomePage> {
             ),
             const SizedBox(height: 32),
             ElevatedButton.icon(
-              onPressed: () {
-                _speak('Starting path detection. Follow the voice guidance.');
-              },
+              onPressed: () =>
+                  _speak('Starting path detection. Follow the voice guidance.'),
               icon: const Icon(Icons.play_arrow),
               label: const Text('Start Navigation'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.teal,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 16,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                    borderRadius: BorderRadius.circular(12)),
                 textStyle: const TextStyle(fontSize: 18),
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  // ===================== FIND VOLUNTEERS PAGE (UPDATED) =====================
-  Widget _buildFindVolunteers() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        children: [
-          // Header
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.green.shade700, Colors.green.shade500],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.people_alt, color: Colors.white, size: 28),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Help Center',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Get help from verified volunteers',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.white.withOpacity(0.8),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Request Help Button
-          _buildHelpActionCard(
-            icon: Icons.add_circle_outline,
-            title: 'Request Help',
-            description: 'Send a new help request to nearby volunteers',
-            color: Colors.blue,
-            onTap: _navigateToSendHelpRequest,
-          ),
-          const SizedBox(height: 16),
-
-          // Track Requests Button
-          _buildHelpActionCard(
-            icon: Icons.track_changes,
-            title: 'Track My Requests',
-            description: 'View status of your help requests',
-            color: Colors.orange,
-            onTap: _navigateToTrackRequests,
-          ),
-          const SizedBox(height: 16),
-
-          // Information Card
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.green.shade50,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.green.shade200),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.info_outline, color: Colors.green.shade700),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'When you request help, nearby volunteers will be notified and can respond to your request. You can track the status in real-time.',
-                    style: TextStyle(fontSize: 14, color: Colors.green.shade700),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 80), // Bottom padding
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHelpActionCard({
-    required IconData icon,
-    required String title,
-    required String description,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(icon, color: color, size: 28),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        description,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey.shade400),
-              ],
-            ),
-          ),
         ),
       ),
     );
