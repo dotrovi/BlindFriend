@@ -19,6 +19,9 @@ dependencies:
   permission_handler: ^11.3.0
   mobile_scanner: ^7.2.0
   http: ^1.6.0
+  camera: ^0.11.2+1
+  google_mlkit_object_detection: ^0.15.1
+  path_provider: ^2.1.5
   geolocator: ^13.0.2
 
   # a bug where brightness was not found in the latest version of firebase_ui_shared (or something similar), so downgrade it to following if it happens
@@ -36,3 +39,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/
+    - assets/models/

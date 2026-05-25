@@ -1,0 +1,12 @@
+Place your trained TensorFlow Lite model in this folder and name it exactly:
+
+    obstacle_model.tflite
+
+Requirements:
+- It must be an ML Kit-compatible image CLASSIFICATION model in .tflite format
+  with embedded metadata (input: image tensor; output: labelled probabilities).
+- Models exported from Vertex AI / AutoML Vision Edge or TensorFlow Lite Model
+  Maker already include the required metadata.
+
+The app loads this model automatically the next time it starts. If the file is
+missing, BlindFriend falls back to ML Kit's built-in object detector.

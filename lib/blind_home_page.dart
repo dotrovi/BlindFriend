@@ -10,6 +10,7 @@ import 'login_page.dart';
 import 'user_profile_page.dart';
 import 'blind_send_help_request.dart'; // Add this import
 import 'blind_track_help_request.dart'; // Add this import
+import 'obstacle_detection_page.dart';
 
 class BlindHomePage extends StatefulWidget {
   final String userName;
@@ -739,66 +740,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
 
   // ===================== OBSTACLE DETECTION PAGE =====================
   Widget _buildObstacleDetection() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.orange.withOpacity(0.2),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.warning_amber,
-                size: 80,
-                color: Colors.orange,
-              ),
-            ),
-            const SizedBox(height: 32),
-            const Text(
-              'Obstacle Detection',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Real-time voice alerts for obstacles in your path.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, color: Colors.grey),
-            ),
-            const SizedBox(height: 32),
-            ElevatedButton.icon(
-              onPressed: () {
-                _speak('Starting obstacle detection. Camera is now active.');
-              },
-              icon: const Icon(Icons.play_arrow),
-              label: const Text('Start Detection'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 16,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                textStyle: const TextStyle(fontSize: 18),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    return const ObstacleDetectionPage();
   }
 
   // ===================== PATH DETECTION PAGE =====================
