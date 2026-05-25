@@ -1,3 +1,6 @@
+/// The `VolunteerReceivedRequestsScreen` class in Dart manages the display and interaction with help
+/// requests for a volunteer, including filtering, accepting, marking as in progress, and completing
+/// requests.
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -78,20 +81,21 @@ class _VolunteerReceivedRequestsScreenState
   List<HelpRequest> _matchedRequests = [];
   String? _errorMessage;
 
-  // Volunteer's profile
   Map<String, dynamic>? _volunteerProfile;
   List<String> _volunteerSpecialties = [];
-  String _volunteerLanguage = 'english';
+  List<String> _volunteerLanguages = ['english'];
 
-  // Language display names mapping
   final Map<String, String> _languageNames = {
-    'english': 'English 🇺🇸',
-    'spanish': 'Spanish 🇪🇸',
-    'mandarin': 'Mandarin 🇨🇳',
-    'french': 'French 🇫🇷',
-    'german': 'German 🇩🇪',
-    'korean': 'Korean 🇰🇷',
+    'english': 'English',
+    'spanish': 'Spanish',
+    'mandarin': 'Mandarin',
+    'french': 'French',
+    'german': 'German',
+    'korean': 'Korean',
   };
+
+  static const _emerald = Color(0xFF059669);
+  static const _emeraldDark = Color(0xFF047857);
 
   @override
   void initState() {
@@ -104,34 +108,35 @@ class _VolunteerReceivedRequestsScreenState
     if (volunteerId == null) return;
 
     try {
-      // Get volunteer profile from Firestore
-      final volunteerDoc = await firestore
-          .collection('volunteers')
-          .doc(volunteerId)
-          .get();
+      final volunteerDoc =
+          await firestore.collection('volunteers').doc(volunteerId).get();
 
       if (volunteerDoc.exists) {
         final data = volunteerDoc.data() as Map<String, dynamic>;
         _volunteerProfile = data;
-        _volunteerSpecialties = List<String>.from(
-          data['specialties'] ?? [],
-        ).map((s) => s.toString().toLowerCase()).toList();
-
-        _volunteerLanguage =
-            data['language']?.toString().toLowerCase() ?? 'english';
-
-        print('✅ Volunteer loaded - Specialties: $_volunteerSpecialties');
-        print('✅ Volunteer Language: $_volunteerLanguage');
+        _volunteerSpecialties = List<String>.from(data['specialties'] ?? [])
+            .map((s) => s.toString().toLowerCase())
+            .toList();
+        final rawLang = data['language'];
+        if (rawLang is List) {
+          _volunteerLanguages = List<String>.from(rawLang)
+              .map((s) => s.toString().toLowerCase())
+              .toList();
+        } else if (rawLang is String && rawLang.isNotEmpty) {
+          _volunteerLanguages = [rawLang.toLowerCase()];
+        } else {
+          _volunteerLanguages = ['english'];
+        }
 
         await _loadMatchingRequests();
       } else {
         setState(() {
-          _errorMessage = 'Volunteer profile not found. Please contact admin.';
+          _errorMessage =
+              'Volunteer profile not found. Please contact admin.';
           _isLoading = false;
         });
       }
     } catch (e) {
-      print('Error loading volunteer profile: $e');
       setState(() {
         _errorMessage = 'Error loading profile: $e';
         _isLoading = false;
@@ -147,42 +152,30 @@ class _VolunteerReceivedRequestsScreenState
 
     try {
       final volunteerId = auth.currentUser?.uid;
-      if (volunteerId == null) {
-        throw Exception('Volunteer not logged in');
-      }
+      if (volunteerId == null) throw Exception('Volunteer not logged in');
 
-      final querySnapshot = await firestore.collection('help_requests').get();
-
-      print('🔵 Total requests found: ${querySnapshot.docs.length}');
-      print('🔵 Volunteer specialties: $_volunteerSpecialties');
-      print('🔵 Volunteer language: $_volunteerLanguage');
+      final querySnapshot =
+          await firestore.collection('help_requests').get();
 
       List<HelpRequest> allRequests = [];
       for (var doc in querySnapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>;
+        final data = doc.data();
         final status = data['status'] ?? 'pending';
-
         if (status == 'cancelled') continue;
-        if (status == 'completed' && data['volunteerId'] != volunteerId)
+        if (status == 'completed' && data['volunteerId'] != volunteerId) {
           continue;
-
-        final request = HelpRequest.fromMap(doc.id, data);
-        allRequests.add(request);
+        }
+        allRequests.add(HelpRequest.fromMap(doc.id, data));
       }
 
       allRequests.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-      final matched = _filterMatchingRequests(allRequests, volunteerId);
-
       setState(() {
-        _matchedRequests = matched;
+        _matchedRequests =
+            _filterMatchingRequests(allRequests, volunteerId);
         _isLoading = false;
       });
-
-      print('🔵 Matched requests count: ${_matchedRequests.length}');
-    } catch (e, stackTrace) {
-      print('🔴 Error loading requests: $e');
-      print('🔴 Stack trace: $stackTrace');
+    } catch (e) {
       setState(() {
         _errorMessage = e.toString();
         _isLoading = false;
@@ -191,45 +184,17 @@ class _VolunteerReceivedRequestsScreenState
   }
 
   List<HelpRequest> _filterMatchingRequests(
-    List<HelpRequest> requests,
-    String volunteerId,
-  ) {
+      List<HelpRequest> requests, String volunteerId) {
     return requests.where((request) {
-      // Always show requests assigned to this volunteer
-      if (request.volunteerId == volunteerId) {
-        return true;
-      }
-
-      // For pending requests, apply matching criteria
+      if (request.volunteerId == volunteerId) return true;
       if (request.status == 'pending') {
-        // 1. Check specialty match
-        final matchesSpecialty = _volunteerSpecialties.contains(
-          request.requestType.toLowerCase(),
-        );
-
-        if (!matchesSpecialty) {
-          print(
-            '❌ Request ${request.id} - Specialty mismatch: ${request.requestType} not in $_volunteerSpecialties',
-          );
-          return false;
-        }
-
-        // 2. Check language match
+        final matchesSpecialty = _volunteerSpecialties
+            .contains(request.requestType.toLowerCase());
+        if (!matchesSpecialty) return false;
         final requestLanguage =
             request.preferredLanguage?.toLowerCase() ?? 'english';
-        final matchesLanguage = requestLanguage == _volunteerLanguage;
-
-        if (!matchesLanguage) {
-          print(
-            '❌ Request ${request.id} - Language mismatch: $requestLanguage vs $_volunteerLanguage',
-          );
-          return false;
-        }
-
-        print('✅ Request ${request.id} - MATCHES!');
-        return true;
+        return _volunteerLanguages.contains(requestLanguage);
       }
-
       return false;
     }).toList();
   }
@@ -241,210 +206,360 @@ class _VolunteerReceivedRequestsScreenState
   List<HelpRequest> get _filteredByStatus {
     if (_filterStatus == 'all') return _matchedRequests;
     return _matchedRequests
-        .where((request) => request.status == _filterStatus)
+        .where((r) => r.status == _filterStatus)
         .toList();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Help Requests'),
-        backgroundColor: Colors.deepPurple,
-        foregroundColor: Colors.white,
-        actions: [
-          // Volunteer's language indicator
-          Container(
-            margin: const EdgeInsets.only(right: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.language, size: 14, color: Colors.white),
-                const SizedBox(width: 4),
-                Text(
-                  _languageNames[_volunteerLanguage] ?? _volunteerLanguage,
-                  style: const TextStyle(fontSize: 11, color: Colors.white),
-                ),
-              ],
+    return Column(
+      children: [
+        _buildHeader(),
+        _buildFilterChips(),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _refreshRequests,
+            color: _emerald,
+            child: _buildContent(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [_emeraldDark, _emerald],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
+      child: Row(
+        children: [
+          const Icon(Icons.handshake_outlined,
+              color: Colors.white, size: 22),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              'Help Requests',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
-          // Specialty indicator
           if (_volunteerSpecialties.isNotEmpty)
             Container(
-              margin: const EdgeInsets.only(right: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(20),
+                color: Colors.white.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(16),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.star, size: 14, color: Colors.white),
+                  const Icon(Icons.language_rounded,
+                      size: 13, color: Colors.white),
                   const SizedBox(width: 4),
                   Text(
-                    _volunteerSpecialties.take(2).join(', '),
-                    style: const TextStyle(fontSize: 11, color: Colors.white),
+                    _volunteerLanguages
+                        .map((l) => _languageNames[l] ?? l)
+                        .join(', '),
+                    style: const TextStyle(
+                        fontSize: 12, color: Colors.white),
                   ),
                 ],
               ),
             ),
-          // Refresh button
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _refreshRequests,
-            color: Colors.white,
-          ),
-          // Filter dropdown
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            child: DropdownButton<String>(
-              value: _filterStatus,
-              dropdownColor: Colors.white,
-              underline: const SizedBox(),
-              icon: const Icon(Icons.filter_list, color: Colors.white),
-              items: const [
-                DropdownMenuItem(value: 'all', child: Text('All')),
-                DropdownMenuItem(value: 'pending', child: Text('Pending')),
-                DropdownMenuItem(value: 'accepted', child: Text('Accepted')),
-                DropdownMenuItem(
-                  value: 'in_progress',
-                  child: Text('In Progress'),
-                ),
-                DropdownMenuItem(value: 'completed', child: Text('Completed')),
-              ],
-              onChanged: (value) {
-                setState(() {
-                  _filterStatus = value ?? 'all';
-                });
-              },
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: _refreshRequests,
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.refresh_rounded,
+                  color: Colors.white, size: 20),
             ),
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _refreshRequests,
-        child: _buildContent(),
+    );
+  }
+
+  Widget _buildFilterChips() {
+    const filters = [
+      {'value': 'all', 'label': 'All'},
+      {'value': 'pending', 'label': 'Pending'},
+      {'value': 'accepted', 'label': 'Accepted'},
+      {'value': 'in_progress', 'label': 'In Progress'},
+      {'value': 'completed', 'label': 'Completed'},
+    ];
+
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: filters.map((f) {
+            final val = f['value']!;
+            final label = f['label']!;
+            final isSelected = _filterStatus == val;
+            final color = val == 'all'
+                ? _emerald
+                : _getStatusColor(val);
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: GestureDetector(
+                onTap: () => setState(() => _filterStatus = val),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? color
+                        : color.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: isSelected
+                          ? color
+                          : color.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: isSelected
+                          ? FontWeight.w600
+                          : FontWeight.normal,
+                      color: isSelected ? Colors.white : color,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
       ),
     );
   }
 
   Widget _buildContent() {
     if (_isLoading) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Finding matching requests...'),
-          ],
-        ),
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(
+            height: 300,
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(color: _emerald),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Finding matching requests...',
+                    style: TextStyle(color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       );
     }
 
     if (_errorMessage != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline, size: 64, color: Colors.red.shade400),
-            const SizedBox(height: 16),
-            Text(
-              'Error',
-              style: TextStyle(fontSize: 18, color: Colors.red.shade700),
-            ),
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Text(
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(32),
+        children: [
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 32),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.error_outline_rounded,
+                    size: 52, color: Colors.red.shade400),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Something went wrong',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red.shade700),
+              ),
+              const SizedBox(height: 8),
+              Text(
                 _errorMessage!,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                style:
+                    TextStyle(fontSize: 13, color: Colors.grey.shade600),
               ),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _loadVolunteerProfile,
-              child: const Text('Try Again'),
-            ),
-          ],
-        ),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: _loadVolunteerProfile,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Try Again'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _emerald,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ],
+          ),
+        ],
       );
     }
 
     final requests = _filteredByStatus;
 
     if (requests.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.inbox, size: 64, color: Colors.grey.shade400),
-            const SizedBox(height: 16),
-            Text(
-              'No matching help requests',
-              style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'You only see requests that match:\n'
-              '• Specialties: ${_volunteerSpecialties.isEmpty ? 'None set' : _volunteerSpecialties.join(', ')}\n'
-              '• Language: ${_languageNames[_volunteerLanguage] ?? _volunteerLanguage}',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: _refreshRequests,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Refresh'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.deepPurple,
-                foregroundColor: Colors.white,
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(32),
+        children: [
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 32),
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: _emerald.withValues(alpha: 0.08),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.inbox_rounded,
+                    size: 56, color: _emerald.withValues(alpha: 0.5)),
               ),
-            ),
-          ],
-        ),
+              const SizedBox(height: 20),
+              const Text(
+                'No requests found',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                      color: _emerald.withValues(alpha: 0.2)),
+                ),
+                child: Column(
+                  children: [
+                    _emptyStateRow(
+                      Icons.star_outline_rounded,
+                      'Specialties',
+                      _volunteerSpecialties.isEmpty
+                          ? 'None set'
+                          : _volunteerSpecialties.join(', '),
+                    ),
+                    const SizedBox(height: 8),
+                    _emptyStateRow(
+                      Icons.language_rounded,
+                      'Language',
+                      _volunteerLanguages
+                          .map((l) => _languageNames[l] ?? l)
+                          .join(', '),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: _refreshRequests,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Refresh'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _emerald,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ],
+          ),
+        ],
       );
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       itemCount: requests.length,
       itemBuilder: (context, index) {
-        final request = requests[index];
-        return _buildRequestCard(request);
+        return _buildRequestCard(requests[index]);
       },
     );
   }
 
-  Widget _buildRequestCard(HelpRequest request) {
-    final matchesSpecialty = _volunteerSpecialties.contains(
-      request.requestType,
+  Widget _emptyStateRow(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: _emerald),
+        const SizedBox(width: 8),
+        Text('$label: ',
+            style: const TextStyle(
+                fontSize: 13, fontWeight: FontWeight.w600)),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+                fontSize: 13, color: Colors.grey.shade600),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
-    final requestLanguage = request.preferredLanguage ?? 'english';
-    final matchesLanguage = requestLanguage == _volunteerLanguage;
+  }
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: matchesSpecialty && matchesLanguage && request.status == 'pending'
-            ? BorderSide(color: Colors.green.shade400, width: 2)
-            : BorderSide.none,
-      ),
-      child: InkWell(
-        onTap: () => _showRequestActions(request),
-        borderRadius: BorderRadius.circular(12),
+  Widget _buildRequestCard(HelpRequest request) {
+    final statusColor = _getStatusColor(request.status);
+    final isMatch = _volunteerSpecialties
+            .contains(request.requestType.toLowerCase()) &&
+        _volunteerLanguages.contains(
+            request.preferredLanguage?.toLowerCase() ?? 'english') &&
+        request.status == 'pending';
+
+    return GestureDetector(
+      onTap: () => _showRequestActions(request),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border(
+            left: BorderSide(color: statusColor, width: 5),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: statusColor.withValues(alpha: 0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -453,157 +568,122 @@ class _VolunteerReceivedRequestsScreenState
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: _getStatusColor(request.status).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
+                      color: statusColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(
                       _getStatusIcon(request.status),
-                      color: _getStatusColor(request.status),
-                      size: 20,
+                      color: statusColor,
+                      size: 18,
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            Text(
-                              request.requestType.toUpperCase(),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
+                            Flexible(
+                              child: Text(
+                                request.requestType.toUpperCase(),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                            if (matchesSpecialty &&
-                                matchesLanguage &&
-                                request.status == 'pending')
+                            if (isMatch) ...[
+                              const SizedBox(width: 6),
                               Container(
-                                margin: const EdgeInsets.only(left: 8),
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
-                                ),
+                                    horizontal: 7, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: Colors.green.shade100,
-                                  borderRadius: BorderRadius.circular(4),
+                                  gradient: const LinearGradient(
+                                    colors: [
+                                      Color(0xFF059669),
+                                      Color(0xFF10B981)
+                                    ],
+                                  ),
+                                  borderRadius:
+                                      BorderRadius.circular(6),
                                 ),
-                                child: Text(
-                                  'Perfect Match',
+                                child: const Text(
+                                  'Match',
                                   style: TextStyle(
                                     fontSize: 10,
-                                    color: Colors.green.shade700,
+                                    color: Colors.white,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
                               ),
+                            ],
                           ],
                         ),
                         Text(
-                          'From: ${request.blindUserName}',
+                          request.blindUserName,
                           style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade600,
-                          ),
+                              fontSize: 12,
+                              color: Colors.grey.shade600),
                         ),
                       ],
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _getStatusColor(request.status).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      request.status.toUpperCase(),
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: _getStatusColor(request.status),
-                      ),
-                    ),
-                  ),
+                  _buildStatusBadge(request.status, statusColor),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               Text(
                 request.description,
-                style: const TextStyle(fontSize: 14),
+                style: TextStyle(
+                    fontSize: 13, color: Colors.grey.shade700),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               Row(
                 children: [
-                  Icon(
-                    Icons.location_on,
-                    size: 14,
-                    color: Colors.grey.shade600,
+                  Flexible(
+                    child: _cardChip(Icons.location_on_rounded,
+                        request.location, Colors.grey.shade600),
                   ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      request.location,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade600,
-                      ),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: _cardChip(Icons.phone_rounded,
+                        request.blindUserPhone, Colors.grey.shade600),
+                  ),
+                ],
+              ),
+              if (request.preferredLanguage != null) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    _cardChip(
+                      Icons.language_rounded,
+                      _languageNames[request.preferredLanguage] ??
+                          request.preferredLanguage!,
+                      const Color(0xFF7C3AED),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(Icons.phone, size: 14, color: Colors.grey.shade600),
-                  const SizedBox(width: 4),
-                  Text(
-                    request.blindUserPhone,
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              // Language preference badge
-              if (request.preferredLanguage != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.deepPurple.shade50,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.language,
-                        size: 12,
-                        color: Colors.deepPurple.shade600,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Prefers: ${_languageNames[request.preferredLanguage] ?? request.preferredLanguage}',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.deepPurple.shade600,
-                        ),
-                      ),
-                    ],
+                    const Spacer(),
+                    Text(
+                      _formatDate(request.createdAt),
+                      style: TextStyle(
+                          fontSize: 11, color: Colors.grey.shade400),
+                    ),
+                  ],
+                ),
+              ] else ...[
+                const SizedBox(height: 4),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    _formatDate(request.createdAt),
+                    style: TextStyle(
+                        fontSize: 11, color: Colors.grey.shade400),
                   ),
                 ),
-              const SizedBox(height: 8),
-              Text(
-                _formatDate(request.createdAt),
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
-              ),
+              ],
             ],
           ),
         ),
@@ -611,103 +691,206 @@ class _VolunteerReceivedRequestsScreenState
     );
   }
 
-  void _showRequestActions(HelpRequest request) async {
+  Widget _buildStatusBadge(String status, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Text(
+        status.replaceAll('_', ' ').toUpperCase(),
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: color,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
+
+  Widget _cardChip(IconData icon, String text, Color color) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 13, color: color),
+        const SizedBox(width: 3),
+        Flexible(
+          child: Text(
+            text,
+            style: TextStyle(fontSize: 12, color: color),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showRequestActions(HelpRequest request) {
     final volunteer = auth.currentUser;
     if (volunteer == null) return;
-
-    String volunteerName = _volunteerProfile?['name'] ?? 'Volunteer';
+    final volunteerName = _volunteerProfile?['name'] ?? 'Volunteer';
+    final statusColor = _getStatusColor(request.status);
 
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) {
         return Container(
-          padding: const EdgeInsets.all(20),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius:
+                BorderRadius.vertical(top: Radius.circular(28)),
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Help Request Details',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.deepPurple.shade700,
+              // Drag handle
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              const SizedBox(height: 16),
-              _detailRow('From:', request.blindUserName),
-              _detailRow('Phone:', request.blindUserPhone),
-              _detailRow('Type:', request.requestType),
-              _detailRow('Location:', request.location),
-              _detailRow('Description:', request.description),
-              if (request.preferredLanguage != null)
-                _detailRow(
-                  'Language:',
-                  _languageNames[request.preferredLanguage] ??
-                      request.preferredLanguage!,
+              // Gradient header
+              Container(
+                margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      statusColor,
+                      statusColor.withValues(alpha: 0.7)
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
                 ),
-              const Divider(height: 24),
-              const Text(
-                'Actions',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.25),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        _getStatusIcon(request.status),
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            request.requestType.toUpperCase(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          Text(
+                            'From: ${request.blindUserName}',
+                            style: TextStyle(
+                              color:
+                                  Colors.white.withValues(alpha: 0.85),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    _buildStatusBadge(
+                        request.status, Colors.white.withValues(alpha: 0.9)),
+                  ],
+                ),
               ),
-              const SizedBox(height: 12),
-              if (request.status == 'pending')
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      Navigator.pop(context);
-                      await _acceptRequest(
-                        request,
-                        volunteer.uid,
-                        volunteerName,
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
+              // Details
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    _detailRow(
+                        Icons.person_rounded, 'Name', request.blindUserName),
+                    _detailRow(
+                        Icons.phone_rounded, 'Phone', request.blindUserPhone),
+                    _detailRow(Icons.category_rounded, 'Type',
+                        request.requestType),
+                    _detailRow(
+                        Icons.location_on_rounded, 'Location', request.location),
+                    _detailRow(Icons.description_rounded, 'Description',
+                        request.description),
+                    if (request.preferredLanguage != null)
+                      _detailRow(
+                        Icons.language_rounded,
+                        'Language',
+                        _languageNames[request.preferredLanguage] ??
+                            request.preferredLanguage!,
+                      ),
+                    const SizedBox(height: 8),
+                    const Divider(),
+                    const SizedBox(height: 8),
+                    // Action buttons
+                    if (request.status == 'pending')
+                      _actionButton(
+                        label: 'Accept Request',
+                        icon: Icons.check_circle_outline_rounded,
+                        color: _emerald,
+                        onTap: () async {
+                          Navigator.pop(context);
+                          await _acceptRequest(
+                              request, volunteer.uid, volunteerName);
+                        },
+                      ),
+                    if (request.status == 'accepted')
+                      _actionButton(
+                        label: 'Mark as In Progress',
+                        icon: Icons.hourglass_top_rounded,
+                        color: Colors.blue.shade600,
+                        onTap: () async {
+                          Navigator.pop(context);
+                          await _startHelp(request);
+                        },
+                      ),
+                    if (request.status == 'in_progress')
+                      _actionButton(
+                        label: 'Mark as Completed',
+                        icon: Icons.done_all_rounded,
+                        color: _emerald,
+                        onTap: () async {
+                          Navigator.pop(context);
+                          await _completeHelp(request);
+                        },
+                      ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          padding:
+                              const EdgeInsets.symmetric(vertical: 14),
+                          side: BorderSide(color: Colors.grey.shade300),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: const Text('Close'),
+                      ),
                     ),
-                    child: const Text('Accept Request'),
-                  ),
+                    const SizedBox(height: 8),
+                  ],
                 ),
-              if (request.status == 'accepted')
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      Navigator.pop(context);
-                      await _startHelp(request);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: const Text('Mark as In Progress'),
-                  ),
-                ),
-              if (request.status == 'in_progress')
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      Navigator.pop(context);
-                      await _completeHelp(request);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: const Text('Mark as Completed'),
-                  ),
-                ),
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Close'),
               ),
             ],
           ),
@@ -716,11 +899,61 @@ class _VolunteerReceivedRequestsScreenState
     );
   }
 
+  Widget _actionButton({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: onTap,
+          icon: Icon(icon, size: 18),
+          label: Text(label),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: color,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
+            elevation: 0,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _detailRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: _emerald),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 80,
+            child: Text(
+              label,
+              style: const TextStyle(
+                  fontWeight: FontWeight.w600, fontSize: 13),
+            ),
+          ),
+          Expanded(
+            child: Text(value,
+                style: TextStyle(
+                    fontSize: 13, color: Colors.grey.shade700)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _acceptRequest(
-    HelpRequest request,
-    String volunteerId,
-    String volunteerName,
-  ) async {
+      HelpRequest request, String volunteerId, String volunteerName) async {
     try {
       await firestore.collection('help_requests').doc(request.id).update({
         'status': 'accepted',
@@ -728,43 +961,35 @@ class _VolunteerReceivedRequestsScreenState
         'volunteerName': volunteerName,
         'acceptedAt': Timestamp.now(),
       });
-
       await _loadMatchingRequests();
-
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Request accepted successfully')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Request accepted successfully'),
+            backgroundColor: Colors.green));
       }
     } catch (e) {
-      print('Error accepting request: $e');
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
   }
 
   Future<void> _startHelp(HelpRequest request) async {
     try {
-      await firestore.collection('help_requests').doc(request.id).update({
-        'status': 'in_progress',
-      });
-
+      await firestore
+          .collection('help_requests')
+          .doc(request.id)
+          .update({'status': 'in_progress'});
       await _loadMatchingRequests();
-
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Help marked as in progress')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Help marked as in progress')));
       }
     } catch (e) {
-      print('Error starting help: $e');
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
   }
@@ -775,20 +1000,16 @@ class _VolunteerReceivedRequestsScreenState
         'status': 'completed',
         'completedAt': Timestamp.now(),
       });
-
       await _loadMatchingRequests();
-
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Help completed! Good job!')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Help completed! Good job!'),
+            backgroundColor: Colors.green));
       }
     } catch (e) {
-      print('Error completing help: $e');
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
   }
@@ -796,15 +1017,15 @@ class _VolunteerReceivedRequestsScreenState
   Color _getStatusColor(String status) {
     switch (status) {
       case 'pending':
-        return Colors.orange;
+        return Colors.orange.shade600;
       case 'accepted':
-        return Colors.blue;
+        return Colors.blue.shade600;
       case 'in_progress':
-        return Colors.cyan;
+        return Colors.cyan.shade700;
       case 'completed':
-        return Colors.green;
+        return _emerald;
       case 'cancelled':
-        return Colors.red;
+        return Colors.red.shade600;
       default:
         return Colors.grey;
     }
@@ -813,41 +1034,23 @@ class _VolunteerReceivedRequestsScreenState
   IconData _getStatusIcon(String status) {
     switch (status) {
       case 'pending':
-        return Icons.pending;
+        return Icons.pending_rounded;
       case 'accepted':
-        return Icons.check_circle;
+        return Icons.check_circle_outline_rounded;
       case 'in_progress':
-        return Icons.hourglass_empty;
+        return Icons.hourglass_top_rounded;
       case 'completed':
-        return Icons.done_all;
+        return Icons.done_all_rounded;
       case 'cancelled':
-        return Icons.cancel;
+        return Icons.cancel_rounded;
       default:
-        return Icons.help;
+        return Icons.help_outline_rounded;
     }
-  }
-
-  Widget _detailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 90,
-            child: Text(
-              label,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-            ),
-          ),
-          Expanded(child: Text(value, style: const TextStyle(fontSize: 13))),
-        ],
-      ),
-    );
   }
 
   String _formatDate(Timestamp timestamp) {
     final date = timestamp.toDate();
-    return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+    return '${date.day}/${date.month}/${date.year} '
+        '${date.hour}:${date.minute.toString().padLeft(2, '0')}';
   }
 }

@@ -1,6 +1,10 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_tts/flutter_tts.dart';
+import 'package:speech_to_text/speech_to_text.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class BlindSendHelpRequestScreen extends StatefulWidget {
   const BlindSendHelpRequestScreen({super.key});
@@ -14,26 +18,37 @@ class _BlindSendHelpRequestScreenState
     extends State<BlindSendHelpRequestScreen> {
   final firestore = FirebaseFirestore.instance;
   final auth = FirebaseAuth.instance;
+  final FlutterTts _tts = FlutterTts();
+  final SpeechToText _stt = SpeechToText();
 
-  String _selectedRequestType = 'shopping';  // ✅ lowercase
-  String _selectedLanguage = 'english';      // ✅ lowercase
+  String _selectedRequestType = 'shopping';
+  String _selectedLanguage = 'english';
   final _descriptionController = TextEditingController();
   final _locationController = TextEditingController();
   bool _isSubmitting = false;
   String? _errorMessage;
 
+  // Voice command state
+  bool _isListening = false;
+  bool _isSpeaking = false;
+  bool _sttAvailable = false;
+  bool _shouldListen = true;
+  int _speakGeneration = 0;
+  bool _isProcessingVoice = false;
+  String _currentVoiceStep = 'main'; // main, description, location
+
   final Map<String, IconData> _requestTypes = {
-    'shopping': Icons.shopping_cart,      // ✅ all lowercase
+    'shopping': Icons.shopping_cart,
     'navigation': Icons.navigation,
     'reading': Icons.menu_book,
     'tech support': Icons.computer,
-    'emergency': Icons.emergency,
-    'medical': Icons.local_hospital,
+    'emergency assistance': Icons.emergency,
+    'medical support': Icons.local_hospital,
     'transportation': Icons.directions_car,
   };
 
   final Map<String, String> _languages = {
-    'english': 'English 🇺🇸',    // ✅ lowercase keys
+    'english': 'English 🇺🇸',
     'spanish': 'Spanish 🇪🇸',
     'mandarin': 'Mandarin 🇨🇳',
     'french': 'French 🇫🇷',
@@ -42,286 +57,192 @@ class _BlindSendHelpRequestScreenState
   };
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Request Help'),
-        backgroundColor: Colors.deepPurple,
-        foregroundColor: Colors.white,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header (same as before)
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.deepPurple.shade700,
-                    Colors.deepPurple.shade500
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(Icons.help_outline,
-                        color: Colors.white, size: 28),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Need Assistance?',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Our volunteers are ready to help you',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.white.withOpacity(0.8),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
+  void initState() {
+    super.initState();
+    _initVoice();
+  }
 
-            // Error message if any
-            if (_errorMessage != null)
-              Container(
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.red.shade200),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.error_outline, color: Colors.red.shade700),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        _errorMessage!,
-                        style: TextStyle(color: Colors.red.shade700),
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () => setState(() => _errorMessage = null),
-                      child: Icon(Icons.close, color: Colors.red.shade700),
-                    ),
-                  ],
-                ),
-              ),
+  Future<void> _initVoice() async {
+    try {
+      await _tts.setLanguage('en-US');
+    } catch (_) {
+      await _tts.setLanguage('en');
+    }
+    await _tts.setSpeechRate(0.5);
+    await _tts.setVolume(1.0);
+    await _tts.setPitch(1.0);
 
-            // Request Type
-            const Text(
-              'Type of Help Needed',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 12),
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 2,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: 2.5,
-              children: _requestTypes.entries.map((entry) {
-                return _buildRequestTypeCard(
-                  entry.key,
-                  entry.value,
-                  _selectedRequestType == entry.key,
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 24),
+    final micStatus = await Permission.microphone.request();
+    if (!mounted) return;
 
-            // Preferred Language Section
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.deepPurple.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.deepPurple.shade200),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.language, color: Colors.deepPurple.shade700),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Preferred Language',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.deepPurple.shade700,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Select your preferred language for volunteer communication',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.deepPurple.shade600,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _languages.entries.map((entry) {
-                      final isSelected = _selectedLanguage == entry.key;
-                      return FilterChip(
-                        selected: isSelected,
-                        label: Text(entry.value),
-                        onSelected: (selected) {
-                          setState(() {
-                            _selectedLanguage = entry.key;
-                          });
-                        },
-                        backgroundColor: Colors.white,
-                        selectedColor: Colors.deepPurple.shade100,
-                        checkmarkColor: Colors.deepPurple,
-                        showCheckmark: true,
-                      );
-                    }).toList(),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
+    _sttAvailable = micStatus.isGranted && await _stt.initialize(
+      onStatus: (status) {
+        if (!mounted) return;
+        if (status == 'listening') {
+          setState(() => _isListening = true);
+        } else if (status == 'done' || status == 'notListening') {
+          setState(() => _isListening = false);
+        }
+      },
+      onError: (error) {
+        debugPrint('STT error: ${error.errorMsg}');
+        if (mounted) setState(() => _isListening = false);
+      },
+    );
 
-            // Description
-            const Text(
-              'Describe your request',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _descriptionController,
-              maxLines: 3,
-              decoration: InputDecoration(
-                hintText: 'e.g., I need help finding the cereal aisle...',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                filled: true,
-                fillColor: Colors.grey.shade50,
-              ),
-            ),
-            const SizedBox(height: 16),
+    if (mounted) {
+      await _speak(
+        'Help request page. You can say: Select Shopping, Select Navigation, '
+        'Select Reading, Select Tech Support, Select Emergency Assistance, Select Medical Support, '
+        'Select Transportation, Set Language English, Set Language Spanish,  Set Language Mandarin,  Set Language French,  Set Language German,  Set Language Korean'
+        'Description, Location and Submit',
+      );
+    }
+  }
 
-            // Location
-            const Text(
-              'Your Location',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _locationController,
-              decoration: InputDecoration(
-                hintText: 'e.g., Giant Supermarket, KLCC',
-                prefixIcon: const Icon(Icons.location_on),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                filled: true,
-                fillColor: Colors.grey.shade50,
-              ),
-            ),
-            const SizedBox(height: 32),
+  Future<void> _speak(String text) async {
+    final myGen = ++_speakGeneration;
+    if (_stt.isListening) await _stt.cancel();
+    await _tts.stop();
+    await Future.delayed(const Duration(milliseconds: 50));
+    if (myGen != _speakGeneration) return;
 
-            // Submit Button
-            SizedBox(
-              width: double.infinity,
-              height: 54,
-              child: ElevatedButton(
-                onPressed: _isSubmitting ? null : _submitHelpRequest,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: _isSubmitting
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text(
-                        'Send Help Request',
-                        style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w600),
-                      ),
-              ),
-            ),
-          ],
-        ),
-      ),
+    setState(() => _isSpeaking = true);
+    final completer = Completer<void>();
+
+    _tts.setCompletionHandler(() {
+      if (!completer.isCompleted) completer.complete();
+    });
+    _tts.setErrorHandler((msg) {
+      if (!completer.isCompleted) completer.complete();
+    });
+
+    await _tts.speak(text);
+    await completer.future.timeout(const Duration(seconds: 90), onTimeout: () {});
+
+    if (mounted) setState(() => _isSpeaking = false);
+  }
+
+  Future<void> _startListening() async {
+    if (!_sttAvailable || !mounted || !_shouldListen || _stt.isListening) return;
+
+    setState(() => _isListening = true);
+    await _stt.listen(
+      onResult: (result) {
+        if (!mounted) return;
+        if (result.finalResult) {
+          _processVoiceCommand(result.recognizedWords.toLowerCase());
+        }
+      },
+      listenFor: const Duration(seconds: 10),
+      pauseFor: const Duration(seconds: 2),
+      localeId: 'en_US',
     );
   }
 
-  Widget _buildRequestTypeCard(
-      String type, IconData icon, bool isSelected) {
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedRequestType = type;
-        });
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.deepPurple.shade50 : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? Colors.deepPurple : Colors.grey.shade300,
-            width: isSelected ? 2 : 1,
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? Colors.deepPurple : Colors.grey.shade600,
-              size: 20,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              type.toUpperCase(),
-              style: TextStyle(
-                color:
-                    isSelected ? Colors.deepPurple : Colors.grey.shade700,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  Future<void> _processVoiceCommand(String command) async {
+    if (_isProcessingVoice) return;
+    _isProcessingVoice = true;
+
+    // Check for request type selection
+    if (command.contains('select') || command.contains('choose')) {
+      for (var type in _requestTypes.keys) {
+        if (command.contains(type)) {
+          setState(() {
+            _selectedRequestType = type;
+          });
+          await _speak('Selected $type');
+          _isProcessingVoice = false;
+          return;
+        }
+      }
+    }
+
+    // Check for language selection
+    if (command.contains('language') || command.contains('set language')) {
+      for (var lang in _languages.keys) {
+        if (command.contains(lang)) {
+          setState(() {
+            _selectedLanguage = lang;
+          });
+          await _speak('Language set to ${_languages[lang]}');
+          _isProcessingVoice = false;
+          return;
+        }
+      }
+    }
+
+    // Description command
+    if (command.contains('description')) {
+      _currentVoiceStep = 'description';
+      await _speak('Please say your description. For example: I need help finding the cereal aisle.');
+      _shouldListen = true;
+      _isProcessingVoice = false;
+      return;
+    }
+
+    // Location command
+    if (command.contains('location') || command.contains('address')) {
+      _currentVoiceStep = 'location';
+      await _speak('Please say your location. For example: Giant Supermarket, KLCC.');
+      _shouldListen = true;
+      _isProcessingVoice = false;
+      return;
+    }
+
+    // Handle description input
+    if (_currentVoiceStep == 'description' && command.length > 5) {
+      _descriptionController.text = command;
+      await _speak('Description set to: $command');
+      _currentVoiceStep = 'main';
+      _isProcessingVoice = false;
+      return;
+    }
+
+    // Handle location input
+    if (_currentVoiceStep == 'location' && command.length > 5) {
+      _locationController.text = command;
+      await _speak('Location set to: $command');
+      _currentVoiceStep = 'main';
+      _isProcessingVoice = false;
+      return;
+    }
+
+    // Submit command
+    if (command.contains('submit') || command.contains('send')) {
+      await _speak('Submitting your help request.');
+      _isProcessingVoice = false;
+      await _submitHelpRequest();
+      return;
+    }
+
+    // Cancel command
+    if (command.contains('cancel') || command.contains('back')) {
+      await _speak('Cancelling request. Going back.');
+      _isProcessingVoice = false;
+      Navigator.pop(context);
+      return;
+    }
+
+    // Help command
+    if (command.contains('help') || command.contains('commands')) {
+      await _speak(
+        'You can say: Select a request type like Shopping, Navigation, or Reading. '
+        'Set Language English or Spanish. Say Description to enter your request details. '
+        'Say Location to enter your location. Say Submit to send. Say Cancel to go back.',
+      );
+      _isProcessingVoice = false;
+      return;
+    }
+
+    await _speak('Command not recognized. Say Help for available commands.');
+    _isProcessingVoice = false;
+  }
+
+  void _onMicTap() {
+    if (!_isProcessingVoice && _sttAvailable && !_isSpeaking) {
+      _startListening();
+    }
   }
 
   Future<void> _submitHelpRequest() async {
@@ -329,11 +250,13 @@ class _BlindSendHelpRequestScreenState
 
     if (_descriptionController.text.trim().isEmpty) {
       setState(() => _errorMessage = 'Please describe your request');
+      await _speak('Please describe your request');
       return;
     }
 
     if (_locationController.text.trim().isEmpty) {
       setState(() => _errorMessage = 'Please provide your location');
+      await _speak('Please provide your location');
       return;
     }
 
@@ -356,10 +279,10 @@ class _BlindSendHelpRequestScreenState
         'blindUserPhone': userPhone,
         'volunteerId': null,
         'volunteerName': null,
-        'requestType': _selectedRequestType.toLowerCase(), // ✅ ensure lowercase
+        'requestType': _selectedRequestType.toLowerCase(),
         'description': _descriptionController.text.trim(),
         'location': _locationController.text.trim(),
-        'preferredLanguage': _selectedLanguage.toLowerCase(), // ✅ ensure lowercase
+        'preferredLanguage': _selectedLanguage.toLowerCase(),
         'status': 'pending',
         'createdAt': FieldValue.serverTimestamp(),
         'acceptedAt': null,
@@ -371,6 +294,7 @@ class _BlindSendHelpRequestScreenState
       await firestore.collection('help_requests').add(helpRequestData);
 
       if (mounted) {
+        await _speak('Help request sent successfully!');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Help request sent successfully!'),
@@ -382,9 +306,268 @@ class _BlindSendHelpRequestScreenState
     } catch (e) {
       if (mounted) {
         setState(() => _errorMessage = 'Failed to send request. Please try again.');
+        await _speak('Failed to send request. Please try again.');
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
+  }
+
+  @override
+  void dispose() {
+    _shouldListen = false;
+    _stt.stop();
+    _tts.stop();
+    _descriptionController.dispose();
+    _locationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Request Help'),
+        backgroundColor: Colors.deepPurple,
+        foregroundColor: Colors.white,
+        actions: [
+          // Voice mic button
+          IconButton(
+            icon: Icon(
+              _isListening ? Icons.mic : Icons.mic_none,
+              color: Colors.white,
+            ),
+            onPressed: _onMicTap,
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.deepPurple.shade700, Colors.deepPurple.shade500],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.help_outline, color: Colors.white, size: 28),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Need Assistance?',
+                              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Our volunteers are ready to help you',
+                              style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.8)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                if (_errorMessage != null)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.error_outline, color: Colors.red.shade700),
+                        const SizedBox(width: 12),
+                        Expanded(child: Text(_errorMessage!, style: TextStyle(color: Colors.red.shade700))),
+                        GestureDetector(
+                          onTap: () => setState(() => _errorMessage = null),
+                          child: Icon(Icons.close, color: Colors.red.shade700),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                const Text('Type of Help Needed', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 12),
+                GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 2.5,
+                  children: _requestTypes.entries.map((entry) {
+                    return _buildRequestTypeCard(entry.key, entry.value, _selectedRequestType == entry.key);
+                  }).toList(),
+                ),
+                const SizedBox(height: 24),
+
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.deepPurple.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.deepPurple.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.language, color: Colors.deepPurple.shade700),
+                          const SizedBox(width: 8),
+                          Text('Preferred Language', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.deepPurple.shade700)),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text('Select your preferred language for volunteer communication', style: TextStyle(fontSize: 12, color: Colors.deepPurple.shade600)),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _languages.entries.map((entry) {
+                          final isSelected = _selectedLanguage == entry.key;
+                          return FilterChip(
+                            selected: isSelected,
+                            label: Text(entry.value),
+                            onSelected: (selected) {
+                              setState(() => _selectedLanguage = entry.key);
+                            },
+                            backgroundColor: Colors.white,
+                            selectedColor: Colors.deepPurple.shade100,
+                            checkmarkColor: Colors.deepPurple,
+                            showCheckmark: true,
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                const Text('Describe your request', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _descriptionController,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    hintText: 'e.g., I need help finding the cereal aisle...',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    filled: true,
+                    fillColor: Colors.grey.shade50,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                const Text('Your Location', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _locationController,
+                  decoration: InputDecoration(
+                    hintText: 'e.g., Giant Supermarket, KLCC',
+                    prefixIcon: const Icon(Icons.location_on),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    filled: true,
+                    fillColor: Colors.grey.shade50,
+                  ),
+                ),
+                const SizedBox(height: 32),
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 54,
+                  child: ElevatedButton(
+                    onPressed: _isSubmitting ? null : _submitHelpRequest,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.deepPurple,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: _isSubmitting
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : const Text('Send Help Request', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Voice indicator overlay
+          if (_isListening)
+            Positioned(
+              bottom: 30,
+              left: 0,
+              right: 0,
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+                decoration: BoxDecoration(
+                  color: Colors.black87,
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.mic, color: Colors.red, size: 20),
+                    const SizedBox(width: 8),
+                    const Expanded(child: Text('Listening...', style: TextStyle(color: Colors.white))),
+                    GestureDetector(
+                      onTap: () => _stt.cancel(),
+                      child: const Icon(Icons.close, color: Colors.white, size: 20),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRequestTypeCard(String type, IconData icon, bool isSelected) {
+    return GestureDetector(
+      onTap: () => setState(() => _selectedRequestType = type),
+      child: Container(
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.deepPurple.shade50 : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: isSelected ? Colors.deepPurple : Colors.grey.shade300, width: isSelected ? 2 : 1),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: isSelected ? Colors.deepPurple : Colors.grey.shade600, size: 20),
+            const SizedBox(width: 8),
+            Text(type.toUpperCase(), style: TextStyle(color: isSelected ? Colors.deepPurple : Colors.grey.shade700, fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal)),
+          ],
+        ),
+      ),
+    );
   }
 }
