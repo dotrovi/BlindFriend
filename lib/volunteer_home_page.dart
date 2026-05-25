@@ -332,25 +332,37 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
   }
 
   Future<void> _toggleAvailability() async {
-    final uid = _uid;
-    if (uid == null) return;
-    setState(() => _isTogglingAvailability = true);
-    final newValue = !_isAvailable;
-    final success = await _firebaseService.updateVolunteerAvailability(
-      uid: uid,
-      isAvailable: newValue,
-    );
-    if (!mounted) return;
-    if (success) {
-      setState(() => _isAvailable = newValue);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Failed to update availability. Please try again.'),
-        backgroundColor: Colors.red,
-      ));
+  final uid = _uid;
+  if (uid == null) return;
+  setState(() => _isTogglingAvailability = true);
+  final newValue = !_isAvailable;
+  final success = await _firebaseService.updateVolunteerAvailability(
+    uid: uid,
+    isAvailable: newValue,
+  );
+  if (!mounted) return;
+  if (success) {
+    setState(() => _isAvailable = newValue);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            newValue
+                ? 'You are now Available. Blind users can find you!'
+                : 'You are now Unavailable.',
+          ),
+          backgroundColor: newValue ? Colors.green : Colors.grey,
+        ),
+      );
     }
-    setState(() => _isTogglingAvailability = false);
+  } else {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('Failed to update availability. Please try again.'),
+      backgroundColor: Colors.red,
+    ));
   }
+  setState(() => _isTogglingAvailability = false);
+}
 
   String _formatLastUpdated() {
     if (_locationLastUpdated == null) return 'Never updated';
