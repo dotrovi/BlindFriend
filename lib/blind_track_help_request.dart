@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'blind_report_volunteer_page.dart';
 
 class HelpRequestModel {
   String? id;
@@ -566,6 +567,49 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
         'Say Refresh to reload. '
         'Or say Back to go back.',
       );
+      _isProcessingVoice = false;
+      return;
+    }
+
+    // Report volunteer
+    if (command.contains('report volunteer') || command.contains('complaint')) {
+      final reportable = _requests.where((r) =>
+        (r.status == 'in_progress' || r.status == 'completed') &&
+        r.volunteerId != null &&
+        r.volunteerId!.isNotEmpty
+      ).toList();
+
+      if (reportable.isEmpty) {
+        await _speak(
+          'You have no requests that can be reported. '
+          'You can only report a volunteer during or after a completed request.',
+        );
+      } else if (reportable.length == 1) {
+        final r = reportable.first;
+        await _speak(
+          'Opening report for volunteer ${r.volunteerName ?? 'Unknown'}.',
+        );
+        _shouldListen = false;
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => BlindReportVolunteerPage(
+              helpRequestId: r.id ?? '',
+              volunteerId: r.volunteerId!,
+              volunteerName: r.volunteerName ?? 'Unknown',
+              requestType: r.requestType,
+            ),
+          ),
+        );
+        _shouldListen = true;
+        await _speak('Back on track requests page.');
+      } else {
+        // Multiple reportable requests — read them out
+        await _speak(
+          'You have ${reportable.length} reportable requests. '
+          'Please open the request card and tap Report Volunteer.',
+        );
+      }
       _isProcessingVoice = false;
       return;
     }
@@ -1160,6 +1204,27 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
               onPressed: () => _cancelRequest(request),
               style: TextButton.styleFrom(foregroundColor: Colors.red),
               child: const Text('Cancel Request'),
+            ),
+          if ((request.status == 'in_progress' || request.status == 'completed') &&
+              request.volunteerId != null &&
+              request.volunteerId!.isNotEmpty)
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context); // close dialog first
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => BlindReportVolunteerPage(
+                      helpRequestId: request.id ?? '',
+                      volunteerId: request.volunteerId!,
+                      volunteerName: request.volunteerName ?? 'Unknown',
+                      requestType: request.requestType,
+                    ),
+                  ),
+                );
+              },
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Report Volunteer'),
             ),
           TextButton(
             onPressed: () => Navigator.pop(context),
