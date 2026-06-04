@@ -3,6 +3,113 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'services/firebase_service.dart';
 
+// ── Rating summary widget (reused from your snippet) ────────────────────
+class VolunteerRatingSummary extends StatelessWidget {
+  final String volunteerId;
+
+  const VolunteerRatingSummary({super.key, required this.volunteerId});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('volunteers')
+          .doc(volunteerId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const Text(
+            'Error loading ratings',
+            style: TextStyle(color: Colors.red),
+          );
+        }
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return const SizedBox.shrink();
+        }
+
+        final data = snapshot.data!.data() as Map<String, dynamic>?;
+        final double averageRating = (data?['averageRating'] ?? 0.0).toDouble();
+        final int totalRatings = data?['totalRatings'] ?? 0;
+
+        // Show only if there is at least one rating
+        if (totalRatings == 0) return const SizedBox.shrink();
+
+        return Container(
+          margin: const EdgeInsets.only(top: 14),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.amber.shade50,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.amber.shade200),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Rating Summary',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Text(
+                    averageRating.toStringAsFixed(1),
+                    style: const TextStyle(
+                      fontSize: 42,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.amber,
+                    ),
+                  ),
+                  const SizedBox(width: 20),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: List.generate(5, (index) {
+                          if (index < averageRating.floor()) {
+                            return const Icon(Icons.star,
+                                color: Colors.amber, size: 28);
+                          } else if (index < averageRating &&
+                              averageRating - index >= 0.5) {
+                            return const Icon(Icons.star_half,
+                                color: Colors.amber, size: 28);
+                          } else {
+                            return const Icon(Icons.star_border,
+                                color: Colors.amber, size: 28);
+                          }
+                        }),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '$totalRatings ${totalRatings == 1 ? 'Rating' : 'Ratings'}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey.shade700,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ── Main VolunteerProfilePage ──────────────────────────────────────────
 class VolunteerProfilePage extends StatefulWidget {
   const VolunteerProfilePage({super.key});
 
@@ -195,9 +302,11 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
     );
   }
 
-  // ── Gradient bar (top of page) ────────────────────────────────────────
+  // ── Gradient bar (top of page) with rating before title ───────────────
 
   Widget _buildGradientBar(BuildContext context, {required bool showAvatar}) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -219,16 +328,60 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
                     ? _cancelEditing
                     : () => Navigator.pop(context),
               ),
+              // ── Expanded area with rating badge + title ─────────────
               Expanded(
-                child: Text(
-                  _isEditing ? 'Edit Profile' : 'My Profile',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                child: Row(
+                  children: [
+                    // Compact rating badge (only when viewing, and if ratings exist)
+                    if (!_isEditing && uid != null)
+                      StreamBuilder<DocumentSnapshot>(
+                        stream: FirebaseFirestore.instance
+                            .collection('volunteers')
+                            .doc(uid)
+                            .snapshots(),
+                        builder: (context, snapshot) {
+                          if (!snapshot.hasData) return const SizedBox.shrink();
+                          final data = snapshot.data!.data() as Map<String, dynamic>?;
+                          final double avg = (data?['averageRating'] ?? 0.0).toDouble();
+                          final int total = data?['totalRatings'] ?? 0;
+                          if (total == 0) return const SizedBox.shrink();
+                          return Container(
+                            margin: const EdgeInsets.only(right: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.star, color: Colors.white, size: 14),
+                                const SizedBox(width: 4),
+                                Text(
+                                  avg.toStringAsFixed(1),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    Text(
+                      _isEditing ? 'Edit Profile' : 'My Profile',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
               ),
+              // ── Edit / Save button ───────────────────────────────────
               if (!_isEditing)
                 TextButton.icon(
                   onPressed: _startEditing,
@@ -269,6 +422,8 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
   // ── View mode ─────────────────────────────────────────────────────────
 
   Widget _buildViewScroll(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    final volunteerId = user?.uid ?? '';
     return SingleChildScrollView(
       child: Column(
         children: [
@@ -365,6 +520,8 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
                         value: _availability.isEmpty ? '—' : _availability),
                   ],
                 ),
+                // ── Full rating summary card (bottom) ─────────────────
+                VolunteerRatingSummary(volunteerId: volunteerId),
               ],
             ),
           ),
@@ -520,7 +677,7 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
     );
   }
 
-  // ── Edit form ─────────────────────────────────────────────────────────
+  // ── Edit form (unchanged) ─────────────────────────────────────────────
 
   Widget _buildEditForm() {
     return SingleChildScrollView(
