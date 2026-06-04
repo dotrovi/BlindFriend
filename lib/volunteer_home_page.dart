@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'login_page.dart';
 import 'volunteer_profile_page.dart';
 import 'volunteer_received_request.dart';
+import 'volunteer_history_page.dart';
 import 'services/firebase_service.dart';
 
 class VolunteerHomePage extends StatefulWidget {
@@ -34,6 +35,7 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
   int _pendingCount = 0;
   int _acceptedCount = 0;
   int _completedCount = 0;
+  int _declinedCount = 0;
   bool _isLoadingStats = true;
 
   // Volunteer matching data (for counting pending requests)
@@ -80,6 +82,7 @@ void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
   int pending = 0;
   int accepted = 0;
   int completed = 0;
+  int declined = 0;
 
   for (var doc in snapshot.docs) {
     final data = doc.data() as Map<String, dynamic>;
@@ -87,8 +90,8 @@ void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
     final status = rawStatus.toString().toLowerCase();
 
     // Get volunteer ID
-    final volunteerField = data['volunteerId'] ?? 
-                           data['volunteer'] ?? 
+    final volunteerField = data['volunteerId'] ??
+                           data['volunteer'] ??
                            data['assignedVolunteerId'];
     String? volunteerIdStr;
     if (volunteerField is DocumentReference) {
@@ -99,31 +102,21 @@ void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
 
     // Check if request is assigned to this volunteer
     final isAssignedToMe = volunteerIdStr == uid;
-    
-    // Count accepted/in_progress requests assigned to this volunteer
+
+    final declinedBy = List<String>.from(data['declinedBy'] ?? []);
+    if (declinedBy.contains(uid)) declined++;
+
     if (status == 'accepted' || status == 'assigned' || status == 'in_progress') {
-      if (isAssignedToMe) {
-        accepted++;
-      }
-    } 
-    else if (status == 'completed' || status == 'done' || status == 'finished') {
-      if (isAssignedToMe) {
-        completed++;
-      }
-    }
-    else if (status == 'pending' || status == 'awaiting' || status == 'requested') {
-      // IMPORTANT: Only count if NOT assigned to anyone yet
+      if (isAssignedToMe) accepted++;
+    } else if (status == 'completed' || status == 'done' || status == 'finished') {
+      if (isAssignedToMe) completed++;
+    } else if (status == 'pending' || status == 'awaiting' || status == 'requested') {
       final isUnassigned = volunteerIdStr == null || volunteerIdStr.isEmpty;
-      
       if (isUnassigned) {
         final requestType = (data['requestType'] ?? '').toString().toLowerCase();
         final requestLanguage = (data['preferredLanguage'] ?? 'english').toString().toLowerCase();
-        
-        final matchesSpecialty = _volunteerSpecialties.contains(requestType);
-        final matchesLanguage = _volunteerLanguages.contains(requestLanguage);
-        
-        // Count if BOTH specialty AND language match
-        if (matchesSpecialty && matchesLanguage) {
+        if (_volunteerSpecialties.contains(requestType) &&
+            _volunteerLanguages.contains(requestLanguage)) {
           pending++;
         }
       }
@@ -135,6 +128,7 @@ void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
       _pendingCount = pending;
       _acceptedCount = accepted;
       _completedCount = completed;
+      _declinedCount = declined;
       _isLoadingStats = false;
     });
   }
@@ -375,6 +369,7 @@ void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
               children: [
                 _buildHomePage(),
                 const VolunteerReceivedRequestsScreen(),
+                const VolunteerHistoryPage(),
                 _buildProfilePage(),
               ],
             ),
@@ -488,6 +483,7 @@ void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
     const navItems = [
       {'icon': Icons.home_rounded, 'label': 'Home'},
       {'icon': Icons.handshake_outlined, 'label': 'Requests'},
+      {'icon': Icons.history_rounded, 'label': 'History'},
       {'icon': Icons.person_rounded, 'label': 'Profile'},
     ];
 
@@ -992,48 +988,63 @@ void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
 
   Widget _buildStatsRow() {
     if (_isLoadingStats) {
-      return Row(
+      return Column(
         children: [
-          _buildStatItem(
-            'Pending',
-            '...',
-            Icons.pending_actions_rounded,
-            Colors.orange,
+          Row(
+            children: [
+              _buildStatItem('Pending', '...', Icons.pending_actions_rounded, Colors.orange),
+              const SizedBox(width: 10),
+              _buildStatItem('Accepted', '...', Icons.check_circle_outline_rounded, Colors.blue),
+            ],
           ),
-          const SizedBox(width: 10),
-          _buildStatItem(
-            'Accepted',
-            '...',
-            Icons.check_circle_outline_rounded,
-            Colors.blue,
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              _buildStatItem('Done', '...', Icons.verified_rounded, _emerald),
+              const SizedBox(width: 10),
+              _buildStatItem('Declined', '...', Icons.cancel_outlined, Colors.red.shade500),
+            ],
           ),
-          const SizedBox(width: 10),
-          _buildStatItem('Done', '...', Icons.verified_rounded, _emerald),
         ],
       );
     }
 
-    return Row(
+    return Column(
       children: [
-        _buildStatItem(
-          'Pending',
-          _pendingCount.toString(),
-          Icons.pending_actions_rounded,
-          Colors.orange,
+        Row(
+          children: [
+            _buildStatItem(
+              'Pending',
+              _pendingCount.toString(),
+              Icons.pending_actions_rounded,
+              Colors.orange,
+            ),
+            const SizedBox(width: 10),
+            _buildStatItem(
+              'Accepted',
+              _acceptedCount.toString(),
+              Icons.check_circle_outline_rounded,
+              Colors.blue,
+            ),
+          ],
         ),
-        const SizedBox(width: 10),
-        _buildStatItem(
-          'Accepted',
-          _acceptedCount.toString(),
-          Icons.check_circle_outline_rounded,
-          Colors.blue,
-        ),
-        const SizedBox(width: 10),
-        _buildStatItem(
-          'Done',
-          _completedCount.toString(),
-          Icons.verified_rounded,
-          _emerald,
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            _buildStatItem(
+              'Done',
+              _completedCount.toString(),
+              Icons.verified_rounded,
+              _emerald,
+            ),
+            const SizedBox(width: 10),
+            _buildStatItem(
+              'Declined',
+              _declinedCount.toString(),
+              Icons.cancel_outlined,
+              Colors.red.shade500,
+            ),
+          ],
         ),
       ],
     );
@@ -1118,12 +1129,21 @@ void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
           ),
           const SizedBox(height: 10),
           _buildActionTile(
+            icon: Icons.history_rounded,
+            iconColor: Colors.purple.shade600,
+            iconBg: Colors.purple.shade50,
+            title: 'My History',
+            subtitle: 'View completed & declined requests',
+            onTap: () => setState(() => _selectedIndex = 2),
+          ),
+          const SizedBox(height: 10),
+          _buildActionTile(
             icon: Icons.person_rounded,
             iconColor: _emerald,
             iconBg: _emeraldLight,
             title: 'My Profile',
             subtitle: 'Update your information',
-            onTap: () => setState(() => _selectedIndex = 2),
+            onTap: () => setState(() => _selectedIndex = 3),
           ),
         ],
       ),
