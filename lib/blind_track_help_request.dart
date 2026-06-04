@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_blindfriend/blind_rate_volunteer_page.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_tts/flutter_tts.dart';
@@ -24,6 +25,7 @@ class HelpRequestModel {
   Timestamp? cancelledAt;
   String? notes;
   String? preferredLanguage;
+  int? rating;
 
   HelpRequestModel({
     this.id,
@@ -42,6 +44,7 @@ class HelpRequestModel {
     this.cancelledAt,
     this.notes,
     this.preferredLanguage,
+    this.rating,
   });
 
   factory HelpRequestModel.fromMap(String id, Map<String, dynamic> map) {
@@ -62,6 +65,7 @@ class HelpRequestModel {
       cancelledAt: map['cancelledAt'],
       notes: map['notes'],
       preferredLanguage: map['preferredLanguage'],
+      rating: map['rating'],
     );
   }
 }
@@ -550,6 +554,51 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
       return;
     }
 
+    // ===== RATE REQUEST =====
+    if (command.contains('rate request') && RegExp(r'\d+').hasMatch(command)) {
+      final numbers = RegExp(r'\d+').allMatches(command);
+      if (numbers.isNotEmpty) {
+        int requestNum = int.parse(numbers.first.group(0)!);
+        int index = requestNum - 1;
+
+        if (index >= 0 && index < _requests.length) {
+          final request = _requests[index];
+          if (request.status == 'completed' && request.rating == null) {
+            if (request.id != null &&
+                request.volunteerId != null &&
+                request.volunteerName != null) {
+              await _speak('Opening rating page for request $requestNum.');
+              _shouldListen = false;
+              if (mounted) {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => BlindRateVolunteerPage(
+                      helpRequestId: request.id!,
+                      volunteerId: request.volunteerId!,
+                      volunteerName: request.volunteerName!,
+                    ),
+                  ),
+                );
+              }
+              _shouldListen = true;
+              await _refreshRequests();
+            } else {
+              await _speak('Cannot rate request $requestNum, volunteer information is missing.');
+            }
+          } else if (request.rating != null) {
+            await _speak('You have already rated request $requestNum.');
+          } else {
+            await _speak('Request $requestNum is not completed yet and cannot be rated.');
+          }
+        } else {
+          await _speak('Request number $requestNum does not exist.');
+        }
+      }
+      _isProcessingVoice = false;
+      return;
+    }
+
     // ===== HELP COMMANDS =====
     if (command.contains('help') || command.contains('commands')) {
       await _speak(
@@ -564,6 +613,7 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
         'Say Pending Requests to count pending ones. '
         'Say Volunteer to see who is helping you. '
         'Say Cancel Request Number 1 to cancel a request. '
+        'Say Rate Request Number 1 to rate a completed request. '
         'Say Refresh to reload. '
         'Or say Back to go back.',
       );
@@ -1151,6 +1201,34 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
                     ],
                   ),
                 ),
+              if (request.status == 'completed' && request.rating == null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12.0),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        if (request.id != null &&
+                            request.volunteerId != null &&
+                            request.volunteerName != null) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => BlindRateVolunteerPage(
+                                helpRequestId: request.id!,
+                                volunteerId: request.volunteerId!,
+                                volunteerName: request.volunteerName!,
+                              ),
+                            ),
+                          ).then((_) => _refreshRequests());
+                        }
+                      },
+                      icon: const Icon(Icons.star_outline),
+                      label: const Text('Rate Your Volunteer'),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.amber, foregroundColor: Colors.black),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
@@ -1199,6 +1277,27 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
           ),
         ),
         actions: [
+          if (request.status == 'completed' && request.rating == null)
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context); // Close dialog first
+                if (request.id != null &&
+                    request.volunteerId != null &&
+                    request.volunteerName != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => BlindRateVolunteerPage(
+                        helpRequestId: request.id!,
+                        volunteerId: request.volunteerId!,
+                        volunteerName: request.volunteerName!,
+                      ),
+                    ),
+                  ).then((_) => _refreshRequests());
+                }
+              },
+              child: const Text('Rate Volunteer', style: TextStyle(color: Colors.amber)),
+            ),
           if (request.status == 'pending' || request.status == 'accepted')
             TextButton(
               onPressed: () => _cancelRequest(request),

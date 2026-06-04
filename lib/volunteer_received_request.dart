@@ -22,6 +22,7 @@ class HelpRequest {
   Timestamp? cancelledAt;
   String? notes;
   String? preferredLanguage;
+  Map<String, String> declineReasons;
 
   HelpRequest({
     this.id,
@@ -40,9 +41,15 @@ class HelpRequest {
     this.cancelledAt,
     this.notes,
     this.preferredLanguage,
+    this.declineReasons = const {},
   });
 
   factory HelpRequest.fromMap(String id, Map<String, dynamic> map) {
+    final rawReasons = map['declineReasons'];
+    final parsedReasons = <String, String>{};
+    if (rawReasons is Map) {
+      rawReasons.forEach((k, v) => parsedReasons[k.toString()] = v.toString());
+    }
     return HelpRequest(
       id: id,
       blindUserId: map['blindUserId'] ?? '',
@@ -60,6 +67,7 @@ class HelpRequest {
       cancelledAt: map['cancelledAt'],
       notes: map['notes'],
       preferredLanguage: map['preferredLanguage'],
+      declineReasons: parsedReasons,
     );
   }
 }
@@ -165,6 +173,8 @@ class _VolunteerReceivedRequestsScreenState
         if (status == 'completed' && data['volunteerId'] != volunteerId) {
           continue;
         }
+        final declinedBy = List<String>.from(data['declinedBy'] ?? []);
+        if (status == 'pending' && declinedBy.contains(volunteerId)) continue;
         allRequests.add(HelpRequest.fromMap(doc.id, data));
       }
 
@@ -842,7 +852,7 @@ class _VolunteerReceivedRequestsScreenState
                     const Divider(),
                     const SizedBox(height: 8),
                     // Action buttons
-                    if (request.status == 'pending')
+                    if (request.status == 'pending') ...[
                       _actionButton(
                         label: 'Accept Request',
                         icon: Icons.check_circle_outline_rounded,
@@ -853,6 +863,16 @@ class _VolunteerReceivedRequestsScreenState
                               request, volunteer.uid, volunteerName);
                         },
                       ),
+                      _actionButton(
+                        label: 'Decline Request',
+                        icon: Icons.cancel_outlined,
+                        color: Colors.red.shade500,
+                        onTap: () async {
+                          Navigator.pop(context);
+                          await _declineRequest(request, volunteer.uid);
+                        },
+                      ),
+                    ],
                     if (request.status == 'accepted')
                       _actionButton(
                         label: 'Mark as In Progress',
@@ -1012,6 +1032,229 @@ class _VolunteerReceivedRequestsScreenState
             .showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
+  }
+
+  Future<void> _declineRequest(HelpRequest request, String volunteerId) async {
+    final reason = await _showDeclineReasonSheet();
+    if (reason == null) return;
+
+    try {
+      final Map<String, dynamic> updateData = {
+        'declinedBy': FieldValue.arrayUnion([volunteerId]),
+      };
+      if (reason.isNotEmpty) {
+        updateData['declineReasons.$volunteerId'] = reason;
+      }
+      await firestore.collection('help_requests').doc(request.id).update(updateData);
+      await _loadMatchingRequests();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(reason.isEmpty ? 'Request declined' : 'Request declined: $reason'),
+            backgroundColor: Colors.red.shade600));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
+  }
+
+  Future<String?> _showDeclineReasonSheet() async {
+    String? selectedQuickReason;
+    final customController = TextEditingController();
+
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          const quickReasons = [
+            'Too far away',
+            'Not available now',
+            'Outside my specialty',
+            'Already occupied',
+          ];
+
+          return Padding(
+            padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom),
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius:
+                    BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      margin: const EdgeInsets.only(top: 12),
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(Icons.cancel_outlined,
+                              color: Colors.red.shade500, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Decline Request',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16)),
+                            Text('Select or type an optional reason',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade500)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: quickReasons.map((r) {
+                        final isSelected = selectedQuickReason == r;
+                        return GestureDetector(
+                          onTap: () => setSheetState(() {
+                            selectedQuickReason = isSelected ? null : r;
+                            if (!isSelected) customController.clear();
+                          }),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? Colors.red.shade500
+                                  : Colors.red.shade50,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: isSelected
+                                    ? Colors.red.shade500
+                                    : Colors.red.shade200,
+                              ),
+                            ),
+                            child: Text(
+                              r,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: isSelected
+                                    ? Colors.white
+                                    : Colors.red.shade700,
+                                fontWeight: isSelected
+                                    ? FontWeight.w600
+                                    : FontWeight.normal,
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                    child: TextField(
+                      controller: customController,
+                      onChanged: (v) {
+                        if (v.isNotEmpty) {
+                          setSheetState(() => selectedQuickReason = null);
+                        }
+                      },
+                      decoration: InputDecoration(
+                        hintText: 'Or type a custom reason (optional)...',
+                        hintStyle: TextStyle(
+                            fontSize: 13, color: Colors.grey.shade400),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:
+                              BorderSide(color: Colors.grey.shade300),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                              color: Colors.red.shade400, width: 1.5),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 12),
+                      ),
+                      maxLines: 2,
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            style: OutlinedButton.styleFrom(
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 14),
+                              side: BorderSide(color: Colors.grey.shade300),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: const Text('Cancel'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              final reason = selectedQuickReason ??
+                                  customController.text.trim();
+                              Navigator.pop(ctx, reason);
+                            },
+                            icon: const Icon(Icons.cancel_outlined, size: 18),
+                            label: const Text('Decline'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red.shade500,
+                              foregroundColor: Colors.white,
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                              elevation: 0,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+
+    customController.dispose();
+    return result;
   }
 
   Color _getStatusColor(String status) {
