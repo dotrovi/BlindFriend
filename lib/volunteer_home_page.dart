@@ -10,6 +10,7 @@ import 'volunteer_profile_page.dart';
 import 'volunteer_received_request.dart';
 import 'volunteer_history_page.dart';
 import 'services/firebase_service.dart';
+import 'volunteer_training_page.dart';
 
 class VolunteerHomePage extends StatefulWidget {
   final String userName;
@@ -37,6 +38,9 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
   int _completedCount = 0;
   int _declinedCount = 0;
   bool _isLoadingStats = true;
+  // Training progress state
+  int _trainingProgress = 0;
+
 
   // Volunteer matching data (for counting pending requests)
   List<String> _volunteerSpecialties = [];
@@ -54,7 +58,12 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
   static const _mintBg = Color(0xFFF0FDF4);
 
   String? get _uid => FirebaseAuth.instance.currentUser?.uid;
-
+  String _trainingSubtitle() {
+    if (_trainingProgress >= 4) return 'Training complete ✓';
+    if (_trainingProgress == 0) return 'Start your induction training';
+    return '$_trainingProgress of 4 chapters complete';
+  }
+  
 
   @override
   void initState() {
@@ -157,6 +166,9 @@ void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
       final geoPoint = data['location'] as GeoPoint?;
       final updatedAt = data['locationUpdatedAt'] as Timestamp?;
       final savedAddress = data['locationAddress'] as String?;
+      // Load training progress
+      final progress = data['trainingProgress'] as Map<String, dynamic>? ?? {};
+      _trainingProgress = progress.values.where((v) => v == true).length;
 
       // Load volunteer specialties and languages for stats matching
       _volunteerSpecialties = List<String>.from(
@@ -173,6 +185,7 @@ void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
       } else {
         _volunteerLanguages = ['english'];
       }
+      
 
       setState(() {
         _isAvailable = data['isAvailable'] ?? true;
@@ -1144,6 +1157,22 @@ void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
             title: 'My Profile',
             subtitle: 'Update your information',
             onTap: () => setState(() => _selectedIndex = 3),
+          ),
+          _buildActionTile(
+            icon: Icons.school_rounded,
+            iconColor: const Color(0xFFF59E0B),
+            iconBg: const Color(0xFFFFFBEB),
+            title: 'Induction Training',
+            subtitle: _trainingSubtitle(),
+            onTap: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const VolunteerTrainingPage(),
+                ),
+              );
+              _loadVolunteerData(); // refresh after training
+            },
           ),
         ],
       ),

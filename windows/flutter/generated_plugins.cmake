@@ -8,9 +8,11 @@ list(APPEND FLUTTER_PLUGIN_LIST
   desktop_webview_auth
   firebase_auth
   firebase_core
+  flutter_inappwebview_windows
   flutter_tts
   geolocator_windows
   permission_handler_windows
+  printing
   speech_to_text_windows
 )
 
