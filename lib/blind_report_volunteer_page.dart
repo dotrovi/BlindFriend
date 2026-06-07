@@ -37,19 +37,27 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
   bool _isProcessingVoice = false;
   bool _isSubmitting = false;
   int _speakGeneration = 0;
-  bool _gotResult = false;
-  bool _cancelledBySpeech = false;
-  bool _reaskScheduled = false;
+
+  // Auto-listen control: when true, listening will NOT auto-restart
+  // (used while we are navigating away or submitting).
+  bool _suspendAutoListen = false;
 
   // Report state
   String? _selectedReportType;
   bool _awaitingDescription = false;
 
-  // Report type options
   static const List<Map<String, String>> _reportTypes = [
     {'id': 'no_show', 'label': 'No show', 'desc': 'Volunteer never arrived'},
-    {'id': 'inappropriate_behaviour', 'label': 'Inappropriate behaviour', 'desc': 'Volunteer acted inappropriately'},
-    {'id': 'did_not_complete', 'label': 'Did not complete task', 'desc': 'Volunteer left without finishing'},
+    {
+      'id': 'inappropriate_behaviour',
+      'label': 'Inappropriate behaviour',
+      'desc': 'Volunteer acted inappropriately'
+    },
+    {
+      'id': 'did_not_complete',
+      'label': 'Did not complete task',
+      'desc': 'Volunteer left without finishing'
+    },
     {'id': 'other', 'label': 'Other', 'desc': 'Another reason'},
   ];
 
@@ -62,6 +70,7 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
   @override
   void dispose() {
     _shouldListen = false;
+    _suspendAutoListen = true;
     _stt.stop();
     _tts.stop();
     _descriptionController.dispose();
@@ -101,34 +110,30 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
           setState(() => _isListening = true);
         } else if (status == 'done' || status == 'notListening') {
           setState(() => _isListening = false);
-          _scheduleReask();
         }
       },
       onError: (error) {
         debugPrint('STT error: ${error.errorMsg}');
-        _gotResult = false;
         if (mounted) setState(() => _isListening = false);
-        _scheduleReask();
       },
     );
   }
 
   // ---------------------------------------------------------------------------
-  // VOICE — same pattern as login_page.dart
+  // VOICE CORE — speak then auto-listen
   // ---------------------------------------------------------------------------
 
-  Future<void> _speak(String text) async {
+  /// Speaks [text]. When [thenListen] is true (default), automatically starts
+  /// listening once speech finishes — this is what makes the page hands-free.
+  Future<void> _speak(String text, {bool thenListen = true}) async {
     final myGen = ++_speakGeneration;
-    _cancelledBySpeech = true;
 
-    _tts.setCompletionHandler(() {});
-    _tts.setErrorHandler((_) {});
     if (_stt.isListening) await _stt.cancel();
     await _tts.stop();
     await Future.delayed(const Duration(milliseconds: 50));
+    if (myGen != _speakGeneration || !mounted) return;
 
-    if (myGen != _speakGeneration) return;
-    if (mounted) setState(() => _isSpeaking = true);
+    setState(() => _isSpeaking = true);
 
     final completer = Completer<void>();
     _tts.setCompletionHandler(() {
@@ -145,56 +150,46 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
       onTimeout: () {},
     );
 
-    if (mounted) setState(() => _isSpeaking = false);
-  }
+    if (!mounted) return;
+    setState(() => _isSpeaking = false);
 
-  void _scheduleReask() {
-    if (!mounted ||
-        _cancelledBySpeech ||
-        _gotResult ||
-        !_shouldListen ||
-        _reaskScheduled) return;
+    // This speech was superseded by a newer one — don't auto-listen.
+    if (myGen != _speakGeneration) return;
 
-    _reaskScheduled = true;
-    Future.delayed(const Duration(milliseconds: 100), () {
-      _reaskScheduled = false;
-      if (mounted && _shouldListen && !_cancelledBySpeech && !_gotResult) {
-        if (_awaitingDescription) {
-          _speak('Please say your description or say skip to leave it blank.');
-        } else if (_selectedReportType == null) {
-          _speak('Say option one, option two, option three, or option four to select a report type.');
-        } else {
-          _speak('Say describe to add details, submit to send, or go back to cancel.');
-        }
+    // Auto-listen: start the mic once the prompt finishes, so the blind user
+    // can simply respond without tapping anything.
+    if (thenListen && _shouldListen && !_suspendAutoListen) {
+      // Small gap so the mic doesn't catch the tail of our own speech.
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (mounted && _shouldListen && !_suspendAutoListen && !_isSpeaking) {
+        await _startListening();
       }
-    });
-  }
-
-  Future<void> _pressToSpeak() async {
-    if (!_sttAvailable || !_shouldListen || _isSpeaking) return;
-    if (!_stt.isListening) await _startListening();
+    }
   }
 
   Future<void> _startListening() async {
-    if (!_sttAvailable || !mounted || !_shouldListen || _stt.isListening) return;
-
-    _gotResult = false;
-    _cancelledBySpeech = false;
-    _reaskScheduled = false;
-
+    if (!_sttAvailable || !mounted || !_shouldListen || _stt.isListening) {
+      return;
+    }
     setState(() => _isListening = true);
-
     await _stt.listen(
       onResult: (result) {
         if (!mounted) return;
-        if (result.recognizedWords.isNotEmpty) _gotResult = true;
-        if (!result.finalResult) return;
-        Future(() => _processCommand(result.recognizedWords.toLowerCase().trim()));
+        if (result.finalResult) {
+          _processCommand(result.recognizedWords.toLowerCase().trim());
+        }
       },
       listenFor: const Duration(seconds: 15),
       pauseFor: const Duration(seconds: 3),
       localeId: 'en_US',
     );
+  }
+
+  /// Manual mic button — backup only. Auto-listen handles the normal flow.
+  void _onMicTap() {
+    if (!_isProcessingVoice && _sttAvailable && !_isSpeaking && !_isListening) {
+      _startListening();
+    }
   }
 
   Future<void> _speakWelcome() async {
@@ -210,7 +205,7 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
   }
 
   // ---------------------------------------------------------------------------
-  // VOICE COMMAND PROCESSING
+  // COMMAND PROCESSING
   // ---------------------------------------------------------------------------
 
   Future<void> _processCommand(String command) async {
@@ -218,47 +213,56 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
     _isProcessingVoice = true;
     debugPrint('🎤 Report command: "$command"');
 
-    // Go back
-    if (command.contains('back') || command.contains('cancel')) {
-      await _speak('Going back.');
-      if (mounted) Navigator.pop(context);
+    // Empty result — gently re-prompt based on current step.
+    if (command.isEmpty) {
       _isProcessingVoice = false;
+      await _repromptCurrentStep();
       return;
     }
 
-    // Handle description input when awaiting it
+    // Go back / cancel
+    if (command.contains('go back') ||
+        command.contains('cancel') ||
+        command.contains('exit')) {
+      _suspendAutoListen = true;
+      _shouldListen = false;
+      await _speak('Going back.', thenListen: false);
+      _isProcessingVoice = false;
+      if (mounted) Navigator.pop(context);
+      return;
+    }
+
+    // Awaiting a spoken description
     if (_awaitingDescription) {
-      if (command.contains('skip') || command.isEmpty) {
+      if (command.contains('skip')) {
         _awaitingDescription = false;
+        _isProcessingVoice = false;
         await _speak(
           'No description added. '
           'Say submit to send the report, or go back to cancel.',
         );
-        _isProcessingVoice = false;
         return;
       }
-      // Any other speech is the description
       setState(() {
         _descriptionController.text = command;
         _awaitingDescription = false;
       });
+      _isProcessingVoice = false;
       await _speak(
-        'Description set to: $command. '
+        'Description saved. '
         'Say submit to send the report, or go back to cancel.',
       );
-      _isProcessingVoice = false;
       return;
     }
 
-    // Select report type by "option one/two/three/four" or just number words
-    final optionMap = {
-      'option one': 0, 'one': 0, 'first': 0,
-      'option two': 1, 'two': 1, 'second': 1,
-      'option three': 2, 'three': 2, 'third': 2,
-      'option four': 3, 'four': 3, 'fourth': 3,
+    // Report type selection — longer phrases first so "one" doesn't match
+    // inside "option one" prematurely.
+    final optionMap = <String, int>{
+      'option one': 0, 'option two': 1, 'option three': 2, 'option four': 3,
+      'first': 0, 'second': 1, 'third': 2, 'fourth': 3,
+      'one': 0, 'two': 1, 'three': 2, 'four': 3,
+      'option 1': 0, 'option 2': 1, 'option 3': 2, 'option 4': 3,
     };
-
-    // Check longer phrases first to avoid "one" matching inside "option one"
     final sortedKeys = optionMap.keys.toList()
       ..sort((a, b) => b.length.compareTo(a.length));
 
@@ -267,13 +271,13 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
         final index = optionMap[key]!;
         setState(() => _selectedReportType = _reportTypes[index]['id']);
         final label = _reportTypes[index]['label']!;
+        _isProcessingVoice = false;
         await _speak(
           'You selected $label. '
           'Say describe to add more details, '
           'say submit to send the report, '
           'or say go back to cancel.',
         );
-        _isProcessingVoice = false;
         return;
       }
     }
@@ -281,24 +285,31 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
     // Describe
     if (command.contains('describe') || command.contains('description')) {
       if (_selectedReportType == null) {
-        await _speak('Please select a report type first. Say option one, two, three, or four.');
         _isProcessingVoice = false;
+        await _speak(
+          'Please select a report type first. '
+          'Say option one, two, three, or four.',
+        );
         return;
       }
       _awaitingDescription = true;
+      _isProcessingVoice = false;
       await _speak(
         'Please say your description now. '
-        'For example: The volunteer arrived late and left without helping.',
+        'For example: The volunteer arrived late and left without helping. '
+        'Or say skip to leave it blank.',
       );
-      _isProcessingVoice = false;
       return;
     }
 
     // Submit
     if (command.contains('submit') || command.contains('send')) {
       if (_selectedReportType == null) {
-        await _speak('Please select a report type first. Say option one, two, three, or four.');
         _isProcessingVoice = false;
+        await _speak(
+          'Please select a report type first. '
+          'Say option one, two, three, or four.',
+        );
         return;
       }
       _isProcessingVoice = false;
@@ -308,19 +319,37 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
 
     // Repeat options
     if (command.contains('repeat') || command.contains('options')) {
-      await _speakWelcome();
       _isProcessingVoice = false;
+      await _speakWelcome();
       return;
     }
 
+    // Unrecognised
+    _isProcessingVoice = false;
     await _speak(
-      'Command not recognised. '
+      'Sorry, I did not understand. '
       'Say option one, two, three, or four to select. '
       'Say describe to add details. '
       'Say submit to send. '
       'Or say go back to cancel.',
     );
-    _isProcessingVoice = false;
+  }
+
+  /// Re-prompts the user based on whatever step they are currently on.
+  Future<void> _repromptCurrentStep() async {
+    if (_awaitingDescription) {
+      await _speak('I did not catch that. Please say your description, or say skip.');
+    } else if (_selectedReportType == null) {
+      await _speak(
+        'I did not catch that. '
+        'Say option one, two, three, or four to choose a report reason.',
+      );
+    } else {
+      await _speak(
+        'I did not catch that. '
+        'Say describe to add details, submit to send, or go back to cancel.',
+      );
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -328,11 +357,11 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
   // ---------------------------------------------------------------------------
 
   Future<void> _submitReport() async {
-    if (_selectedReportType == null) return;
-    if (_isSubmitting) return;
+    if (_selectedReportType == null || _isSubmitting) return;
 
+    _suspendAutoListen = true;
     setState(() => _isSubmitting = true);
-    await _speak('Submitting your report. Please wait.');
+    await _speak('Submitting your report. Please wait.', thenListen: false);
 
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -346,14 +375,24 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
         'requestType': widget.requestType,
         'reportType': _selectedReportType,
         'description': _descriptionController.text.trim(),
-        'status': 'pending', // admin reviews this
+        'status': 'pending',
         'createdAt': FieldValue.serverTimestamp(),
       });
 
+      // Mark the help request as reported so it won't show the report option again
+      if (widget.helpRequestId.isNotEmpty) {
+        await FirebaseFirestore.instance
+            .collection('help_requests')
+            .doc(widget.helpRequestId)
+            .update({'reported': true});
+      }
+
       if (mounted) {
+        _shouldListen = false;
         await _speak(
           'Your report has been submitted. '
           'Our admin team will review it. Thank you.',
+          thenListen: false,
         );
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -366,7 +405,9 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
     } catch (e) {
       debugPrint('Submit report error: $e');
       if (mounted) {
-        await _speak('Failed to submit report. Please try again.');
+        _suspendAutoListen = false;
+        setState(() => _isSubmitting = false);
+        await _speak('Failed to submit report. Please try again, or say go back to cancel.');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Failed to submit report. Please try again.'),
@@ -374,8 +415,6 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
           ),
         );
       }
-    } finally {
-      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
@@ -394,7 +433,9 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () async {
-            await _speak('Going back.');
+            _suspendAutoListen = true;
+            _shouldListen = false;
+            await _speak('Going back.', thenListen: false);
             if (mounted) Navigator.pop(context);
           },
         ),
@@ -404,11 +445,8 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Voice bar
             _buildVoiceBar(),
             const SizedBox(height: 20),
-
-            // Info card
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -446,21 +484,21 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
               ),
             ),
             const SizedBox(height: 20),
-
             const Text(
               'What happened?',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 12),
-
-            // Report type options
             ...List.generate(_reportTypes.length, (i) {
               final type = _reportTypes[i];
               final isSelected = _selectedReportType == type['id'];
               return GestureDetector(
                 onTap: () {
                   setState(() => _selectedReportType = type['id']);
-                  _speak('Selected ${type['label']}.');
+                  _speak(
+                    'Selected ${type['label']}. '
+                    'Say describe to add details, or submit to send.',
+                  );
                 },
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
@@ -485,7 +523,6 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
                   ),
                   child: Row(
                     children: [
-                      // Number badge
                       Container(
                         width: 30,
                         height: 30,
@@ -541,10 +578,7 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
                 ),
               );
             }),
-
             const SizedBox(height: 20),
-
-            // Description field
             const Text(
               'Additional Details (optional)',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
@@ -563,8 +597,6 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
                 contentPadding: const EdgeInsets.all(16),
               ),
             ),
-
-            // Awaiting description indicator
             if (_awaitingDescription) ...[
               const SizedBox(height: 8),
               Container(
@@ -589,10 +621,7 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
                 ),
               ),
             ],
-
             const SizedBox(height: 28),
-
-            // Submit button
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
@@ -633,13 +662,9 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // VOICE BAR
-  // ---------------------------------------------------------------------------
-
   Widget _buildVoiceBar() {
     return GestureDetector(
-      onTap: _pressToSpeak,
+      onTap: _onMicTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         width: double.infinity,
