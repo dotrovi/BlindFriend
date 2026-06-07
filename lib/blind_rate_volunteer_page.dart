@@ -28,6 +28,9 @@ class _BlindRateVolunteerPageState extends State<BlindRateVolunteerPage> {
 
   int _rating = 0;
   bool _isSubmitting = false;
+  
+  // ✅ Moved these to the correct location (class level)
+  final TextEditingController _commentController = TextEditingController();
 
   // Voice command state
   bool _isListening = false;
@@ -180,11 +183,12 @@ class _BlindRateVolunteerPageState extends State<BlindRateVolunteerPage> {
     try {
       final batch = firestore.batch();
 
-      // 1. Update the help request to indicate it has been rated
+      // 1. Update the help request with rating and comment
       final requestRef = firestore.collection('help_requests').doc(widget.helpRequestId);
       batch.update(requestRef, {
         'rating': _rating,
         'ratedAt': FieldValue.serverTimestamp(),
+        'feedbackComment': _commentController.text.trim(),
       });
 
       // 2. Update the volunteer's average rating and total ratings
@@ -228,6 +232,7 @@ class _BlindRateVolunteerPageState extends State<BlindRateVolunteerPage> {
   @override
   void dispose() {
     _shouldListen = false;
+    _commentController.dispose(); // ✅ Dispose the controller
     _stt.stop();
     _tts.stop();
     super.dispose();
@@ -250,7 +255,7 @@ class _BlindRateVolunteerPageState extends State<BlindRateVolunteerPage> {
           ),
         ],
       ),
-      body: Padding(
+      body: SingleChildScrollView( // ✅ Added SingleChildScrollView
         padding: const EdgeInsets.all(24.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -261,6 +266,8 @@ class _BlindRateVolunteerPageState extends State<BlindRateVolunteerPage> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
+            
+            // Star Rating
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(5, (index) {
@@ -276,7 +283,25 @@ class _BlindRateVolunteerPageState extends State<BlindRateVolunteerPage> {
                 );
               }),
             ),
-            const SizedBox(height: 48),
+            
+            const SizedBox(height: 24),
+            
+            // ✅ Comment Field (moved here, inside build method)
+            TextField(
+              controller: _commentController,
+              maxLines: 3,
+              decoration: InputDecoration(
+                hintText: 'Optional: Leave a comment about your experience...',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                filled: true,
+                fillColor: Colors.grey.shade50,
+                contentPadding: const EdgeInsets.all(16),
+              ),
+            ),
+            
+            const SizedBox(height: 32),
+            
+            // Submit Button
             SizedBox(
               width: double.infinity,
               height: 54,

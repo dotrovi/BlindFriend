@@ -584,12 +584,16 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
               _shouldListen = true;
               await _refreshRequests();
             } else {
-              await _speak('Cannot rate request $requestNum, volunteer information is missing.');
+              await _speak(
+                'Cannot rate request $requestNum, volunteer information is missing.',
+              );
             }
           } else if (request.rating != null) {
             await _speak('You have already rated request $requestNum.');
           } else {
-            await _speak('Request $requestNum is not completed yet and cannot be rated.');
+            await _speak(
+              'Request $requestNum is not completed yet and cannot be rated.',
+            );
           }
         } else {
           await _speak('Request number $requestNum does not exist.');
@@ -623,11 +627,14 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
 
     // Report volunteer
     if (command.contains('report volunteer') || command.contains('complaint')) {
-      final reportable = _requests.where((r) =>
-        (r.status == 'in_progress' || r.status == 'completed') &&
-        r.volunteerId != null &&
-        r.volunteerId!.isNotEmpty
-      ).toList();
+      final reportable = _requests
+          .where(
+            (r) =>
+                (r.status == 'in_progress' || r.status == 'completed') &&
+                r.volunteerId != null &&
+                r.volunteerId!.isNotEmpty,
+          )
+          .toList();
 
       if (reportable.isEmpty) {
         await _speak(
@@ -881,7 +888,6 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
                 ),
               ),
             ),
-          
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -1225,7 +1231,10 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
                       },
                       icon: const Icon(Icons.star_outline),
                       label: const Text('Rate Your Volunteer'),
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.amber, foregroundColor: Colors.black),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.amber,
+                        foregroundColor: Colors.black,
+                      ),
                     ),
                   ),
                 ),
@@ -1237,9 +1246,12 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
   }
 
   void _showRequestDetails(HelpRequestModel request) {
+    // Check if mounted and context is available
+    if (!mounted) return;
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Text('${request.requestType.toUpperCase()} Request'),
         content: Container(
           width: double.maxFinite,
@@ -1280,7 +1292,8 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
           if (request.status == 'completed' && request.rating == null)
             TextButton(
               onPressed: () {
-                Navigator.pop(context); // Close dialog first
+                Navigator.pop(dialogContext); // Close dialog first
+                if (!mounted) return;
                 if (request.id != null &&
                     request.volunteerId != null &&
                     request.volunteerName != null) {
@@ -1293,23 +1306,33 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
                         volunteerName: request.volunteerName!,
                       ),
                     ),
-                  ).then((_) => _refreshRequests());
+                  ).then((_) {
+                    if (mounted) _refreshRequests();
+                  });
                 }
               },
-              child: const Text('Rate Volunteer', style: TextStyle(color: Colors.amber)),
+              child: const Text(
+                'Rate Volunteer',
+                style: TextStyle(color: Colors.amber),
+              ),
             ),
           if (request.status == 'pending' || request.status == 'accepted')
             TextButton(
-              onPressed: () => _cancelRequest(request),
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                _cancelRequest(request);
+              },
               style: TextButton.styleFrom(foregroundColor: Colors.red),
               child: const Text('Cancel Request'),
             ),
-          if ((request.status == 'in_progress' || request.status == 'completed') &&
+          if ((request.status == 'in_progress' ||
+                  request.status == 'completed') &&
               request.volunteerId != null &&
               request.volunteerId!.isNotEmpty)
             TextButton(
               onPressed: () {
-                Navigator.pop(context); // close dialog first
+                Navigator.pop(dialogContext);
+                if (!mounted) return;
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -1326,7 +1349,7 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
               child: const Text('Report Volunteer'),
             ),
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Close'),
           ),
         ],
