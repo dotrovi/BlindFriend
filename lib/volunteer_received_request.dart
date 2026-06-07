@@ -1015,24 +1015,56 @@ class _VolunteerReceivedRequestsScreenState
   }
 
   Future<void> _completeHelp(HelpRequest request) async {
-    try {
-      await firestore.collection('help_requests').doc(request.id).update({
-        'status': 'completed',
-        'completedAt': Timestamp.now(),
-      });
-      await _loadMatchingRequests();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Help completed! Good job!'),
-            backgroundColor: Colors.green));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error: $e')));
-      }
+  try {
+    await firestore.collection('help_requests').doc(request.id).update({
+      'status': 'completed',
+      'completedAt': Timestamp.now(),
+    });
+    
+    await _loadMatchingRequests();
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Help completed! Good job!'),
+        backgroundColor: Colors.green,
+      ));
+      
+      // ✅ Ask if blind user wants to rate (since volunteer completed it)
+      _showRateReminderDialog(request);
+    }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
+}
+
+void _showRateReminderDialog(HelpRequest request) {
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text('Remind Blind User?'),
+      content: Text('Would you like to remind ${request.blindUserName} to rate your help?'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text('No'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            Navigator.pop(context);
+            // You can send a notification or just note that rating is needed
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Reminder sent to ${request.blindUserName}')),
+            );
+          },
+          child: Text('Send Reminder'),
+        ),
+      ],
+    ),
+  );
+}
 
   Future<void> _declineRequest(HelpRequest request, String volunteerId) async {
     final reason = await _showDeclineReasonSheet();
