@@ -170,10 +170,17 @@ class _BlindHomePageState extends State<BlindHomePage> {
 
     setState(() => _isListening = true);
     await _stt.listen(
-      onResult: (result) {
+      onResult: (result) async {
         if (!mounted) return;
         if (result.finalResult) {
-          _processCommand(result.recognizedWords.toLowerCase());
+          await _processCommand(result.recognizedWords.toLowerCase());
+          // Loop only while on Help Center tab — reuses _selectedIndex.
+          if (_selectedIndex == 4 &&
+              _shouldListen &&
+              mounted &&
+              !_stt.isListening) {
+            await _startListening();
+          }
         }
       },
       listenFor: const Duration(seconds: 10),
@@ -254,6 +261,18 @@ class _BlindHomePageState extends State<BlindHomePage> {
     setState(() {
       _selectedIndex = index;
     });
+  }
+
+  void _openHelpCenter() async {
+    _setSelectedIndex(4);
+    await _speak(
+      'Help center. Say Request Help to send a new request, '
+      'or say Track Requests to see your existing requests.',
+    );
+    // Reuse existing listening — just open the mic after speaking.
+    if (_sttAvailable && _shouldListen && mounted && !_stt.isListening) {
+      await _startListening();
+    }
   }
 
   void _onNavBarTap(int index) {
@@ -575,8 +594,8 @@ class _BlindHomePageState extends State<BlindHomePage> {
             description: 'Get help from verified volunteers nearby',
             color: Colors.green,
             index: 4,
+            onTapOverride: _openHelpCenter,
           ),
-
           const SizedBox(height: 16),
 
           // Emergency Section
@@ -664,7 +683,8 @@ class _BlindHomePageState extends State<BlindHomePage> {
     required String description,
     required Color color,
     required int index,
-  }) {
+    VoidCallback? onTapOverride,
+  })  {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -696,7 +716,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
           style: TextStyle(color: Colors.grey.shade600),
         ),
         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-        onTap: () => _setSelectedIndex(index),
+        onTap: onTapOverride ?? () => _setSelectedIndex(index),
       ),
     );
   }

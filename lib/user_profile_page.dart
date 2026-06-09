@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'volunteer_rating_summary.dart';
 
 class UserProfilePage extends StatefulWidget {
   const UserProfilePage({super.key});
@@ -118,6 +119,13 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     ),
                   ),
                   const SizedBox(height: 32),
+
+                  if (userType == 'volunteer') ...[
+                    VolunteerRatingSummary(
+                      volunteerId: FirebaseAuth.instance.currentUser?.uid ?? '',
+                    ),
+                    const SizedBox(height: 32),
+                  ],
 
                   // Info card
                   Container(

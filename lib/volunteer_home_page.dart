@@ -8,7 +8,9 @@ import 'package:http/http.dart' as http;
 import 'login_page.dart';
 import 'volunteer_profile_page.dart';
 import 'volunteer_received_request.dart';
+import 'volunteer_history_page.dart';
 import 'services/firebase_service.dart';
+import 'volunteer_training_page.dart';
 
 class VolunteerHomePage extends StatefulWidget {
   final String userName;
@@ -34,7 +36,10 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
   int _pendingCount = 0;
   int _acceptedCount = 0;
   int _completedCount = 0;
+  int _declinedCount = 0;
   bool _isLoadingStats = true;
+  // Training progress state
+  int _trainingProgress = 0;
 
   // Volunteer matching data (for counting pending requests)
   List<String> _volunteerSpecialties = [];
@@ -52,7 +57,12 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
   static const _mintBg = Color(0xFFF0FDF4);
 
   String? get _uid => FirebaseAuth.instance.currentUser?.uid;
-
+  
+  String _trainingSubtitle() {
+    if (_trainingProgress >= 4) return 'Training complete ✓';
+    if (_trainingProgress == 0) return 'Start your induction training';
+    return '$_trainingProgress of 4 chapters complete';
+  }
 
   @override
   void initState() {
@@ -73,81 +83,68 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
         });
   }
 
-void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
-  final uid = _uid;
-  if (uid == null) return;
+  void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
+    final uid = _uid;
+    if (uid == null) return;
 
-  int pending = 0;
-  int accepted = 0;
-  int completed = 0;
+    int pending = 0;
+    int accepted = 0;
+    int completed = 0;
+    int declined = 0;
 
-  for (var doc in snapshot.docs) {
-    final data = doc.data() as Map<String, dynamic>;
-    final rawStatus = data['status'] ?? '';
-    final status = rawStatus.toString().toLowerCase();
+    for (var doc in snapshot.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final rawStatus = data['status'] ?? '';
+      final status = rawStatus.toString().toLowerCase();
 
-    // Get volunteer ID
-    final volunteerField = data['volunteerId'] ?? 
-                           data['volunteer'] ?? 
-                           data['assignedVolunteerId'];
-    String? volunteerIdStr;
-    if (volunteerField is DocumentReference) {
-      volunteerIdStr = volunteerField.id;
-    } else if (volunteerField != null) {
-      volunteerIdStr = volunteerField.toString();
-    }
-
-    // Check if request is assigned to this volunteer
-    final isAssignedToMe = volunteerIdStr == uid;
-    
-    // Count accepted/in_progress requests assigned to this volunteer
-    if (status == 'accepted' || status == 'assigned' || status == 'in_progress') {
-      if (isAssignedToMe) {
-        accepted++;
+      final volunteerField =
+          data['volunteerId'] ??
+          data['volunteer'] ??
+          data['assignedVolunteerId'];
+      String? volunteerIdStr;
+      if (volunteerField is DocumentReference) {
+        volunteerIdStr = volunteerField.id;
+      } else if (volunteerField != null) {
+        volunteerIdStr = volunteerField.toString();
       }
-    } 
-    else if (status == 'completed' || status == 'done' || status == 'finished') {
-      if (isAssignedToMe) {
-        completed++;
-      }
-    }
-    else if (status == 'pending' || status == 'awaiting' || status == 'requested') {
-      // IMPORTANT: Only count if NOT assigned to anyone yet
-      final isUnassigned = volunteerIdStr == null || volunteerIdStr.isEmpty;
-      
-      if (isUnassigned) {
-        final requestType = (data['requestType'] ?? '').toString().toLowerCase();
-        final requestLanguage = (data['preferredLanguage'] ?? 'english').toString().toLowerCase();
-        
-        final matchesSpecialty = _volunteerSpecialties.contains(requestType);
-        final matchesLanguage = _volunteerLanguages.contains(requestLanguage);
-        
-        // Count if BOTH specialty AND language match
-        if (matchesSpecialty && matchesLanguage) {
-          pending++;
+
+      final isAssignedToMe = volunteerIdStr == uid;
+      final declinedBy = List<String>.from(data['declinedBy'] ?? []);
+      if (declinedBy.contains(uid)) declined++;
+
+      if (status == 'accepted' || status == 'assigned' || status == 'in_progress') {
+        if (isAssignedToMe) accepted++;
+      } else if (status == 'completed' || status == 'done' || status == 'finished') {
+        if (isAssignedToMe) completed++;
+      } else if (status == 'pending' || status == 'awaiting' || status == 'requested') {
+        final isUnassigned = volunteerIdStr == null || volunteerIdStr.isEmpty;
+        if (isUnassigned) {
+          final requestType = (data['requestType'] ?? '').toString().toLowerCase();
+          final requestLanguage = (data['preferredLanguage'] ?? 'english').toString().toLowerCase();
+          if (_volunteerSpecialties.contains(requestType) &&
+              _volunteerLanguages.contains(requestLanguage)) {
+            pending++;
+          }
         }
       }
     }
-  }
 
-  if (mounted) {
-    setState(() {
-      _pendingCount = pending;
-      _acceptedCount = accepted;
-      _completedCount = completed;
-      _isLoadingStats = false;
-    });
+    if (mounted) {
+      setState(() {
+        _pendingCount = pending;
+        _acceptedCount = accepted;
+        _completedCount = completed;
+        _declinedCount = declined;
+        _isLoadingStats = false;
+      });
+    }
   }
-}
-
 
   @override
   void dispose() {
     _helpRequestsSubscription.cancel();
     super.dispose();
   }
-
-  // ── Data ──────────────────────────────────────────────────────────────
 
   Future<void> _loadVolunteerData() async {
     final uid = _uid;
@@ -163,8 +160,9 @@ void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
       final geoPoint = data['location'] as GeoPoint?;
       final updatedAt = data['locationUpdatedAt'] as Timestamp?;
       final savedAddress = data['locationAddress'] as String?;
+      final progress = data['trainingProgress'] as Map<String, dynamic>? ?? {};
+      _trainingProgress = progress.values.where((v) => v == true).length;
 
-      // Load volunteer specialties and languages for stats matching
       _volunteerSpecialties = List<String>.from(
         data['specialties'] ?? [],
       ).map((s) => s.toString().toLowerCase()).toList();
@@ -200,8 +198,6 @@ void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
         }
         _locationLastUpdated = updatedAt?.toDate();
       });
-
-  
     } catch (_) {}
   }
 
@@ -328,6 +324,30 @@ void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
     return '${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}';
   }
 
+  Future<void> _refreshAllData() async {
+    await _loadVolunteerData();
+    setState(() {});
+  }
+
+  Future<Map<String, dynamic>> _getVolunteerRatingData() async {
+    final uid = _uid;
+    if (uid == null) return {'averageRating': 0.0, 'totalRatings': 0};
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('volunteers')
+          .doc(uid)
+          .get();
+      final data = doc.data();
+      return {
+        'averageRating': (data?['averageRating'] ?? 0.0).toDouble(),
+        'totalRatings': data?['totalRatings'] ?? 0,
+      };
+    } catch (e) {
+      return {'averageRating': 0.0, 'totalRatings': 0};
+    }
+  }
+
   Future<void> _toggleAvailability() async {
     final uid = _uid;
     if (uid == null) return;
@@ -360,8 +380,6 @@ void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
     return '${diff.inDays}d ago';
   }
 
-  // ── Build ──────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -375,6 +393,7 @@ void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
               children: [
                 _buildHomePage(),
                 const VolunteerReceivedRequestsScreen(),
+                const VolunteerHistoryPage(),
                 _buildProfilePage(),
               ],
             ),
@@ -488,6 +507,7 @@ void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
     const navItems = [
       {'icon': Icons.home_rounded, 'label': 'Home'},
       {'icon': Icons.handshake_outlined, 'label': 'Requests'},
+      {'icon': Icons.history_rounded, 'label': 'History'},
       {'icon': Icons.person_rounded, 'label': 'Profile'},
     ];
 
@@ -558,39 +578,165 @@ void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
   // ── Home tab ──────────────────────────────────────────────────────────
 
   Widget _buildHomePage() {
-    return RefreshIndicator(
-      onRefresh: () async {
-        final snapshot = await FirebaseFirestore.instance
-            .collection('help_requests')
-            .get();
-        _updateStatsFromSnapshot(snapshot);
-        await _loadVolunteerData();
-      },
-      color: _emerald,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-        child: Column(
-          children: [
-            _buildWelcomeBanner(),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(child: _buildAvailabilityCard()),
-                const SizedBox(width: 12),
-                Expanded(child: _buildLocationMiniCard()),
-              ],
-            ),
-            const SizedBox(height: 16),
-            _buildLocationFullCard(),
-            const SizedBox(height: 16),
-            _buildStatsRow(),
-            const SizedBox(height: 16),
-            _buildQuickActions(),
-            const SizedBox(height: 24),
-          ],
-        ),
+  return RefreshIndicator(
+    onRefresh: () async {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('help_requests')
+          .get();
+      _updateStatsFromSnapshot(snapshot);
+      await _loadVolunteerData();
+    },
+    color: _emerald,
+    child: SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+      child: Column(
+        children: [
+          _buildWelcomeBanner(),
+          const SizedBox(height: 16),
+          
+          // ⭐ Rating Summary Card
+          _buildRatingCard(),
+          const SizedBox(height: 16),
+          
+          Row(
+            children: [
+              Expanded(child: _buildAvailabilityCard()),
+              const SizedBox(width: 12),
+              Expanded(child: _buildLocationMiniCard()),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildLocationFullCard(),
+          const SizedBox(height: 16),
+          _buildStatsRow(),
+          const SizedBox(height: 16),
+          
+          // ⭐ NEW: Individual Feedback Section
+          _buildIndividualFeedbackSection(),
+          const SizedBox(height: 16),
+          
+          _buildQuickActions(),
+          const SizedBox(height: 24),
+        ],
       ),
+    ),
+  );
+}
+
+  // ⭐ NEW RATING CARD WIDGET
+  Widget _buildRatingCard() {
+    return FutureBuilder<Map<String, dynamic>>(
+      future: _getVolunteerRatingData(),
+      builder: (context, snapshot) {
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.amber.shade700, Colors.amber.shade500],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.amber.withValues(alpha: 0.3),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(
+                  Icons.star_rate_rounded,
+                  color: Colors.white,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Your Rating',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    if (snapshot.connectionState == ConnectionState.waiting)
+                      const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    else if (snapshot.hasData && snapshot.data!['totalRatings'] > 0)
+                      Row(
+                        children: [
+                          ...List.generate(5, (index) {
+                            final avgRating = snapshot.data!['averageRating'] as double;
+                            if (index < avgRating.floor()) {
+                              return const Icon(Icons.star, color: Colors.white, size: 20);
+                            } else if (index < avgRating && avgRating - index >= 0.5) {
+                              return const Icon(Icons.star_half, color: Colors.white, size: 20);
+                            } else {
+                              return const Icon(Icons.star_border, color: Colors.white, size: 20);
+                            }
+                          }),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${snapshot.data!['averageRating'].toStringAsFixed(1)}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '(${snapshot.data!['totalRatings']})',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.8),
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      )
+                    else
+                      const Text(
+                        'No ratings yet',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                color: Colors.white.withValues(alpha: 0.7),
+                size: 16,
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -992,59 +1138,288 @@ void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
 
   Widget _buildStatsRow() {
     if (_isLoadingStats) {
-      return Row(
+      return Column(
         children: [
-          _buildStatItem(
-            'Pending',
-            '...',
-            Icons.pending_actions_rounded,
-            Colors.orange,
+          Row(
+            children: [
+              _buildStatItem('Pending', '...', Icons.pending_actions_rounded, Colors.orange),
+              const SizedBox(width: 10),
+              _buildStatItem('Accepted', '...', Icons.check_circle_outline_rounded, Colors.blue),
+            ],
           ),
-          const SizedBox(width: 10),
-          _buildStatItem(
-            'Accepted',
-            '...',
-            Icons.check_circle_outline_rounded,
-            Colors.blue,
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              _buildStatItem('Done', '...', Icons.verified_rounded, _emerald),
+              const SizedBox(width: 10),
+              _buildStatItem('Declined', '...', Icons.cancel_outlined, Colors.red.shade500),
+            ],
           ),
-          const SizedBox(width: 10),
-          _buildStatItem('Done', '...', Icons.verified_rounded, _emerald),
         ],
       );
     }
 
-    return Row(
+    return Column(
       children: [
-        _buildStatItem(
-          'Pending',
-          _pendingCount.toString(),
-          Icons.pending_actions_rounded,
-          Colors.orange,
+        Row(
+          children: [
+            _buildStatItem('Pending', _pendingCount.toString(), Icons.pending_actions_rounded, Colors.orange),
+            const SizedBox(width: 10),
+            _buildStatItem('Accepted', _acceptedCount.toString(), Icons.check_circle_outline_rounded, Colors.blue),
+          ],
         ),
-        const SizedBox(width: 10),
-        _buildStatItem(
-          'Accepted',
-          _acceptedCount.toString(),
-          Icons.check_circle_outline_rounded,
-          Colors.blue,
-        ),
-        const SizedBox(width: 10),
-        _buildStatItem(
-          'Done',
-          _completedCount.toString(),
-          Icons.verified_rounded,
-          _emerald,
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            _buildStatItem('Done', _completedCount.toString(), Icons.verified_rounded, _emerald),
+            const SizedBox(width: 10),
+            _buildStatItem('Declined', _declinedCount.toString(), Icons.cancel_outlined, Colors.red.shade500),
+          ],
         ),
       ],
     );
   }
+// Add this new method to fetch individual feedback
+Future<List<Map<String, dynamic>>> _getIndividualFeedback() async {
+  final uid = _uid;
+  if (uid == null) return [];
+  
+  try {
+    // Remove orderBy completely - just filter by volunteerId
+    final snapshot = await FirebaseFirestore.instance
+        .collection('help_requests')
+        .where('volunteerId', isEqualTo: uid)
+        .get();
+    
+    final feedbacks = <Map<String, dynamic>>[];
+    
+    for (var doc in snapshot.docs) {
+      final data = doc.data();
+      final rating = data['rating'] ?? 0;
+      
+      // Only include if rating > 0
+      if (rating > 0) {
+        feedbacks.add({
+          'rating': rating,
+          'comment': data['feedbackComment'] ?? '',
+          'blindUserName': data['blindUserName'] ?? 'Anonymous',
+          'requestType': data['requestType'] ?? 'help',
+          'ratedAt': data['ratedAt'] as Timestamp?,
+        });
+      }
+    }
+    
+    // Sort in memory instead of using orderBy
+    feedbacks.sort((a, b) {
+      final aDate = a['ratedAt'] as Timestamp?;
+      final bDate = b['ratedAt'] as Timestamp?;
+      if (aDate == null && bDate == null) return 0;
+      if (aDate == null) return 1;
+      if (bDate == null) return -1;
+      return bDate.toDate().compareTo(aDate.toDate()); // Descending
+    });
+    
+    return feedbacks;
+  } catch (e) {
+    print('Error fetching feedback: $e');
+    return [];
+  }
+}
 
-  Widget _buildStatItem(
-    String label,
-    String value,
-    IconData icon,
-    Color color,
-  ) {
+// Add this to _buildHomePage() - right after _buildStatsRow()
+Widget _buildIndividualFeedbackSection() {
+  return FutureBuilder<List<Map<String, dynamic>>>(
+    future: _getIndividualFeedback(),
+    builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.waiting) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: const Center(child: CircularProgressIndicator()),
+        );
+      }
+      
+      if (snapshot.hasError || snapshot.data == null || snapshot.data!.isEmpty) {
+        return Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              Icon(Icons.comment_outlined, size: 48, color: Colors.grey.shade400),
+              const SizedBox(height: 12),
+              Text(
+                'No feedback yet',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'When blind users rate you, their comments will appear here',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        );
+      }
+      
+      final feedbacks = snapshot.data!;
+      
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.feedback_rounded, color: _emerald, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Individual Feedback (${feedbacks.length})',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ...feedbacks.map((feedback) => _buildFeedbackCard(feedback)),
+        ],
+      );
+    },
+  );
+}
+
+Widget _buildFeedbackCard(Map<String, dynamic> feedback) {
+  final rating = feedback['rating'] as int;
+  final comment = feedback['comment'] as String;
+  final blindUserName = feedback['blindUserName'] as String;
+  final requestType = feedback['requestType'] as String;
+  final ratedAt = feedback['ratedAt'] as Timestamp?;
+  
+  return Container(
+    margin: const EdgeInsets.only(bottom: 12),
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: Colors.grey.shade200),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.02),
+          blurRadius: 4,
+          offset: const Offset(0, 2),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.amber.shade100,
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(
+                  blindUserName.isNotEmpty ? blindUserName[0].toUpperCase() : 'U',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: Colors.amber.shade800,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    blindUserName,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: List.generate(5, (index) {
+                      return Icon(
+                        index < rating ? Icons.star : Icons.star_border,
+                        size: 16,
+                        color: Colors.amber,
+                      );
+                    }),
+                  ),
+                ],
+              ),
+            ),
+            if (ratedAt != null)
+              Text(
+                _formatDate(ratedAt.toDate()),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey.shade500,
+                ),
+              ),
+          ],
+        ),
+        if (comment.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              comment,
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey.shade700,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+        const SizedBox(height: 8),
+        Text(
+          'Request: $requestType',
+          style: TextStyle(
+            fontSize: 11,
+            color: Colors.grey.shade500,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+String _formatDate(DateTime date) {
+  return '${date.day}/${date.month}/${date.year}';
+}
+  Widget _buildStatItem(String label, String value, IconData icon, Color color) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 10),
@@ -1070,16 +1445,9 @@ void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
               child: Icon(icon, color: color, size: 20),
             ),
             const SizedBox(height: 8),
-            Text(
-              value,
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
+            Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
             const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
-              textAlign: TextAlign.center,
-            ),
+            Text(label, style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
           ],
         ),
       ),
@@ -1103,10 +1471,7 @@ void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Quick Actions',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-          ),
+          const Text('Quick Actions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(height: 14),
           _buildActionTile(
             icon: Icons.handshake_outlined,
@@ -1118,12 +1483,35 @@ void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
           ),
           const SizedBox(height: 10),
           _buildActionTile(
+            icon: Icons.history_rounded,
+            iconColor: Colors.purple.shade600,
+            iconBg: Colors.purple.shade50,
+            title: 'My History',
+            subtitle: 'View completed & declined requests',
+            onTap: () => setState(() => _selectedIndex = 2),
+          ),
+          const SizedBox(height: 10),
+          _buildActionTile(
             icon: Icons.person_rounded,
             iconColor: _emerald,
             iconBg: _emeraldLight,
             title: 'My Profile',
             subtitle: 'Update your information',
-            onTap: () => setState(() => _selectedIndex = 2),
+            onTap: () => setState(() => _selectedIndex = 3),
+          ),
+          _buildActionTile(
+            icon: Icons.school_rounded,
+            iconColor: const Color(0xFFF59E0B),
+            iconBg: const Color(0xFFFFFBEB),
+            title: 'Induction Training',
+            subtitle: _trainingSubtitle(),
+            onTap: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const VolunteerTrainingPage()),
+              );
+              _loadVolunteerData();
+            },
           ),
         ],
       ),
@@ -1161,32 +1549,17 @@ void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
-                  ),
-                  Text(
-                    subtitle,
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-                  ),
+                  Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                  Text(subtitle, style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
                 ],
               ),
             ),
-            Icon(
-              Icons.chevron_right_rounded,
-              color: Colors.grey.shade400,
-              size: 20,
-            ),
+            Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400, size: 20),
           ],
         ),
       ),
     );
   }
-
-  // ── Profile tab ───────────────────────────────────────────────────────
 
   Widget _buildProfilePage() {
     final user = FirebaseAuth.instance.currentUser;
@@ -1214,64 +1587,89 @@ void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
                     radius: 40,
                     backgroundColor: Colors.white.withValues(alpha: 0.2),
                     child: Text(
-                      widget.userName.isNotEmpty
-                          ? widget.userName[0].toUpperCase()
-                          : 'V',
-                      style: const TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
+                      widget.userName.isNotEmpty ? widget.userName[0].toUpperCase() : 'V',
+                      style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
                     ),
                   ),
                 ),
                 const SizedBox(height: 12),
-                Text(
-                  widget.userName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                Text(widget.userName, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 3),
-                Text(
-                  user?.email ?? 'No email',
-                  style: const TextStyle(
-                    color: Color(0xFFBBF7D0),
-                    fontSize: 12,
-                  ),
+                Text(user?.email ?? 'No email', style: const TextStyle(color: Color(0xFFBBF7D0), fontSize: 12)),
+                
+                const SizedBox(height: 10),
+                FutureBuilder<Map<String, dynamic>>(
+                  future: _getVolunteerRatingData(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+                      );
+                    }
+                    
+                    if (snapshot.hasError || !snapshot.hasData) {
+                      return const SizedBox.shrink();
+                    }
+                    
+                    final avgRating = snapshot.data!['averageRating'] as double;
+                    final totalRatings = snapshot.data!['totalRatings'] as int;
+                    
+                    if (totalRatings == 0) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text('No ratings yet', style: TextStyle(color: Colors.white, fontSize: 12)),
+                      );
+                    }
+                    
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.star, color: Colors.amber, size: 16),
+                          const SizedBox(width: 4),
+                          Text(
+                            avgRating.toStringAsFixed(1),
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '($totalRatings)',
+                            style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
+                
                 const SizedBox(height: 10),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 5,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.4),
-                    ),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
                   ),
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        Icons.verified_rounded,
-                        color: Colors.white,
-                        size: 13,
-                      ),
+                      Icon(Icons.verified_rounded, color: Colors.white, size: 13),
                       SizedBox(width: 5),
-                      Text(
-                        'Volunteer',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 12,
-                        ),
-                      ),
+                      Text('Volunteer', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 12)),
                     ],
                   ),
                 ),
@@ -1288,11 +1686,7 @@ void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
                   accentColor: Colors.blue.shade600,
                   icon: Icons.phone_rounded,
                   children: [
-                    _profileInfoRow(
-                      Icons.phone_outlined,
-                      'Phone',
-                      _profilePhone.isEmpty ? '—' : _profilePhone,
-                    ),
+                    _profileInfoRow(Icons.phone_outlined, 'Phone', _profilePhone.isEmpty ? '—' : _profilePhone),
                   ],
                 ),
                 _profileInfoCard(
@@ -1300,13 +1694,7 @@ void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
                   accentColor: const Color(0xFF7C3AED),
                   icon: Icons.language_rounded,
                   children: [
-                    _profileInfoRow(
-                      Icons.translate_rounded,
-                      'Speaks',
-                      _profileLanguages.isEmpty
-                          ? '—'
-                          : _profileLanguages.join(', '),
-                    ),
+                    _profileInfoRow(Icons.translate_rounded, 'Speaks', _profileLanguages.isEmpty ? '—' : _profileLanguages.join(', ')),
                   ],
                 ),
                 _profileInfoCard(
@@ -1315,44 +1703,19 @@ void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
                   icon: Icons.star_rounded,
                   children: [
                     if (_profileSpecialties.isEmpty)
-                      const Text(
-                        '—',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      )
+                      const Text('—', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500))
                     else
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
-                        children: _profileSpecialties
-                            .map(
-                              (s) => Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      Colors.orange.shade400,
-                                      Colors.orange.shade600,
-                                    ],
-                                  ),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Text(
-                                  s,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            )
-                            .toList(),
+                        children: _profileSpecialties.map((s) => Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(colors: [Colors.orange.shade400, Colors.orange.shade600]),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(s, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+                        )).toList(),
                       ),
                   ],
                 ),
@@ -1361,11 +1724,7 @@ void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
                   accentColor: Colors.teal.shade600,
                   icon: Icons.schedule_rounded,
                   children: [
-                    _profileInfoRow(
-                      Icons.access_time_rounded,
-                      'Schedule',
-                      _profileAvailability.isEmpty ? '—' : _profileAvailability,
-                    ),
+                    _profileInfoRow(Icons.access_time_rounded, 'Schedule', _profileAvailability.isEmpty ? '—' : _profileAvailability),
                   ],
                 ),
               ],
@@ -1376,16 +1735,9 @@ void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
             child: ElevatedButton.icon(
               onPressed: () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const VolunteerProfilePage(),
-                  ),
-                );
+                await Navigator.push(context, MaterialPageRoute(builder: (_) => const VolunteerProfilePage()));
                 _loadVolunteerData();
-                final snapshot = await FirebaseFirestore.instance
-                    .collection('help_requests')
-                    .get();
+                final snapshot = await FirebaseFirestore.instance.collection('help_requests').get();
                 _updateStatsFromSnapshot(snapshot);
               },
               icon: const Icon(Icons.edit_rounded, size: 18),
@@ -1394,9 +1746,7 @@ void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
                 backgroundColor: _emerald,
                 foregroundColor: Colors.white,
                 minimumSize: const Size(double.infinity, 52),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 elevation: 0,
               ),
             ),
@@ -1420,11 +1770,7 @@ void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
         borderRadius: BorderRadius.circular(16),
         border: Border(left: BorderSide(color: accentColor, width: 4)),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2)),
         ],
       ),
       child: Padding(
@@ -1436,15 +1782,7 @@ void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
               children: [
                 Icon(icon, color: accentColor, size: 14),
                 const SizedBox(width: 6),
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: accentColor,
-                    letterSpacing: 0.8,
-                  ),
-                ),
+                Text(title, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: accentColor, letterSpacing: 0.8)),
               ],
             ),
             const SizedBox(height: 10),
@@ -1463,15 +1801,9 @@ void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              label,
-              style: const TextStyle(color: Colors.grey, fontSize: 11),
-            ),
+            Text(label, style: const TextStyle(color: Colors.grey, fontSize: 11)),
             const SizedBox(height: 1),
-            Text(
-              value,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-            ),
+            Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
           ],
         ),
       ],

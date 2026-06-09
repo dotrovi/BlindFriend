@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_blindfriend/blind_rate_volunteer_page.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'blind_report_volunteer_page.dart';
 
 class HelpRequestModel {
   String? id;
@@ -23,6 +25,8 @@ class HelpRequestModel {
   Timestamp? cancelledAt;
   String? notes;
   String? preferredLanguage;
+  int? rating;
+  bool reported;
 
   HelpRequestModel({
     this.id,
@@ -41,6 +45,8 @@ class HelpRequestModel {
     this.cancelledAt,
     this.notes,
     this.preferredLanguage,
+    this.rating,
+    this.reported = false,
   });
 
   factory HelpRequestModel.fromMap(String id, Map<String, dynamic> map) {
@@ -61,8 +67,12 @@ class HelpRequestModel {
       cancelledAt: map['cancelledAt'],
       notes: map['notes'],
       preferredLanguage: map['preferredLanguage'],
+      rating: map['rating'],
+      reported: map['reported'] == true,
     );
   }
+
+  bool get hasVolunteer => volunteerId != null && volunteerId!.isNotEmpty;
 }
 
 class BlindTrackRequestsScreen extends StatefulWidget {
@@ -84,14 +94,13 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
   List<HelpRequestModel> _cancelledRequests = [];
   String? _errorMessage;
 
-  // Voice command state
   bool _isListening = false;
   bool _isSpeaking = false;
   bool _sttAvailable = false;
   bool _shouldListen = true;
-  int _speakGeneration = 0;
   bool _isProcessingVoice = false;
-  int _currentRequestIndex = -1;
+  int _speakGeneration = 0;
+  bool _suspendAutoListen = false;
 
   @override
   void initState() {
@@ -111,8 +120,7 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
 
     final micStatus = await Permission.microphone.request();
 
-    _sttAvailable =
-        micStatus.isGranted &&
+    _sttAvailable = micStatus.isGranted &&
         await _stt.initialize(
           onStatus: (status) {
             if (!mounted) return;
@@ -138,26 +146,26 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
 
   Future<void> _speakWelcomeMessage() async {
     final activeCount = _requests.length;
-    final cancelledCount = _cancelledRequests.length;
-
-    if (activeCount == 0 && cancelledCount == 0) {
+    if (activeCount == 0 && _cancelledRequests.isEmpty) {
       await _speak(
-        'Track requests page. You have no help requests. Tap the plus button to request help.',
+        'Track requests page. You have no help requests. '
+        'Say help for options, or say back to return.',
       );
     } else {
       await _speak(
-        'Track requests page. You have $activeCount active requests and $cancelledCount cancelled requests. Say Commands to hear what I can do.',
+        'Track requests page. You have $activeCount active requests. '
+        'Say a command, or say help for the list.',
       );
     }
   }
 
-  Future<void> _speak(String text) async {
+  Future<void> _speak(String text, {bool thenListen = true}) async {
     print('🔊 Speaking: $text');
     final myGen = ++_speakGeneration;
     if (_stt.isListening) await _stt.cancel();
     await _tts.stop();
     await Future.delayed(const Duration(milliseconds: 50));
-    if (myGen != _speakGeneration) return;
+    if (myGen != _speakGeneration || !mounted) return;
 
     setState(() => _isSpeaking = true);
     final completer = Completer<void>();
@@ -176,13 +184,23 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
       onTimeout: () {},
     );
 
-    if (mounted) setState(() => _isSpeaking = false);
+    if (!mounted) return;
+    setState(() => _isSpeaking = false);
+
+    if (myGen != _speakGeneration) return;
+
+    if (thenListen && _shouldListen && !_suspendAutoListen) {
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (mounted && _shouldListen && !_suspendAutoListen && !_isSpeaking) {
+        await _startListening();
+      }
+    }
   }
 
   Future<void> _startListening() async {
-    if (!_sttAvailable || !mounted || !_shouldListen || _stt.isListening)
+    if (!_sttAvailable || !mounted || !_shouldListen || _stt.isListening) {
       return;
-
+    }
     setState(() => _isListening = true);
     await _stt.listen(
       onResult: (result) {
@@ -197,42 +215,51 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
     );
   }
 
+  void _onMicTap() {
+    print('🎤 Mic tapped');
+    if (!_isProcessingVoice && _sttAvailable && !_isListening) {
+      _startListening();
+    }
+  }
+
   Future<void> _speakRequestDetailsOnTap(
     HelpRequestModel request,
-    int number,
-  ) async {
-    String details =
-        'Request $number: ${request.requestType}. Status: ${request.status}.';
+    int number, {
+    bool thenListen = true,
+  }) async {
+    String details = 'Request $number: ${request.requestType}. '
+        '${_statusInWords(request.status)}.';
+
+    if (request.hasVolunteer) {
+      final name =
+          (request.volunteerName != null && request.volunteerName!.isNotEmpty)
+              ? request.volunteerName!
+              : 'a volunteer';
+      details += ' Volunteer: $name.';
+    } else {
+      details += ' No volunteer yet.';
+    }
 
     if (request.location.isNotEmpty && request.location != 'N/A') {
-      details += ' Location: ${request.location}.';
+      details += ' At ${request.location}.';
     }
 
-    details += ' Description: ${request.description}.';
+    await _speak(details, thenListen: thenListen);
+  }
 
-    if (request.volunteerName != null && request.volunteerName!.isNotEmpty) {
-      details += ' Volunteer assigned: ${request.volunteerName}.';
-    } else {
-      details += ' No volunteer assigned yet.';
+  String _statusInWords(String status) {
+    switch (status) {
+      case 'in_progress':
+        return 'In progress';
+      case 'pending':
+        return 'Pending';
+      case 'accepted':
+        return 'Accepted';
+      case 'completed':
+        return 'Completed';
+      default:
+        return status;
     }
-
-    if (request.preferredLanguage != null &&
-        request.preferredLanguage!.isNotEmpty) {
-      details +=
-          ' Preferred language: ${_getLanguageDisplay(request.preferredLanguage!)}.';
-    }
-
-    details += ' Created on ${_formatDate(request.createdAt)}.';
-
-    if (request.acceptedAt != null) {
-      details += ' Accepted on ${_formatDate(request.acceptedAt!)}.';
-    }
-
-    if (request.completedAt != null) {
-      details += ' Completed on ${_formatDate(request.completedAt!)}.';
-    }
-
-    await _speak(details);
   }
 
   Future<void> _processVoiceCommand(String command) async {
@@ -241,75 +268,83 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
 
     print('🎤 Voice command: $command');
 
-    // ===== NAVIGATION COMMANDS =====
-    if (command.contains('back') ||
-        command.contains('go back') ||
-        command.contains('exit') ||
-        command.contains('return')) {
-      await _speak('Going back to help center.');
+    if (command.trim().isEmpty) {
       _isProcessingVoice = false;
-      Navigator.pop(context);
+      await _speak('I did not catch that. Say a command, or say help.');
       return;
     }
 
-    // ===== REFRESH COMMANDS =====
+    if (command.contains('back') ||
+        command.contains('exit') ||
+        command.contains('return')) {
+      _suspendAutoListen = true;
+      _shouldListen = false;
+      await _speak('Going back to help center.', thenListen: false);
+      _isProcessingVoice = false;
+      if (mounted) Navigator.pop(context);
+      return;
+    }
+
     if (command.contains('refresh') ||
         command.contains('reload') ||
         command.contains('update')) {
-      await _speak('Refreshing your requests.');
+      await _speak('Refreshing your requests.', thenListen: false);
       await _loadRequests();
       _isProcessingVoice = false;
+      await _speak('Refreshed. You have ${_requests.length} active requests.');
       return;
     }
 
-    // ===== COUNT COMMANDS =====
+    if (command.contains('my report') ||
+        command.contains('view report') ||
+        command.contains('reports filed') ||
+        command.contains('my complaint')) {
+      _isProcessingVoice = false;
+      await _readMyReports();
+      return;
+    }
+
     if (command.contains('how many') ||
         command.contains('count') ||
         command.contains('total')) {
-      await _speak(
-        'You have ${_requests.length} active requests and ${_cancelledRequests.length} cancelled requests.',
-      );
       _isProcessingVoice = false;
+      await _speak(
+        'You have ${_requests.length} active requests '
+        'and ${_cancelledRequests.length} cancelled requests.',
+      );
       return;
     }
 
-    // ===== ACTIVE REQUESTS ONLY =====
     if (command.contains('active requests') ||
         command.contains('show active')) {
-      await _speak('You have ${_requests.length} active requests.');
-      if (_requests.isNotEmpty) {
-        for (int i = 0; i < _requests.length && i < 5; i++) {
-          await _speak(
-            '${i + 1}. ${_requests[i].requestType} - ${_requests[i].status}',
-          );
-          if (_requests[i].volunteerName != null) {
-            await _speak('   Volunteer: ${_requests[i].volunteerName}');
-          }
-          await Future.delayed(const Duration(milliseconds: 300));
-        }
+      await _speak('You have ${_requests.length} active requests.',
+          thenListen: false);
+      for (int i = 0; i < _requests.length && i < 5; i++) {
+        await _speak(
+          '${i + 1}. ${_requests[i].requestType} - ${_requests[i].status}',
+          thenListen: false,
+        );
       }
       _isProcessingVoice = false;
+      await _speak('Say a command, or say help.');
       return;
     }
 
-    // ===== CANCELLED REQUESTS ONLY =====
     if (command.contains('cancelled requests') ||
         command.contains('show cancelled')) {
-      await _speak('You have ${_cancelledRequests.length} cancelled requests.');
-      if (_cancelledRequests.isNotEmpty) {
-        for (int i = 0; i < _cancelledRequests.length && i < 5; i++) {
-          await _speak(
-            '${i + 1}. ${_cancelledRequests[i].requestType} - cancelled',
-          );
-          await Future.delayed(const Duration(milliseconds: 300));
-        }
+      await _speak('You have ${_cancelledRequests.length} cancelled requests.',
+          thenListen: false);
+      for (int i = 0; i < _cancelledRequests.length && i < 5; i++) {
+        await _speak(
+          '${i + 1}. ${_cancelledRequests[i].requestType} - cancelled',
+          thenListen: false,
+        );
       }
       _isProcessingVoice = false;
+      await _speak('Say a command, or say help.');
       return;
     }
 
-    // ===== READ SPECIFIC REQUEST DETAILS =====
-    // Pattern: "read request 1", "tell me about request 2", "request details 3", "details of request 1"
     if ((command.contains('read request') ||
             command.contains('tell me about request') ||
             command.contains('request details') ||
@@ -319,260 +354,370 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
       if (numbers.isNotEmpty) {
         int requestNum = int.parse(numbers.first.group(0)!);
         int index = requestNum - 1;
-
-        print('🔍 Attempting to read request #$requestNum (index: $index)');
-        print('📋 Total active requests: ${_requests.length}');
-
         if (index >= 0 && index < _requests.length) {
-          print('✅ Found request: ${_requests[index].requestType}');
+          _isProcessingVoice = false;
           await _speakRequestDetailsOnTap(_requests[index], requestNum);
+          return;
         } else {
+          _isProcessingVoice = false;
           await _speak(
-            'Request number $requestNum does not exist. You have ${_requests.length} active requests.',
+            'Request number $requestNum does not exist. '
+            'You have ${_requests.length} active requests.',
           );
+          return;
         }
       }
       _isProcessingVoice = false;
       return;
     }
 
-    // ===== READ CANCELLED REQUEST DETAILS =====
-    if ((command.contains('cancelled request') ||
-            command.contains('read cancelled')) &&
-        RegExp(r'\d+').hasMatch(command)) {
-      final numbers = RegExp(r'\d+').allMatches(command);
-      if (numbers.isNotEmpty) {
-        int requestNum = int.parse(numbers.first.group(0)!);
-        int index = requestNum - 1;
-
-        if (index >= 0 && index < _cancelledRequests.length) {
-          final r = _cancelledRequests[index];
-          await _speak(
-            'Cancelled request $requestNum: ${r.requestType}. Description: ${r.description}. Cancelled on ${_formatDate(r.cancelledAt ?? r.createdAt)}.',
-          );
-        } else {
-          await _speak(
-            'Cancelled request number $requestNum does not exist. You have ${_cancelledRequests.length} cancelled requests.',
-          );
-        }
-      }
-      _isProcessingVoice = false;
-      return;
-    }
-
-    // ===== SUMMARY / OVERVIEW =====
     if (command.contains('summary') || command.contains('overview')) {
+      _isProcessingVoice = false;
       if (_requests.isEmpty && _cancelledRequests.isEmpty) {
         await _speak('You have no help requests.');
       } else {
         await _speak(
           'You have ${_requests.length} active requests. ${_getStatusSummary()}',
         );
-        if (_cancelledRequests.isNotEmpty) {
-          await _speak(
-            'You also have ${_cancelledRequests.length} cancelled requests.',
-          );
-        }
       }
-      _isProcessingVoice = false;
       return;
     }
 
-    // ===== READ ALL ACTIVE REQUESTS (short version) =====
     if (command.contains('read all') || command.contains('list all')) {
       if (_requests.isEmpty) {
+        _isProcessingVoice = false;
         await _speak('You have no active help requests.');
-      } else {
-        await _speak('Reading all your active help requests.');
-        for (int i = 0; i < _requests.length; i++) {
-          await _speak(
-            '${i + 1}. ${_requests[i].requestType} - ${_requests[i].status}',
-          );
-          if (_requests[i].volunteerName != null) {
-            await _speak('   Volunteer: ${_requests[i].volunteerName}');
-          }
-          await Future.delayed(const Duration(milliseconds: 500));
-        }
+        return;
+      }
+      await _speak('Reading all your active help requests.', thenListen: false);
+      for (int i = 0; i < _requests.length; i++) {
+        final r = _requests[i];
+        final namePart = r.hasVolunteer
+            ? '. Volunteer: ${(r.volunteerName != null && r.volunteerName!.isNotEmpty) ? r.volunteerName : 'assigned'}'
+            : '';
+        await _speak(
+          '${i + 1}. ${r.requestType} - ${r.status}$namePart',
+          thenListen: false,
+        );
       }
       _isProcessingVoice = false;
+      await _speak('That is all. Say a command, or say help.');
       return;
     }
 
-    // ===== MOST RECENT / FIRST REQUEST =====
     if (command.contains('most recent') ||
         command.contains('first request') ||
         command.contains('latest')) {
+      _isProcessingVoice = false;
       if (_requests.isEmpty) {
         await _speak('You have no active help requests.');
       } else {
         await _speakRequestDetailsOnTap(_requests[0], 1);
       }
-      _isProcessingVoice = false;
       return;
     }
 
-    // ===== OLDEST REQUEST =====
     if (command.contains('oldest')) {
+      _isProcessingVoice = false;
       if (_requests.isEmpty) {
         await _speak('You have no active help requests.');
       } else {
         await _speakRequestDetailsOnTap(_requests.last, _requests.length);
       }
-      _isProcessingVoice = false;
       return;
     }
 
-    // ===== REQUEST TYPES FILTER =====
-    if (command.contains('shopping')) {
-      final shoppingReqs = _requests
-          .where((r) => r.requestType == 'shopping')
+    if (command.contains('report') || command.contains('complaint')) {
+      final reportable = _requests
+          .where((r) =>
+              (r.status == 'in_progress' || r.status == 'completed') &&
+              r.hasVolunteer &&
+              !r.reported)
           .toList();
-      await _speak('You have ${shoppingReqs.length} shopping requests.');
-      if (shoppingReqs.isNotEmpty) {
-        for (int i = 0; i < shoppingReqs.length && i < 3; i++) {
-          await _speak('Request ${i + 1}: ${shoppingReqs[i].status}');
-        }
-      }
-      _isProcessingVoice = false;
-      return;
-    }
 
-    if (command.contains('navigation')) {
-      final navReqs = _requests
-          .where((r) => r.requestType == 'navigation')
+      final alreadyReported = _requests
+          .where((r) =>
+              (r.status == 'in_progress' || r.status == 'completed') &&
+              r.hasVolunteer &&
+              r.reported)
           .toList();
-      await _speak('You have ${navReqs.length} navigation requests.');
-      _isProcessingVoice = false;
-      return;
-    }
 
-    if (command.contains('reading')) {
-      final readingReqs = _requests
-          .where((r) => r.requestType == 'reading')
-          .toList();
-      await _speak('You have ${readingReqs.length} reading requests.');
-      _isProcessingVoice = false;
-      return;
-    }
-
-    if (command.contains('emergency')) {
-      final emergencyReqs = _requests
-          .where((r) => r.requestType == 'emergency assistance')
-          .toList();
-      await _speak('You have ${emergencyReqs.length} emergency requests.');
-      _isProcessingVoice = false;
-      return;
-    }
-
-    // ===== STATUS FILTER =====
-    if (command.contains('pending')) {
-      final pendingReqs = _requests
-          .where((r) => r.status == 'pending')
-          .toList();
-      await _speak('You have ${pendingReqs.length} pending requests.');
-      _isProcessingVoice = false;
-      return;
-    }
-
-    if (command.contains('accepted')) {
-      final acceptedReqs = _requests
-          .where((r) => r.status == 'accepted')
-          .toList();
-      await _speak('You have ${acceptedReqs.length} accepted requests.');
-      _isProcessingVoice = false;
-      return;
-    }
-
-    if (command.contains('in progress')) {
-      final inProgressReqs = _requests
-          .where((r) => r.status == 'in_progress')
-          .toList();
-      await _speak('You have ${inProgressReqs.length} requests in progress.');
-      _isProcessingVoice = false;
-      return;
-    }
-
-    if (command.contains('completed')) {
-      final completedReqs = _requests
-          .where((r) => r.status == 'completed')
-          .toList();
-      await _speak('You have ${completedReqs.length} completed requests.');
-      _isProcessingVoice = false;
-      return;
-    }
-
-    // ===== VOLUNTEER INFO =====
-    if (command.contains('volunteer') ||
-        command.contains('who is helping me')) {
-      final assignedReqs = _requests
-          .where((r) => r.volunteerName != null && r.volunteerName!.isNotEmpty)
-          .toList();
-      if (assignedReqs.isEmpty) {
-        await _speak('No volunteers are currently assigned to your requests.');
-      } else {
-        await _speak(
-          'You have ${assignedReqs.length} requests with volunteers assigned.',
-        );
-        for (var r in assignedReqs) {
+      if (reportable.isEmpty) {
+        _isProcessingVoice = false;
+        if (alreadyReported.isNotEmpty) {
           await _speak(
-            '${r.requestType} request is being helped by ${r.volunteerName}.',
+            'You have already reported your reportable requests. '
+            'Say my reports to hear your filed reports.',
+          );
+        } else {
+          await _speak(
+            'You have no requests that can be reported. '
+            'You can only report a volunteer during or after a completed request.',
           );
         }
+        return;
+      } else if (reportable.length == 1) {
+        final r = reportable.first;
+        _suspendAutoListen = true;
+        _shouldListen = false;
+        await _speak(
+          'Opening report for your ${r.requestType} request.',
+          thenListen: false,
+        );
+        if (mounted) {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => BlindReportVolunteerPage(
+                helpRequestId: r.id ?? '',
+                volunteerId: r.volunteerId!,
+                volunteerName:
+                    (r.volunteerName != null && r.volunteerName!.isNotEmpty)
+                        ? r.volunteerName!
+                        : 'your volunteer',
+                requestType: r.requestType,
+              ),
+            ),
+          );
+        }
+        _suspendAutoListen = false;
+        _shouldListen = true;
+        await _loadRequests();
+        _isProcessingVoice = false;
+        await _speak('Back on track requests page.');
+        return;
+      } else {
+        _isProcessingVoice = false;
+        await _speak(
+          'You have ${reportable.length} reportable requests. '
+          'Please open a request card and tap Report Volunteer.',
+        );
+        return;
       }
-      _isProcessingVoice = false;
-      return;
     }
 
-    // ===== CANCEL REQUEST =====
-    if (command.contains('cancel request') &&
-        command.contains('number') &&
-        RegExp(r'\d+').hasMatch(command)) {
+    if (command.contains('rate') && RegExp(r'\d+').hasMatch(command)) {
       final numbers = RegExp(r'\d+').allMatches(command);
       if (numbers.isNotEmpty) {
         int requestNum = int.parse(numbers.first.group(0)!);
         int index = requestNum - 1;
-
         if (index >= 0 && index < _requests.length) {
           final request = _requests[index];
-          if (request.status == 'pending' || request.status == 'accepted') {
-            await _cancelRequest(request);
+          if (request.status == 'completed' && request.rating == null) {
+            if (request.id != null && request.hasVolunteer) {
+              _suspendAutoListen = true;
+              _shouldListen = false;
+              await _speak('Opening rating page for request $requestNum.',
+                  thenListen: false);
+              if (mounted) {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => BlindRateVolunteerPage(
+                      helpRequestId: request.id!,
+                      volunteerId: request.volunteerId!,
+                      volunteerName: (request.volunteerName != null &&
+                              request.volunteerName!.isNotEmpty)
+                          ? request.volunteerName!
+                          : 'your volunteer',
+                    ),
+                  ),
+                );
+              }
+              _suspendAutoListen = false;
+              _shouldListen = true;
+              await _loadRequests();
+              _isProcessingVoice = false;
+              await _speak('Back on track requests page.');
+              return;
+            } else {
+              _isProcessingVoice = false;
+              await _speak(
+                'Cannot rate request $requestNum, volunteer information is missing.',
+              );
+              return;
+            }
+          } else if (request.rating != null) {
+            _isProcessingVoice = false;
+            await _speak('You have already rated request $requestNum.');
+            return;
           } else {
+            _isProcessingVoice = false;
             await _speak(
-              'Request $requestNum is ${request.status} and cannot be cancelled.',
+              'Request $requestNum is not completed yet and cannot be rated.',
             );
+            return;
           }
         } else {
+          _isProcessingVoice = false;
           await _speak('Request number $requestNum does not exist.');
+          return;
         }
       }
       _isProcessingVoice = false;
       return;
     }
 
-    // ===== HELP COMMANDS =====
-    if (command.contains('help') || command.contains('commands')) {
-      await _speak(
-        'Here are available commands. '
-        'Say Count to hear total requests. '
-        'Say Active Requests to list active requests. '
-        'Say Cancelled Requests to list cancelled requests. '
-        'Say Read Request 1 to hear full details of request number one. '
-        'Say Read All to hear all requests. '
-        'Say Most Recent for latest request. '
-        'Say Oldest for first request. '
-        'Say Pending Requests to count pending ones. '
-        'Say Volunteer to see who is helping you. '
-        'Say Cancel Request Number 1 to cancel a request. '
-        'Say Refresh to reload. '
-        'Or say Back to go back.',
-      );
+    if (command.contains('pending')) {
+      final reqs = _requests.where((r) => r.status == 'pending').toList();
+      _isProcessingVoice = false;
+      await _speak('You have ${reqs.length} pending requests.');
+      return;
+    }
+    if (command.contains('in progress')) {
+      final reqs = _requests.where((r) => r.status == 'in_progress').toList();
+      _isProcessingVoice = false;
+      await _speak('You have ${reqs.length} requests in progress.');
+      return;
+    }
+    if (command.contains('completed')) {
+      final reqs = _requests.where((r) => r.status == 'completed').toList();
+      _isProcessingVoice = false;
+      await _speak('You have ${reqs.length} completed requests.');
+      return;
+    }
+
+    if (command.contains('cancel request') && RegExp(r'\d+').hasMatch(command)) {
+      final numbers = RegExp(r'\d+').allMatches(command);
+      if (numbers.isNotEmpty) {
+        int requestNum = int.parse(numbers.first.group(0)!);
+        int index = requestNum - 1;
+        if (index >= 0 && index < _requests.length) {
+          final request = _requests[index];
+          if (request.status == 'pending' || request.status == 'accepted') {
+            _isProcessingVoice = false;
+            await _cancelRequest(request);
+            return;
+          } else {
+            _isProcessingVoice = false;
+            await _speak(
+              'Request $requestNum is ${request.status} and cannot be cancelled.',
+            );
+            return;
+          }
+        } else {
+          _isProcessingVoice = false;
+          await _speak('Request number $requestNum does not exist.');
+          return;
+        }
+      }
       _isProcessingVoice = false;
       return;
     }
 
-    // ===== DEFAULT =====
-    await _speak('Command not recognized. Say Commands to hear what I can do.');
+    if (command.contains('volunteer') ||
+        command.contains('who is helping me')) {
+      final assignedReqs = _requests.where((r) => r.hasVolunteer).toList();
+      if (assignedReqs.isEmpty) {
+        _isProcessingVoice = false;
+        await _speak('No volunteers are currently assigned to your requests.');
+        return;
+      } else {
+        await _speak(
+          'You have ${assignedReqs.length} requests with volunteers assigned.',
+          thenListen: false,
+        );
+        for (var r in assignedReqs) {
+          final name =
+              (r.volunteerName != null && r.volunteerName!.isNotEmpty)
+                  ? r.volunteerName!
+                  : 'a volunteer';
+          await _speak(
+            'Your ${r.requestType} request is being helped by $name.',
+            thenListen: false,
+          );
+        }
+        _isProcessingVoice = false;
+        await _speak('Say a command, or say help.');
+        return;
+      }
+    }
+
+    if (command.contains('help') || command.contains('command')) {
+      _isProcessingVoice = false;
+      await _speak(
+        'Available commands. '
+        'Say Count for totals. '
+        'Say Active Requests to list them. '
+        'Say Read Request 1 for full details. '
+        'Say Read All for everything. '
+        'Say Most Recent for the latest. '
+        'Say Pending for pending requests. '
+        'Say Volunteer to hear who is helping you. '
+        'Say Cancel Request 1 to cancel. '
+        'Say Rate Request 1 to rate. '
+        'Say Report to report a volunteer. '
+        'Say My Reports to hear filed reports. '
+        'Say Refresh to reload. '
+        'Or say Back to return.',
+      );
+      return;
+    }
+
     _isProcessingVoice = false;
+    await _speak('Sorry, I did not understand. Say a command, or say help.');
+  }
+
+  Future<void> _readMyReports() async {
+    final uid = auth.currentUser?.uid;
+    if (uid == null) {
+      await _speak('You are not logged in.');
+      return;
+    }
+    await _speak('Checking your filed reports.', thenListen: false);
+    try {
+      final snap = await firestore
+          .collection('reports')
+          .where('blindUserId', isEqualTo: uid)
+          .get();
+
+      final reports = snap.docs;
+      if (reports.isEmpty) {
+        await _speak('You have not filed any reports.');
+        return;
+      }
+
+      reports.sort((a, b) {
+        final ta = a.data()['createdAt'];
+        final tb = b.data()['createdAt'];
+        if (ta is Timestamp && tb is Timestamp) return tb.compareTo(ta);
+        return 0;
+      });
+
+      await _speak('You have filed ${reports.length} reports.',
+          thenListen: false);
+
+      for (int i = 0; i < reports.length && i < 5; i++) {
+        final d = reports[i].data();
+        final type = _reportTypeLabel(d['reportType']?.toString() ?? '');
+        final status = d['status']?.toString() ?? 'pending';
+        final requestType = d['requestType']?.toString() ?? 'a';
+        await _speak(
+          'Report ${i + 1}. For your $requestType request. '
+          'Reason: $type. Report Status: $status.',
+          thenListen: false,
+        );
+      }
+      await _speak('That is all your reports. Say a command, or say help.');
+    } catch (e) {
+      print('❌ Read reports error: $e');
+      await _speak('Could not load your reports right now. Please try again.');
+    }
+  }
+
+  String _reportTypeLabel(String id) {
+    switch (id) {
+      case 'no_show':
+        return 'No show';
+      case 'inappropriate_behaviour':
+        return 'Inappropriate behaviour';
+      case 'did_not_complete':
+        return 'Did not complete task';
+      case 'other':
+        return 'Other';
+      default:
+        return id.isEmpty ? 'Unknown' : id;
+    }
   }
 
   String _getStatusSummary() {
@@ -587,14 +732,7 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
     if (inProgress > 0) parts.add('$inProgress in progress');
     if (completed > 0) parts.add('$completed completed');
 
-    return parts.isEmpty ? 'No active requests.' : parts.join(', ');
-  }
-
-  void _onMicTap() {
-    print('🎤 Mic tapped');
-    if (!_isProcessingVoice && _sttAvailable && !_isSpeaking) {
-      _startListening();
-    }
+    return parts.isEmpty ? 'No active requests.' : '${parts.join(', ')}.';
   }
 
   Future<void> _loadRequests() async {
@@ -621,14 +759,12 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
         );
       }).toList();
 
-      // Separate active and cancelled requests
+      await _resolveVolunteerNames(allRequests);
+
       final active = <HelpRequestModel>[];
       final cancelled = <HelpRequestModel>[];
 
       for (var r in allRequests) {
-        print(
-          '📋 Request: ${r.requestType}, Status: ${r.status}, Volunteer: ${r.volunteerName}',
-        );
         if (r.status == 'cancelled') {
           cancelled.add(r);
         } else {
@@ -636,24 +772,15 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
         }
       }
 
-      // Sort active by createdAt descending (newest first)
       active.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      // Sort cancelled by cancelledAt descending
-      cancelled.sort((a, b) => b.cancelledAt!.compareTo(a.cancelledAt!));
+      cancelled.sort((a, b) =>
+          (b.cancelledAt ?? b.createdAt).compareTo(a.cancelledAt ?? a.createdAt));
 
       setState(() {
         _requests = active;
         _cancelledRequests = cancelled;
         _isLoading = false;
       });
-
-      print('✅ Loaded ${_requests.length} active requests');
-      for (int i = 0; i < _requests.length; i++) {
-        print(
-          '   ${i + 1}. ${_requests[i].requestType} - Volunteer: ${_requests[i].volunteerName ?? "None"}',
-        );
-      }
-      print('✅ Loaded ${_cancelledRequests.length} cancelled requests');
     } catch (e) {
       print('❌ Error: $e');
       setState(() {
@@ -663,12 +790,41 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
     }
   }
 
+  Future<void> _resolveVolunteerNames(List<HelpRequestModel> requests) async {
+    final Map<String, String> nameCache = {};
+
+    for (final r in requests) {
+      if (r.hasVolunteer &&
+          (r.volunteerName == null || r.volunteerName!.isEmpty)) {
+        final id = r.volunteerId!;
+        if (nameCache.containsKey(id)) {
+          r.volunteerName = nameCache[id];
+          continue;
+        }
+        try {
+          final vDoc = await firestore.collection('volunteers').doc(id).get();
+          String? name = vDoc.data()?['name'] as String?;
+
+          if (name == null || name.isEmpty) {
+            final uDoc = await firestore.collection('users').doc(id).get();
+            name = uDoc.data()?['name'] as String?;
+          }
+
+          if (name != null && name.isNotEmpty) {
+            r.volunteerName = name;
+            nameCache[id] = name;
+          }
+        } catch (e) {
+          print('⚠️ Could not resolve volunteer name for $id: $e');
+        }
+      }
+    }
+  }
+
   Future<void> _refreshRequests() async {
     await _loadRequests();
     if (_sttAvailable && _shouldListen) {
-      await _speak(
-        'Refreshed. You have ${_requests.length} active requests and ${_cancelledRequests.length} cancelled requests.',
-      );
+      await _speak('Refreshed. You have ${_requests.length} active requests.');
     }
   }
 
@@ -701,18 +857,18 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
         });
         await _loadRequests();
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Request cancelled')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Request cancelled')),
+          );
           await _speak(
             'Your ${request.requestType} request has been cancelled.',
           );
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Error cancelling: $e')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error cancelling: $e')),
+          );
         }
       }
     }
@@ -721,6 +877,7 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
   @override
   void dispose() {
     _shouldListen = false;
+    _suspendAutoListen = true;
     _stt.stop();
     _tts.stop();
     super.dispose();
@@ -757,10 +914,8 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
               right: 0,
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 20),
-                padding: const EdgeInsets.symmetric(
-                  vertical: 12,
-                  horizontal: 20,
-                ),
+                padding:
+                    const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
                 decoration: BoxDecoration(
                   color: Colors.black87,
                   borderRadius: BorderRadius.circular(30),
@@ -777,17 +932,13 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
                     ),
                     GestureDetector(
                       onTap: () => _stt.cancel(),
-                      child: const Icon(
-                        Icons.close,
-                        color: Colors.white,
-                        size: 20,
-                      ),
+                      child: const Icon(Icons.close,
+                          color: Colors.white, size: 20),
                     ),
                   ],
                 ),
               ),
             ),
-          
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -795,8 +946,8 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
           Navigator.pop(context);
         },
         backgroundColor: Colors.deepPurple,
-        child: const Icon(Icons.add, color: Colors.white),
         tooltip: 'New Request',
+        child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }
@@ -991,8 +1142,7 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: () async {
-          await _speakRequestDetailsOnTap(request, number);
-          // Also show the dialog
+          await _speakRequestDetailsOnTap(request, number, thenListen: false);
           _showRequestDetails(request);
         },
         borderRadius: BorderRadius.circular(12),
@@ -1068,43 +1218,83 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
               const SizedBox(height: 4),
               Row(
                 children: [
-                  Icon(
-                    Icons.location_on,
-                    size: 12,
-                    color: Colors.grey.shade500,
-                  ),
+                  Icon(Icons.location_on, size: 12, color: Colors.grey.shade500),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
                       request.location,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.grey.shade500,
-                      ),
+                      style:
+                          TextStyle(fontSize: 11, color: Colors.grey.shade500),
                     ),
                   ),
                 ],
               ),
-              if (request.volunteerName != null &&
-                  request.volunteerName!.isNotEmpty)
+              if (request.hasVolunteer)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: Row(
                     children: [
-                      Icon(
-                        Icons.person,
-                        size: 12,
-                        color: Colors.green.shade600,
-                      ),
+                      Icon(Icons.person,
+                          size: 12, color: Colors.green.shade600),
                       const SizedBox(width: 4),
                       Text(
-                        'Volunteer: ${request.volunteerName}',
+                        'Volunteer: ${(request.volunteerName != null && request.volunteerName!.isNotEmpty) ? request.volunteerName : 'Assigned'}',
                         style: TextStyle(
                           fontSize: 11,
                           color: Colors.green.shade600,
                         ),
                       ),
                     ],
+                  ),
+                ),
+              if (request.reported)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Row(
+                    children: [
+                      Icon(Icons.flag, size: 12, color: Colors.red.shade400),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Reported',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.red.shade400,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              if (request.status == 'completed' && request.rating == null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12.0),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        if (request.id != null && request.hasVolunteer) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => BlindRateVolunteerPage(
+                                helpRequestId: request.id!,
+                                volunteerId: request.volunteerId!,
+                                volunteerName: (request.volunteerName != null &&
+                                        request.volunteerName!.isNotEmpty)
+                                    ? request.volunteerName!
+                                    : 'your volunteer',
+                              ),
+                            ),
+                          ).then((_) => _refreshRequests());
+                        }
+                      },
+                      icon: const Icon(Icons.star_outline),
+                      label: const Text('Rate Your Volunteer'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.amber,
+                        foregroundColor: Colors.black,
+                      ),
+                    ),
                   ),
                 ),
             ],
@@ -1115,13 +1305,14 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
   }
 
   void _showRequestDetails(HelpRequestModel request) {
+    if (!mounted) return;
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Text('${request.requestType.toUpperCase()} Request'),
-        content: Container(
+        content: SizedBox(
           width: double.maxFinite,
-          constraints: const BoxConstraints(maxWidth: 400),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
@@ -1133,10 +1324,15 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
               _detailRow('Location:', request.location),
               const SizedBox(height: 8),
               _detailRow('Created:', _formatDate(request.createdAt)),
-              if (request.volunteerName != null &&
-                  request.volunteerName!.isNotEmpty) ...[
+              if (request.hasVolunteer) ...[
                 const SizedBox(height: 8),
-                _detailRow('Volunteer:', request.volunteerName!),
+                _detailRow(
+                  'Volunteer:',
+                  (request.volunteerName != null &&
+                          request.volunteerName!.isNotEmpty)
+                      ? request.volunteerName!
+                      : 'Assigned',
+                ),
               ],
               if (request.acceptedAt != null) ...[
                 const SizedBox(height: 8),
@@ -1151,18 +1347,76 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
                   'Language:',
                   _getLanguageDisplay(request.preferredLanguage!),
                 ),
+              if (request.reported) ...[
+                const SizedBox(height: 8),
+                _detailRow('Report:', 'Already reported'),
+              ],
             ],
           ),
         ),
         actions: [
+          if (request.status == 'completed' && request.rating == null)
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                if (mounted && request.id != null && request.hasVolunteer) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => BlindRateVolunteerPage(
+                        helpRequestId: request.id!,
+                        volunteerId: request.volunteerId!,
+                        volunteerName: (request.volunteerName != null &&
+                                request.volunteerName!.isNotEmpty)
+                            ? request.volunteerName!
+                            : 'your volunteer',
+                      ),
+                    ),
+                  ).then((_) {
+                    if (mounted) _refreshRequests();
+                  });
+                }
+              },
+              style: TextButton.styleFrom(foregroundColor: Colors.amber),
+              child: const Text('Rate Volunteer'),
+            ),
           if (request.status == 'pending' || request.status == 'accepted')
             TextButton(
-              onPressed: () => _cancelRequest(request),
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                _cancelRequest(request);
+              },
               style: TextButton.styleFrom(foregroundColor: Colors.red),
               child: const Text('Cancel Request'),
             ),
+          if ((request.status == 'in_progress' ||
+                  request.status == 'completed') &&
+              request.hasVolunteer &&
+              !request.reported)
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                if (!mounted) return;
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => BlindReportVolunteerPage(
+                      helpRequestId: request.id ?? '',
+                      volunteerId: request.volunteerId!,
+                      volunteerName: (request.volunteerName != null &&
+                              request.volunteerName!.isNotEmpty)
+                          ? request.volunteerName!
+                          : 'your volunteer',
+                      requestType: request.requestType,
+                    ),
+                  ),
+                ).then((_) => _refreshRequests());
+              },
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Report Volunteer'),
+            ),
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Close'),
           ),
         ],
@@ -1188,7 +1442,8 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
 
   String _formatDate(Timestamp timestamp) {
     final date = timestamp.toDate();
-    return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+    return '${date.day}/${date.month}/${date.year} '
+        '${date.hour}:${date.minute.toString().padLeft(2, '0')}';
   }
 
   String _getLanguageDisplay(String languageCode) {

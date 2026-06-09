@@ -2,7 +2,39 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'services/firebase_service.dart';
+import 'volunteer_rating_summary.dart';
 
+// Add this new class for feedback items
+class FeedbackItem {
+  final String id;
+  final String blindUserName;
+  final int rating;
+  final String comment;
+  final DateTime createdAt;
+  final String requestType;
+
+  FeedbackItem({
+    required this.id,
+    required this.blindUserName,
+    required this.rating,
+    required this.comment,
+    required this.createdAt,
+    required this.requestType,
+  });
+
+  factory FeedbackItem.fromMap(String id, Map<String, dynamic> map) {
+    return FeedbackItem(
+      id: id,
+      blindUserName: map['blindUserName'] ?? 'Anonymous',
+      rating: map['rating'] ?? 0,
+      comment: map['comment'] ?? '',
+      createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      requestType: map['requestType'] ?? 'help',
+    );
+  }
+}
+
+// Update the main VolunteerProfilePage class
 class VolunteerProfilePage extends StatefulWidget {
   const VolunteerProfilePage({super.key});
 
@@ -10,7 +42,8 @@ class VolunteerProfilePage extends StatefulWidget {
   State<VolunteerProfilePage> createState() => _VolunteerProfilePageState();
 }
 
-class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
+class _VolunteerProfilePageState extends State<VolunteerProfilePage>
+    with SingleTickerProviderStateMixin {
   final FirebaseService _firebaseService = FirebaseService();
 
   final _nameController = TextEditingController();
@@ -30,6 +63,7 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
   bool _isLoading = true;
   bool _isSaving = false;
   bool _isEditing = false;
+  bool _isLoadingFeedback = true;
 
   String _name = '';
   String _email = '';
@@ -42,16 +76,27 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
   List<String> _editSpecialties = [];
   String? _editAvailability;
 
+  // Rating data
+  double _averageRating = 0.0;
+  int _totalRatings = 0;
+  List<FeedbackItem> _feedbacks = [];
+  int _selectedTabIndex = 0; // 0 = rating summary, 1 = all feedback, 2 = by rating
+
+  late TabController _tabController;
+
   static const _emerald = Color(0xFF059669);
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 3, vsync: this);
     _loadProfile();
+    _loadRatingsAndFeedback();
   }
 
   @override
   void dispose() {
+    _tabController.dispose();
     _nameController.dispose();
     _phoneController.dispose();
     super.dispose();
@@ -92,6 +137,78 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
     } catch (_) {
       setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _loadRatingsAndFeedback() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    setState(() {
+      _isLoadingFeedback = true;
+    });
+
+    try {
+      // Get volunteer data
+      final volDoc = await FirebaseFirestore.instance
+          .collection('volunteers')
+          .doc(user.uid)
+          .get();
+
+      if (volDoc.exists) {
+        final data = volDoc.data()!;
+        setState(() {
+          _averageRating = (data['averageRating'] ?? 0.0).toDouble();
+          _totalRatings = data['totalRatings'] ?? 0;
+        });
+      }
+
+      // Get all feedback (ratings) from help_requests
+      final feedbackSnapshot = await FirebaseFirestore.instance
+          .collection('help_requests')
+          .where('volunteerId', isEqualTo: user.uid)
+          .where('rating', isGreaterThanOrEqualTo: 1)
+          .orderBy('ratedAt', descending: true)
+          .get();
+
+      final feedbacks = <FeedbackItem>[];
+      for (var doc in feedbackSnapshot.docs) {
+        final data = doc.data();
+        feedbacks.add(FeedbackItem(
+          id: doc.id,
+          blindUserName: data['blindUserName'] ?? 'Anonymous',
+          rating: data['rating'] ?? 0,
+          comment: data['feedbackComment'] ?? '',
+          createdAt: (data['ratedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          requestType: data['requestType'] ?? 'help',
+        ));
+      }
+
+      setState(() {
+        _feedbacks = feedbacks;
+        _isLoadingFeedback = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading feedback: $e');
+      setState(() {
+        _isLoadingFeedback = false;
+      });
+    }
+  }
+
+  List<FeedbackItem> get _filteredFeedbacksByRating {
+    if (_selectedTabIndex == 2) {
+      // Show by rating breakdown
+      return _feedbacks;
+    }
+    return _feedbacks;
+  }
+
+  Map<int, int> get _ratingDistribution {
+    final distribution = {5: 0, 4: 0, 3: 0, 2: 0, 1: 0};
+    for (final feedback in _feedbacks) {
+      distribution[feedback.rating] = (distribution[feedback.rating] ?? 0) + 1;
+    }
+    return distribution;
   }
 
   void _startEditing() {
@@ -195,9 +312,10 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
     );
   }
 
-  // ── Gradient bar (top of page) ────────────────────────────────────────
-
+  // Gradient bar with rating badge
   Widget _buildGradientBar(BuildContext context, {required bool showAvatar}) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -220,13 +338,50 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
                     : () => Navigator.pop(context),
               ),
               Expanded(
-                child: Text(
-                  _isEditing ? 'Edit Profile' : 'My Profile',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                child: Row(
+                  children: [
+                    // Compact rating badge
+                    if (!_isEditing && uid != null && _totalRatings > 0)
+                      Container(
+                        margin: const EdgeInsets.only(right: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.star, color: Colors.white, size: 14),
+                            const SizedBox(width: 4),
+                            Text(
+                              _averageRating.toStringAsFixed(1),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '($_totalRatings)',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.8),
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    Text(
+                      _isEditing ? 'Edit Profile' : 'My Profile',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               if (!_isEditing)
@@ -266,17 +421,113 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
     );
   }
 
-  // ── View mode ─────────────────────────────────────────────────────────
-
+  // View mode with tabs for ratings and feedback
   Widget _buildViewScroll(BuildContext context) {
-    return SingleChildScrollView(
-      child: Column(
-        children: [
-          _buildViewHeader(context),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+    final user = FirebaseAuth.instance.currentUser;
+    final volunteerId = user?.uid ?? '';
+    return CustomScrollView(
+      slivers: [
+        SliverToBoxAdapter(
+          child: _buildViewHeader(context),
+        ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
             child: Column(
               children: [
+                // Rating and Feedback Section Header
+                Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.star_rate_rounded, color: Colors.amber, size: 22),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Ratings & Feedback',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (_totalRatings > 0)
+                        Container(
+                          margin: const EdgeInsets.only(left: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: _emerald.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '$_totalRatings reviews',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: _emerald,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+
+                // Tab Bar
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      TabBar(
+                        controller: _tabController,
+                        onTap: (index) {
+                          setState(() {
+                            _selectedTabIndex = index;
+                          });
+                        },
+                        indicatorColor: _emerald,
+                        labelColor: _emerald,
+                        unselectedLabelColor: Colors.grey.shade600,
+                        labelStyle: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                        tabs: const [
+                          Tab(text: 'Summary'),
+                          Tab(text: 'All Feedback'),
+                          Tab(text: 'By Rating'),
+                        ],
+                      ),
+                      SizedBox(
+                        height: _selectedTabIndex == 2 ? 400 : 350,
+                        child: IndexedStack(
+                          index: _selectedTabIndex,
+                          children: [
+                            // Summary Tab
+                            _buildRatingSummaryTab(volunteerId),
+                            
+                            // All Feedback Tab
+                            _buildAllFeedbackTab(),
+                            
+                            // By Rating Tab
+                            _buildRatingBreakdownTab(),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Profile Information Cards
                 _buildInfoCard(
                   title: 'ACCOUNT',
                   accentColor: _emerald,
@@ -368,6 +619,360 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
               ],
             ),
           ),
+        ),
+      ],
+    );
+  }
+
+  // Rating Summary Tab
+  Widget _buildRatingSummaryTab(String volunteerId) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          // Large rating display
+          if (_totalRatings > 0) ...[
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade50,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        _averageRating.toStringAsFixed(1),
+                        style: const TextStyle(
+                          fontSize: 48,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.amber,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: List.generate(5, (index) {
+                              if (index < _averageRating.floor()) {
+                                return const Icon(Icons.star, color: Colors.amber, size: 24);
+                              } else if (index < _averageRating &&
+                                  _averageRating - index >= 0.5) {
+                                return const Icon(Icons.star_half, color: Colors.amber, size: 24);
+                              } else {
+                                return const Icon(Icons.star_border, color: Colors.amber, size: 24);
+                              }
+                            }),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Based on $_totalRatings ratings',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            Container(
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                children: [
+                  Icon(Icons.star_outline, size: 48, color: Colors.grey.shade400),
+                  const SizedBox(height: 12),
+                  Text(
+                    'No ratings yet',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Ratings will appear after you complete help requests',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // All Feedback Tab
+  Widget _buildAllFeedbackTab() {
+    if (_isLoadingFeedback) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    if (_feedbacks.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.comment_outlined, size: 48, color: Colors.grey.shade400),
+              const SizedBox(height: 12),
+              Text(
+                'No feedback yet',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Feedback from blind users will appear here',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: _feedbacks.length,
+      itemBuilder: (context, index) {
+        final feedback = _feedbacks[index];
+        return _buildFeedbackCard(feedback);
+      },
+    );
+  }
+
+  // Rating Breakdown Tab
+  Widget _buildRatingBreakdownTab() {
+    if (_isLoadingFeedback) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    final distribution = _ratingDistribution;
+    final total = _feedbacks.length;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          for (int rating = 5; rating >= 1; rating--)
+            _buildRatingBar(rating, distribution[rating] ?? 0, total),
+          const SizedBox(height: 16),
+          if (_feedbacks.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, size: 18, color: Colors.blue.shade700),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Tap on any rating in the "All Feedback" tab to see detailed comments',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.blue.shade700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRatingBar(int rating, int count, int total) {
+    final percentage = total > 0 ? (count / total) : 0.0;
+    
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 50,
+            child: Row(
+              children: [
+                Text('$rating', style: const TextStyle(fontWeight: FontWeight.w600)),
+                const Icon(Icons.star, size: 14, color: Colors.amber),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: percentage,
+                minHeight: 8,
+                backgroundColor: Colors.grey.shade200,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  rating >= 4 ? Colors.green.shade600 :
+                  rating == 3 ? Colors.orange.shade600 : Colors.red.shade600,
+                ),
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 45,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: Text(
+                '$count',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade600,
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.right,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeedbackCard(FeedbackItem feedback) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade100,
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Text(
+                    feedback.blindUserName.isNotEmpty
+                        ? feedback.blindUserName[0].toUpperCase()
+                        : 'U',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Colors.amber.shade800,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      feedback.blindUserName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: List.generate(5, (index) {
+                        return Icon(
+                          index < feedback.rating
+                              ? Icons.star
+                              : Icons.star_border,
+                          size: 16,
+                          color: Colors.amber,
+                        );
+                      }),
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                _formatDate(feedback.createdAt),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey.shade500,
+                ),
+              ),
+            ],
+          ),
+          if (feedback.comment.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                feedback.comment,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade700,
+                  height: 1.4,
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 8),
+          Text(
+            'Request: ${feedback.requestType}',
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.grey.shade500,
+            ),
+          ),
         ],
       ),
     );
@@ -386,47 +991,16 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
         bottom: false,
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(4, 4, 16, 0),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                        color: Colors.white),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  const Expanded(
-                    child: Text(
-                      'My Profile',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  if (!_isLoading)
-                    TextButton.icon(
-                      onPressed: _startEditing,
-                      icon: const Icon(Icons.edit_rounded,
-                          size: 16, color: Colors.white),
-                      label: const Text('Edit',
-                          style:
-                              TextStyle(color: Colors.white, fontSize: 14)),
-                    ),
-                ],
-              ),
-            ),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.3),
+                color: Colors.white.withOpacity(0.3),
                 shape: BoxShape.circle,
               ),
               child: CircleAvatar(
                 radius: 44,
-                backgroundColor: Colors.white.withValues(alpha: 0.2),
+                backgroundColor: Colors.white.withOpacity(0.2),
                 child: Text(
                   _name.isNotEmpty ? _name[0].toUpperCase() : 'V',
                   style: const TextStyle(
@@ -447,11 +1021,10 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
             ),
             const SizedBox(height: 4),
             Container(
-              margin: const EdgeInsets.only(bottom: 24),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+              margin: const EdgeInsets.only(bottom: 20),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
+                color: Colors.white.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Row(
@@ -486,7 +1059,7 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
         border: Border(left: BorderSide(color: accentColor, width: 4)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: Colors.black.withOpacity(0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -520,8 +1093,7 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
     );
   }
 
-  // ── Edit form ─────────────────────────────────────────────────────────
-
+  // Edit form remains the same as before
   Widget _buildEditForm() {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
@@ -596,7 +1168,7 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
               borderRadius: BorderRadius.circular(14),
               boxShadow: [
                 BoxShadow(
-                  color: _emerald.withValues(alpha: 0.35),
+                  color: _emerald.withOpacity(0.35),
                   blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),
@@ -863,9 +1435,13 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
       ),
     );
   }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
+  }
 }
 
-// ── Shared info row ─────────────────────────────────────────────────────
+// Info Row widget
 class _InfoRow extends StatelessWidget {
   final IconData icon;
   final String label;
