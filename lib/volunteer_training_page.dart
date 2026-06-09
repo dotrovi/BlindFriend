@@ -6,9 +6,6 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
-import 'dart:js_interop';
-import 'package:web/web.dart' as web;
-import 'package:flutter/foundation.dart' show kIsWeb;
 
 // ---------------------------------------------------------------------------
 // DATA — Training content, quizzes, structure
@@ -1857,25 +1854,13 @@ class _CertificatePage extends StatelessWidget {
 
       final Uint8List bytes = await pdf.save();
 
-      if (kIsWeb) {
-      final Uint8List bytes = await pdf.save();
-      
-      final blob = web.Blob(
-        [bytes.toJS].toJS,
-        web.BlobPropertyBag(type: 'application/pdf'),
-      );
-      final url = web.URL.createObjectURL(blob);
-      final anchor = web.document.createElement('a') as web.HTMLAnchorElement
-        ..href = url
-        ..setAttribute('download', 'BlindFriend_Certificate_$name.pdf')
-        ..click();
-      web.URL.revokeObjectURL(url);
-    } else {
-      await Printing.layoutPdf(
-        onLayout: (PdfPageFormat format) async => bytes,
-        name: 'BlindFriend_Certificate_$name.pdf',
-      );
-    }
+    
+        // For mobile (Android & iOS)
+        await Printing.layoutPdf(
+          onLayout: (PdfPageFormat format) async => bytes,
+          name: 'BlindFriend_Certificate_$name.pdf',
+        );
+     
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

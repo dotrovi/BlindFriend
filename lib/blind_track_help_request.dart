@@ -247,7 +247,6 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
     await _speak(details, thenListen: thenListen);
   }
 
-  // Turns status codes into natural speech.
   String _statusInWords(String status) {
     switch (status) {
       case 'in_progress':
@@ -627,49 +626,6 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
             'Your ${r.requestType} request is being helped by $name.',
             thenListen: false,
           );
-    // ===== RATE REQUEST =====
-    if (command.contains('rate request') && RegExp(r'\d+').hasMatch(command)) {
-      final numbers = RegExp(r'\d+').allMatches(command);
-      if (numbers.isNotEmpty) {
-        int requestNum = int.parse(numbers.first.group(0)!);
-        int index = requestNum - 1;
-
-        if (index >= 0 && index < _requests.length) {
-          final request = _requests[index];
-          if (request.status == 'completed' && request.rating == null) {
-            if (request.id != null &&
-                request.volunteerId != null &&
-                request.volunteerName != null) {
-              await _speak('Opening rating page for request $requestNum.');
-              _shouldListen = false;
-              if (mounted) {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => BlindRateVolunteerPage(
-                      helpRequestId: request.id!,
-                      volunteerId: request.volunteerId!,
-                      volunteerName: request.volunteerName!,
-                    ),
-                  ),
-                );
-              }
-              _shouldListen = true;
-              await _refreshRequests();
-            } else {
-              await _speak(
-                'Cannot rate request $requestNum, volunteer information is missing.',
-              );
-            }
-          } else if (request.rating != null) {
-            await _speak('You have already rated request $requestNum.');
-          } else {
-            await _speak(
-              'Request $requestNum is not completed yet and cannot be rated.',
-            );
-          }
-        } else {
-          await _speak('Request number $requestNum does not exist.');
         }
         _isProcessingVoice = false;
         await _speak('Say a command, or say help.');
@@ -701,16 +657,6 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
     _isProcessingVoice = false;
     await _speak('Sorry, I did not understand. Say a command, or say help.');
   }
-    // Report volunteer
-    if (command.contains('report volunteer') || command.contains('complaint')) {
-      final reportable = _requests
-          .where(
-            (r) =>
-                (r.status == 'in_progress' || r.status == 'completed') &&
-                r.volunteerId != null &&
-                r.volunteerId!.isNotEmpty,
-          )
-          .toList();
 
   Future<void> _readMyReports() async {
     final uid = auth.currentUser?.uid;
@@ -1359,7 +1305,6 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
   }
 
   void _showRequestDetails(HelpRequestModel request) {
-    // Check if mounted and context is available
     if (!mounted) return;
 
     showDialog(
@@ -1413,13 +1358,8 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
           if (request.status == 'completed' && request.rating == null)
             TextButton(
               onPressed: () {
-                Navigator.pop(context);
-                if (request.id != null && request.hasVolunteer) {
-                Navigator.pop(dialogContext); // Close dialog first
-                if (!mounted) return;
-                if (request.id != null &&
-                    request.volunteerId != null &&
-                    request.volunteerName != null) {
+                Navigator.pop(dialogContext);
+                if (mounted && request.id != null && request.hasVolunteer) {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -1437,12 +1377,8 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
                   });
                 }
               },
-              child: const Text('Rate Volunteer',
-                  style: TextStyle(color: Colors.amber)),
-              child: const Text(
-                'Rate Volunteer',
-                style: TextStyle(color: Colors.amber),
-              ),
+              style: TextButton.styleFrom(foregroundColor: Colors.amber),
+              child: const Text('Rate Volunteer'),
             ),
           if (request.status == 'pending' || request.status == 'accepted')
             TextButton(
@@ -1457,11 +1393,6 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
                   request.status == 'completed') &&
               request.hasVolunteer &&
               !request.reported)
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              request.volunteerId != null &&
-              request.volunteerId!.isNotEmpty)
             TextButton(
               onPressed: () {
                 Navigator.pop(dialogContext);
