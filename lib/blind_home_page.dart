@@ -11,6 +11,7 @@ import 'user_profile_page.dart';
 import 'blind_send_help_request.dart'; // Add this import
 import 'blind_track_help_request.dart'; // Add this import
 import 'obstacle_detection_page.dart';
+import 'tactile_path_page.dart';
 
 class BlindHomePage extends StatefulWidget {
   final String userName;
@@ -765,66 +766,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
 
   // ===================== PATH DETECTION PAGE =====================
   Widget _buildPathDetection() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.teal.withOpacity(0.2),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.map_outlined,
-                size: 80,
-                color: Colors.teal,
-              ),
-            ),
-            const SizedBox(height: 32),
-            const Text(
-              'Path Detection',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Tactile path guidance recognition for safe navigation.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, color: Colors.grey),
-            ),
-            const SizedBox(height: 32),
-            ElevatedButton.icon(
-              onPressed: () {
-                _speak('Starting path detection. Follow the voice guidance.');
-              },
-              icon: const Icon(Icons.play_arrow),
-              label: const Text('Start Navigation'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.teal,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 16,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                textStyle: const TextStyle(fontSize: 18),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    return const TactilePathPage();
   }
 
   // ===================== FIND VOLUNTEERS PAGE (UPDATED) =====================
