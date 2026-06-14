@@ -13,13 +13,24 @@ import 'package:permission_handler/permission_handler.dart';
 // signal is the strip's distinctive warm yellow colour, so we segment yellow
 // pixels directly from the camera frame's chroma data — no model, runs offline.
 //
+// There are two standard kinds of tactile paving, and they mean different
+// things, so the detector classifies the *texture* inside the yellow region:
+//   * BARS  (parallel ridges)        -> directional / guidance: follow the line
+//                                        of travel. Ridges create strong edges
+//                                        across ONE axis only (anisotropic).
+//   * DOTS  (raised domes / blisters) -> warning surface: a hazard such as a
+//                                        road crossing, the top of stairs, or a
+//                                        platform edge. Domes create comparable
+//                                        edge energy in BOTH axes (isotropic).
+//
 // The frame's lower-centre band (nearest the walker's feet) is split into
-// vertical columns. From the per-column yellow counts we derive:
-//   * coverage  — how much of the band is the strip (detects "path lost"),
-//   * centroid  — where the strip sits left/right (detects drift),
-//   * clusters  — separated runs of strip (detects branching paths).
-// Temporal smoothing then prevents transient dirt/leaves from causing false
-// "path lost" alerts.
+// vertical columns. From it we derive, per frame:
+//   * coverage   — how much of the band is the strip (detects "path lost"),
+//   * centroid   — where the strip sits left/right (detects drift),
+//   * clusters   — separated runs of strip (detects branching paths),
+//   * surface    — dots / bars / smooth, from luma-gradient anisotropy.
+// Temporal smoothing then prevents transient dirt/leaves, or a single noisy
+// frame, from causing false "path lost" or false "warning" alerts.
 
 class TactilePathPage extends StatefulWidget {
   const TactilePathPage({super.key});
@@ -28,7 +39,20 @@ class TactilePathPage extends StatefulWidget {
   State<TactilePathPage> createState() => _TactilePathPageState();
 }
 
-enum _Guidance { ahead, easeLeft, easeRight, branch, obscured, lost, scanning }
+enum _Guidance {
+  ahead,
+  easeLeft,
+  easeRight,
+  turn,
+  branch,
+  warning,
+  obscured,
+  lost,
+  scanning,
+}
+
+// The kind of tactile surface seen in a single frame.
+enum _Surface { dots, bars, smooth }
 
 class _TactilePathPageState extends State<TactilePathPage>
     with WidgetsBindingObserver {
@@ -55,16 +79,25 @@ class _TactilePathPageState extends State<TactilePathPage>
   static const double _bandLeft = 0.12;  // ignore far edges (grass/kerb)
   static const double _bandRight = 0.88;
   static const int _columns = 9;
-  static const int _sampleStep = 6;       // sample every Nth pixel (perf)
+  static const int _sampleStep = 5;       // sample every Nth pixel (perf)
 
   static const double _binActive = 0.22;  // column counts as "strip" above this
   static const double _lostFloor = 0.05;  // below this the strip is effectively gone
   static const double _obscuredFloor = 0.16; // good lock sits well above this
 
+  // ---- Texture (dots vs bars) thresholds ----------------------------------
+  // Average luma gradient (0..255) needed before a surface is "textured" at
+  // all; below it the tile is smooth/faded and we fall back to colour-only
+  // guidance. Anisotropy = |Gx-Gy|/(Gx+Gy): high means one axis dominates
+  // (parallel ridges = bars); low means both axes are busy (domes = dots).
+  static const double _minTextureGrad = 5.0;
+  static const double _barAnisotropy = 0.45;
+
   // ---- Temporal smoothing -------------------------------------------------
   // A short history so dirt/leaves over one or two frames don't flip us to
-  // "lost", and a branch must be seen repeatedly before it's announced.
+  // "lost", and so dots/bars/branch must be seen repeatedly before announced.
   static const int _historyLen = 6;
+  static const int _persistFrames = 3; // frames needed to confirm a state
   final List<_PathReading> _history = [];
   int _consecutiveLost = 0;
 
@@ -79,6 +112,8 @@ class _TactilePathPageState extends State<TactilePathPage>
   double _lastCoverage = 0;
   double _lastCentroid = 0.5;
   int _lastClusters = 0;
+  String _lastSurface = '-';
+  double _lastAniso = 0;
   String? _lastError;
 
   static const _orientations = {
@@ -174,7 +209,8 @@ class _TactilePathPageState extends State<TactilePathPage>
       _lastSpokenGuidance = null;
       _speak(
         'Path guidance started. Point the camera down at the tactile strip, '
-        'about two steps ahead of your feet.',
+        'about two steps ahead of your feet. Bars guide your direction, '
+        'and bumpy dots are a warning to stop.',
       );
     } catch (e) {
       debugPrint('Path guidance start error: $e');
@@ -250,6 +286,8 @@ class _TactilePathPageState extends State<TactilePathPage>
         _lastCoverage = reading.coverage;
         _lastCentroid = reading.centroid;
         _lastClusters = reading.clusterCount;
+        _lastSurface = _surfaceLabel(reading);
+        _lastAniso = reading.anisotropy;
         _updateGuidance(reading);
       }
     } catch (e) {
@@ -258,6 +296,17 @@ class _TactilePathPageState extends State<TactilePathPage>
     } finally {
       _isBusy = false;
       if (_framesReceived % 10 == 0 && mounted) setState(() {});
+    }
+  }
+
+  static String _surfaceLabel(_PathReading r) {
+    switch (r.surface) {
+      case _Surface.dots:
+        return 'dots (warning)';
+      case _Surface.bars:
+        return r.barsVertical ? 'bars (direction)' : 'bars (across)';
+      case _Surface.smooth:
+        return 'smooth';
     }
   }
 
@@ -276,7 +325,8 @@ class _TactilePathPageState extends State<TactilePathPage>
     return (sensor - compensation + 360) % 360;
   }
 
-  // Scans the lower-centre band and returns per-column strip coverage.
+  // Scans the lower-centre band: per-column strip coverage plus the luma
+  // gradient energy along each axis (for the dots-vs-bars texture classifier).
   // Coordinates are handled in the upright view; each sampled upright point is
   // mapped back to the raw sensor pixel for the current rotation.
   _PathReading? _scanFrame(CameraImage image) {
@@ -289,32 +339,31 @@ class _TactilePathPageState extends State<TactilePathPage>
     final uprightW = rotated ? sensorH : sensorW;
     final uprightH = rotated ? sensorW : sensorH;
 
-    // Per-platform pixel readers return whether a sensor pixel is "strip yellow".
-    final bool Function(int sx, int sy) isStrip;
+    // Per-platform sampler: returns whether a sensor pixel is "strip yellow"
+    // and its luma (brightness), in one read. luma == -1 means out of bounds.
+    final ({bool strip, int luma}) Function(int sx, int sy) sample;
     if (Platform.isIOS && image.planes.length == 1) {
-      final plane = image.planes.first;
-      final bytes = plane.bytes;
-      final rowStride = plane.bytesPerRow;
-      isStrip = (sx, sy) {
+      final bytes = image.planes.first.bytes;
+      final rowStride = image.planes.first.bytesPerRow;
+      sample = (sx, sy) {
         final i = sy * rowStride + sx * 4; // BGRA
-        if (i + 2 >= bytes.length) return false;
+        if (i + 2 >= bytes.length) return (strip: false, luma: -1);
         final b = bytes[i], g = bytes[i + 1], r = bytes[i + 2];
-        return _isWarmRgb(r, g, b);
+        final luma = (r * 299 + g * 587 + b * 114) ~/ 1000;
+        return (strip: _isWarmRgb(r, g, b), luma: luma);
       };
     } else if (image.planes.length == 1) {
       // Android NV21: Y plane then interleaved V,U.
       final bytes = image.planes.first.bytes;
       final yStride = image.planes.first.bytesPerRow;
       final uvStart = yStride * sensorH;
-      isStrip = (sx, sy) {
+      sample = (sx, sy) {
         final yi = sy * yStride + sx;
-        if (yi >= bytes.length) return false;
+        if (yi >= bytes.length) return (strip: false, luma: -1);
         final y = bytes[yi];
         final uvi = uvStart + (sy >> 1) * yStride + (sx & ~1);
-        if (uvi + 1 >= bytes.length) return false;
-        final v = bytes[uvi];
-        final u = bytes[uvi + 1];
-        return _isWarmYuv(y, u, v);
+        if (uvi + 1 >= bytes.length) return (strip: false, luma: y);
+        return (strip: _isWarmYuv(y, bytes[uvi + 1], bytes[uvi]), luma: y);
       };
     } else if (image.planes.length == 3) {
       // Android YUV_420_888: separate Y / U / V planes.
@@ -323,13 +372,13 @@ class _TactilePathPageState extends State<TactilePathPage>
       final yStride = yP.bytesPerRow;
       final uvRow = uP.bytesPerRow;
       final uvPix = uP.bytesPerPixel ?? 2;
-      isStrip = (sx, sy) {
+      sample = (sx, sy) {
         final yi = sy * yStride + sx;
-        if (yi >= yb.length) return false;
+        if (yi >= yb.length) return (strip: false, luma: -1);
         final y = yb[yi];
         final ci = (sy >> 1) * uvRow + (sx >> 1) * uvPix;
-        if (ci >= ub.length || ci >= vb.length) return false;
-        return _isWarmYuv(y, ub[ci], vb[ci]);
+        if (ci >= ub.length || ci >= vb.length) return (strip: false, luma: y);
+        return (strip: _isWarmYuv(y, ub[ci], vb[ci]), luma: y);
       };
     } else {
       return null;
@@ -345,9 +394,18 @@ class _TactilePathPageState extends State<TactilePathPage>
     final double colSpan = (ux1 - ux0) / _columns;
     if (colSpan <= 0) return null;
 
+    // Gradient accumulators for texture. Gx = horizontal (across columns),
+    // Gy = vertical (across rows). Only neighbouring strip pixels contribute,
+    // so background grass/kerb texture doesn't pollute the measurement.
+    final int nx = ((ux1 - ux0) ~/ _sampleStep) + 1;
+    final prevRowLuma = List<int>.filled(nx, -1);
+    double gxSum = 0, gySum = 0;
+    int gxCount = 0, gyCount = 0;
+
     for (int uy = uy0; uy < uy1; uy += _sampleStep) {
-      for (int ux = ux0; ux < ux1; ux += _sampleStep) {
-        final col = ((ux - ux0) / colSpan).floor().clamp(0, _columns - 1);
+      int prevLuma = -1;
+      int xi = 0;
+      for (int ux = ux0; ux < ux1; ux += _sampleStep, xi++) {
         // Map upright (ux,uy) back to the raw sensor pixel.
         int sx, sy;
         switch (rotation) {
@@ -367,13 +425,39 @@ class _TactilePathPageState extends State<TactilePathPage>
             sx = ux;
             sy = uy;
         }
-        if (sx < 0 || sy < 0 || sx >= sensorW || sy >= sensorH) continue;
+        if (sx < 0 || sy < 0 || sx >= sensorW || sy >= sensorH) {
+          prevLuma = -1;
+          if (xi < nx) prevRowLuma[xi] = -1;
+          continue;
+        }
+
+        final col = ((ux - ux0) / colSpan).floor().clamp(0, _columns - 1);
+        final s = sample(sx, sy);
         totals[col]++;
-        if (isStrip(sx, sy)) counts[col]++;
+        if (s.strip) counts[col]++;
+
+        // Accumulate gradients only inside contiguous strip runs.
+        if (s.strip && s.luma >= 0) {
+          if (prevLuma >= 0) {
+            gxSum += (s.luma - prevLuma).abs();
+            gxCount++;
+          }
+          if (xi < nx && prevRowLuma[xi] >= 0) {
+            gySum += (s.luma - prevRowLuma[xi]).abs();
+            gyCount++;
+          }
+          prevLuma = s.luma;
+          if (xi < nx) prevRowLuma[xi] = s.luma;
+        } else {
+          prevLuma = -1;
+          if (xi < nx) prevRowLuma[xi] = -1;
+        }
       }
     }
 
-    return _PathReading.fromColumns(counts, totals);
+    final avgGx = gxCount == 0 ? 0.0 : gxSum / gxCount;
+    final avgGy = gyCount == 0 ? 0.0 : gySum / gyCount;
+    return _PathReading.fromScan(counts, totals, avgGx, avgGy);
   }
 
   // YUV warm-yellow test (chroma is 0..255, neutral at 128).
@@ -399,9 +483,8 @@ class _TactilePathPageState extends State<TactilePathPage>
     }
 
     final next = _decideGuidance(reading);
-    if (next == _guidance && next != _Guidance.branch) {
-      // Re-announce branches periodically even if state is unchanged.
-      _maybeRepeat();
+    if (next == _guidance) {
+      _maybeRepeat(); // keep urgent states alive in the user's ear
       return;
     }
     _guidance = next;
@@ -409,26 +492,48 @@ class _TactilePathPageState extends State<TactilePathPage>
     if (mounted) setState(() {});
   }
 
+  // Counts recent frames matching a predicate — used to confirm a state has
+  // persisted before we act on it (a single noisy frame shouldn't fire).
+  int _recent(bool Function(_PathReading) test) => _history.where(test).length;
+
   _Guidance _decideGuidance(_PathReading reading) {
     if (_consecutiveLost >= 4) return _Guidance.lost;
 
-    // A branch must persist across recent frames before we trust it — a single
-    // frame split by a crack or shadow shouldn't be called a fork.
-    final branchFrames =
-        _history.where((r) => r.clusterCount >= 2 && r.coverage >= _obscuredFloor).length;
-    if (branchFrames >= 3) return _Guidance.branch;
-
-    if (reading.coverage < _lostFloor) {
-      // Dropping out but not yet confirmed lost.
-      return _Guidance.obscured;
+    // Warning surface (dots): truncated-dome paving flags a hazard — a road
+    // crossing, the top of stairs, or a platform edge. Highest priority after
+    // an outright lost path.
+    if (_recent((r) => r.surface == _Surface.dots && r.coverage >= _obscuredFloor) >=
+        _persistFrames) {
+      return _Guidance.warning;
     }
+
+    // A branch must persist too — a single frame split by a crack or shadow
+    // shouldn't be called a fork.
+    if (_recent((r) => r.clusterCount >= 2 && r.coverage >= _obscuredFloor) >=
+        _persistFrames) {
+      return _Guidance.branch;
+    }
+
     if (reading.coverage < _obscuredFloor) {
-      // Strip is partially covered (grime/leaves) but still trackable.
+      // Strip dropping out or partially covered (grime/leaves) but not yet
+      // confirmed lost.
       return _Guidance.obscured;
     }
 
-    // Smooth the centroid over recent frames to ignore jitter from debris.
-    final tracked = _history.where((r) => r.coverage >= _obscuredFloor).toList();
+    // Directional bars running across the view (horizontal ridges) signal a
+    // change of direction / decision point rather than "straight on".
+    if (_recent((r) =>
+            r.surface == _Surface.bars &&
+            !r.barsVertical &&
+            r.coverage >= _obscuredFloor) >=
+        _persistFrames) {
+      return _Guidance.turn;
+    }
+
+    // Otherwise follow the strip's left/right position. Smooth the centroid
+    // over recent frames to ignore jitter from debris.
+    final tracked =
+        _history.where((r) => r.coverage >= _obscuredFloor).toList();
     if (tracked.isEmpty) return _Guidance.obscured;
     final avgCentroid =
         tracked.map((r) => r.centroid).reduce((a, b) => a + b) / tracked.length;
@@ -438,9 +543,12 @@ class _TactilePathPageState extends State<TactilePathPage>
     return _Guidance.ahead;
   }
 
+  static bool _isUrgent(_Guidance g) =>
+      g == _Guidance.lost || g == _Guidance.branch || g == _Guidance.warning;
+
   void _maybeRepeat() {
-    // Keep urgent states (branch/lost) alive in the user's ear.
-    if (_guidance != _Guidance.branch && _guidance != _Guidance.lost) return;
+    // Keep urgent states (warning/branch/lost) repeating until resolved.
+    if (!_isUrgent(_guidance)) return;
     if (DateTime.now().difference(_lastSpokenAt) >= const Duration(seconds: 3)) {
       _announce(_guidance, force: true);
     }
@@ -449,8 +557,8 @@ class _TactilePathPageState extends State<TactilePathPage>
   void _announce(_Guidance g, {bool force = false}) {
     final now = DateTime.now();
     final sinceLast = now.difference(_lastSpokenAt);
-    final urgent = g == _Guidance.lost || g == _Guidance.branch;
-    final minGap = urgent ? const Duration(seconds: 2) : const Duration(seconds: 3);
+    final minGap =
+        _isUrgent(g) ? const Duration(seconds: 2) : const Duration(seconds: 3);
 
     if (!force) {
       if (sinceLast < const Duration(milliseconds: 1200)) return;
@@ -464,13 +572,18 @@ class _TactilePathPageState extends State<TactilePathPage>
   static String _phraseFor(_Guidance g) {
     switch (g) {
       case _Guidance.ahead:
-        return 'Path ahead. Keep going straight.';
+        return 'Guidance path ahead. Keep going straight.';
       case _Guidance.easeLeft:
         return 'Path is on your left. Ease left to stay on it.';
       case _Guidance.easeRight:
         return 'Path is on your right. Ease right to stay on it.';
+      case _Guidance.turn:
+        return 'The path turns here. Stop, and follow the bars to the side.';
       case _Guidance.branch:
         return 'The path splits ahead. Stop and choose a direction.';
+      case _Guidance.warning:
+        return 'Warning surface. Stop. There may be a road crossing, '
+            'steps, or a platform edge ahead.';
       case _Guidance.obscured:
         return 'Path may be covered. Slow down and keep going carefully.';
       case _Guidance.lost:
@@ -533,7 +646,7 @@ class _TactilePathPageState extends State<TactilePathPage>
           ),
           const SizedBox(height: 6),
           Text(
-            'Voice guidance to keep you walking along the tactile strip',
+            'Follow directional bars, and stop at warning dots',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
           ),
@@ -577,7 +690,9 @@ class _TactilePathPageState extends State<TactilePathPage>
             'Frames: $_framesReceived received, $_framesAnalysed analysed\n'
             'Strip coverage: ${(_lastCoverage * 100).toStringAsFixed(0)}%\n'
             'Centroid: ${_lastCentroid.toStringAsFixed(2)}  '
-            'Clusters: $_lastClusters',
+            'Clusters: $_lastClusters\n'
+            'Surface: $_lastSurface  '
+            '(anisotropy ${_lastAniso.toStringAsFixed(2)})',
             style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
           ),
           if (err != null) ...[
@@ -742,9 +857,11 @@ class _TactilePathPageState extends State<TactilePathPage>
     const steps = [
       'Tap "Start Guidance" to begin',
       'Hold the phone and point the camera down at the strip ahead of your feet',
-      'You\'ll hear "keep going straight" while you stay on the strip',
-      'You\'ll be told to ease left or right if you drift off',
-      'You\'ll be warned if the path splits, or is covered or lost',
+      'Directional bars mean "keep going" — you\'ll be told to ease left or '
+          'right if you drift off the line',
+      'Warning dots mean "stop" — a crossing, steps, or platform edge may be '
+          'ahead',
+      'You\'ll also be warned if the path splits, turns, or is covered or lost',
       'Tap "Repeat" to hear the last guidance again',
     ];
     return Container(
@@ -795,10 +912,14 @@ class _TactilePathPageState extends State<TactilePathPage>
       case _Guidance.easeLeft:
       case _Guidance.easeRight:
         return Colors.orange.shade800;
+      case _Guidance.turn:
+        return Colors.blue.shade700;
       case _Guidance.obscured:
         return Colors.amber.shade800;
       case _Guidance.branch:
         return Colors.deepPurple;
+      case _Guidance.warning:
+        return Colors.red;
       case _Guidance.lost:
         return Colors.red;
       case _Guidance.scanning:
@@ -814,10 +935,14 @@ class _TactilePathPageState extends State<TactilePathPage>
         return Icons.turn_left;
       case _Guidance.easeRight:
         return Icons.turn_right;
+      case _Guidance.turn:
+        return Icons.swap_horiz;
       case _Guidance.obscured:
         return Icons.visibility_off;
       case _Guidance.branch:
         return Icons.alt_route;
+      case _Guidance.warning:
+        return Icons.warning_amber_rounded;
       case _Guidance.lost:
         return Icons.error_outline;
       case _Guidance.scanning:
@@ -828,17 +953,28 @@ class _TactilePathPageState extends State<TactilePathPage>
 
 // A single frame's reading of the tactile strip across the analysed band.
 class _PathReading {
-  final double coverage;    // fraction of sampled band that is strip
-  final double centroid;    // 0 (left) .. 1 (right) of analysed columns
-  final int clusterCount;   // separated runs of strip columns (branch = 2+)
+  final double coverage;     // fraction of sampled band that is strip
+  final double centroid;     // 0 (left) .. 1 (right) of analysed columns
+  final int clusterCount;    // separated runs of strip columns (branch = 2+)
+  final _Surface surface;    // dots (warning) / bars (direction) / smooth
+  final bool barsVertical;   // for bars: ridges run with travel (go straight)
+  final double anisotropy;   // |Gx-Gy|/(Gx+Gy); diagnostics + classification
 
   _PathReading({
     required this.coverage,
     required this.centroid,
     required this.clusterCount,
+    required this.surface,
+    required this.barsVertical,
+    required this.anisotropy,
   });
 
-  factory _PathReading.fromColumns(List<int> counts, List<int> totals) {
+  factory _PathReading.fromScan(
+    List<int> counts,
+    List<int> totals,
+    double avgGx,
+    double avgGy,
+  ) {
     final n = counts.length;
     int yellowSum = 0, totalSum = 0;
     double weighted = 0;
@@ -870,10 +1006,34 @@ class _PathReading {
       }
     }
 
+    // Texture classification from gradient anisotropy.
+    final totalGrad = avgGx + avgGy;
+    final anisotropy =
+        totalGrad <= 0 ? 0.0 : (avgGx - avgGy).abs() / totalGrad;
+
+    _Surface surface;
+    bool barsVertical = false;
+    if (coverage < _TactilePathPageState._obscuredFloor ||
+        totalGrad < _TactilePathPageState._minTextureGrad) {
+      // Too little strip, or surface too smooth/faded to classify reliably.
+      surface = _Surface.smooth;
+    } else if (anisotropy >= _TactilePathPageState._barAnisotropy) {
+      // One axis dominates -> parallel ridges (directional bars). Vertical
+      // ridges (running with travel) produce strong horizontal gradients.
+      surface = _Surface.bars;
+      barsVertical = avgGx > avgGy;
+    } else {
+      // Both axes busy -> isotropic dome pattern (warning dots).
+      surface = _Surface.dots;
+    }
+
     return _PathReading(
       coverage: coverage,
       centroid: centroid,
       clusterCount: clusters,
+      surface: surface,
+      barsVertical: barsVertical,
+      anisotropy: anisotropy,
     );
   }
 }
