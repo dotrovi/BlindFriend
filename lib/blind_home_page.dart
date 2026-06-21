@@ -12,6 +12,7 @@ import 'blind_send_help_request.dart'; // Add this import
 import 'blind_track_help_request.dart'; // Add this import
 import 'obstacle_detection_page.dart';
 import 'tactile_path_page.dart';
+import 'accessibility_settings_page.dart';
 
 class BlindHomePage extends StatefulWidget {
   final String userName;
@@ -54,30 +55,32 @@ class _BlindHomePageState extends State<BlindHomePage> {
     await _tts.setPitch(1.0);
 
     final micStatus = await Permission.microphone.request();
+    print('🎤 Mic permission status: $micStatus (granted=${micStatus.isGranted})');
     if (!mounted) return;
 
-    _sttAvailable =
-        micStatus.isGranted &&
-        await _stt.initialize(
-          onStatus: (status) {
-            if (!mounted) return;
-            if (status == 'listening') {
-              setState(() => _isListening = true);
-            } else if (status == 'done' || status == 'notListening') {
-              setState(() => _isListening = false);
-            }
-          },
-          onError: (error) {
-            debugPrint('STT error: ${error.errorMsg}');
-            if (mounted) setState(() => _isListening = false);
-          },
-        );
+    final sttInitialized = await _stt.initialize(
+      onStatus: (status) {
+        if (!mounted) return;
+        if (status == 'listening') {
+          setState(() => _isListening = true);
+        } else if (status == 'done' || status == 'notListening') {
+          setState(() => _isListening = false);
+        }
+      },
+      onError: (error) {
+        debugPrint('STT error: ${error.errorMsg}');
+        if (mounted) setState(() => _isListening = false);
+      },
+    );
+    print('🎤 STT initialize result: $sttInitialized');
+    _sttAvailable = micStatus.isGranted && sttInitialized;
+    print('🎤 _sttAvailable: $_sttAvailable');
 
     if (mounted) {
       await _speak(
         'Welcome to BlindFriend, ${widget.userName}. '
         'Tap the voice button and say: Shopping, Obstacle, Path, Request Help, Track Requests, Volunteers, '
-        'Profile, or Logout. For emergency, press and hold the voice button.',
+        'Profile, Settings, or Logout. For emergency, press and hold the voice button.',
       );
     }
   }
@@ -217,14 +220,20 @@ class _BlindHomePageState extends State<BlindHomePage> {
       _setSelectedIndex(0);
     } else if (command.contains('profile')) {
       _shouldListen = false;
-      await _speak('Opening your profile.');
+      _speak('Opening your profile.');
       if (!mounted) return;
       await Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const UserProfilePage()),
       );
       _shouldListen = true;
-      await _speak('Back on home page. Tap the voice button to speak.');
+      _speak('Back on home page. Tap the voice button to speak.');
+    } else if (command.contains('setting') ||
+        command.contains('accessibility') ||
+        command.contains('contrast') ||
+        command.contains('font')) {
+      _speak('Opening accessibility settings.');
+      await _navigateToAccessibilitySettings();
     } else if (command.contains('logout') || command.contains('sign out')) {
       _shouldListen = false;
       await _speak('Logging out. Goodbye, ${widget.userName}.');
@@ -246,6 +255,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
         'Track Requests to see your request status. '
         'Volunteers to find help nearby. '
         'Profile to view your account. '
+        'Settings to adjust font size and contrast. '
         'Or Logout to sign out.',
       );
     } else {
@@ -325,6 +335,19 @@ class _BlindHomePageState extends State<BlindHomePage> {
     }
   }
 
+  Future<void> _navigateToAccessibilitySettings() async {
+    if (!mounted) return;
+    _shouldListen = false;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const AccessibilitySettingsPage()),
+    );
+    _shouldListen = true;
+    if (mounted) {
+      await _speak('Back on home page. Tap the voice button to speak.');
+    }
+  }
+
   @override
   void dispose() {
     _shouldListen = false;
@@ -380,7 +403,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
                       IconButton(
                         onPressed: () async {
                           _shouldListen = false;
-                          await _speak('Opening your profile.');
+                          _speak('Opening your profile.');
                           await Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -391,6 +414,16 @@ class _BlindHomePageState extends State<BlindHomePage> {
                         },
                         icon: const Icon(Icons.person, size: 28),
                         color: Colors.blue,
+                      ),
+                      IconButton(
+                        onPressed: () {
+                          _shouldListen = false;
+                          _speak('Opening accessibility settings.');
+                          _navigateToAccessibilitySettings();
+                        },
+                        icon: const Icon(Icons.accessibility_new, size: 28),
+                        color: Colors.purple,
+                        tooltip: 'Accessibility Settings',
                       ),
                       IconButton(
                         onPressed: () async {
