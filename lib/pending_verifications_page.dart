@@ -13,6 +13,15 @@ class PendingVerificationsPage extends StatefulWidget {
 class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
   final _adminService = AdminService();
 
+  // Helper method to safely convert any value to String
+  String _safeString(dynamic value) {
+    if (value == null) return '';
+    if (value is String) return value;
+    if (value is List) return value.map((e) => e.toString()).join(', ');
+    if (value is Map) return value.toString();
+    return value.toString();
+  }
+
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -233,14 +242,25 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
 
   void _showDetailsDialog(Map<String, dynamic> data) {
     final uid = data['uid'] ?? '';
-    final name = data['name'] ?? '';
-    final email = data['email'] ?? '';
-    final phone = data['phoneNumber'] ?? '';
-    final idCard = data['idCardNumber'] ?? '';
-    final language = data['language'] ?? '';
-    final specialties = List<String>.from(data['specialties'] ?? []);
-    final availability = data['availability'] ?? '';
-    final backgroundCheck = data['backgroundCheck'] ?? 'pending';
+    final name = _safeString(data['name']);
+    final email = _safeString(data['email']);
+    final phone = _safeString(data['phoneNumber']);
+    final idCard = _safeString(data['idCardNumber']);
+    final language = _safeString(data['language']);
+    
+    // Safely handle specialties - could be List or String
+    List<String> specialties = [];
+    final specialtiesData = data['specialties'];
+    if (specialtiesData is List) {
+      specialties = specialtiesData.map((e) => e.toString()).toList();
+    } else if (specialtiesData is String) {
+      specialties = [specialtiesData];
+    } else if (specialtiesData != null) {
+      specialties = [specialtiesData.toString()];
+    }
+    
+    final availability = _safeString(data['availability']);
+    final backgroundCheck = _safeString(data['backgroundCheck'] ?? 'pending');
     final trainingDone = data['trainingCompleted'] == true;
     final submittedAt = data['submittedAt'] as Timestamp?;
 
@@ -253,12 +273,12 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
-        insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560),
+          constraints: const BoxConstraints(maxWidth: 500, maxHeight: 600),
           child: Padding(
-            padding: const EdgeInsets.all(28),
+            padding: const EdgeInsets.all(24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -268,77 +288,60 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      'Application Details',
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+                      'Volunteer Details',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                     ),
                     IconButton(
                       icon: const Icon(Icons.close),
                       onPressed: () => Navigator.pop(ctx),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
                     ),
                   ],
                 ),
-                const Divider(height: 24),
+                const Divider(height: 20),
 
                 // Scrollable content
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 420),
+                Expanded(
                   child: SingleChildScrollView(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _sectionTitle('Applicant Information'),
-                        const SizedBox(height: 10),
-                        _infoRow('Name', name.isNotEmpty ? name : '—'),
-                        _infoRow('Email', email.isNotEmpty ? email : '—'),
-                        _infoRow('Phone', phone.isNotEmpty ? phone : '—'),
-                        _infoRow('IC Number', idCard.isNotEmpty ? idCard : '—'),
-                        _infoRow('Applied', dateStr),
-                        const SizedBox(height: 20),
+                        _buildDetailCard('Personal Information', [
+                          _detailRow('Name:', name.isNotEmpty ? name : '—'),
+                          _detailRow('Email:', email.isNotEmpty ? email : '—'),
+                          _detailRow('Phone:', phone.isNotEmpty ? phone : '—'),
+                          _detailRow('IC Number:', idCard.isNotEmpty ? idCard : '—'),
+                          _detailRow('Applied:', dateStr),
+                        ]),
+                        const SizedBox(height: 12),
 
-                        _sectionTitle('Verification Status'),
-                        const SizedBox(height: 10),
-                        _statusRow(
-                          label: 'Background Check',
-                          passed: backgroundCheck == 'passed',
-                          text: backgroundCheck == 'passed' ? 'Passed' : 'Pending',
-                        ),
-                        const SizedBox(height: 6),
-                        _statusRow(
-                          label: 'Training Status',
-                          passed: trainingDone,
-                          text: trainingDone ? 'Completed' : 'Incomplete',
-                        ),
-                        const SizedBox(height: 20),
+                        _buildDetailCard('Verification Status', [
+                          _statusRow(
+                            label: 'Background Check',
+                            passed: backgroundCheck == 'passed',
+                            text: backgroundCheck == 'passed' ? 'Passed' : 'Pending',
+                          ),
+                          const SizedBox(height: 4),
+                          _statusRow(
+                            label: 'Training Status',
+                            passed: trainingDone,
+                            text: trainingDone ? 'Completed' : 'Incomplete',
+                          ),
+                        ]),
+                        const SizedBox(height: 12),
 
-                        _sectionTitle('Language'),
-                        const SizedBox(height: 8),
-                        language.isNotEmpty
-                            ? _chip(language)
-                            : Text('Not specified',
-                                style: TextStyle(color: Colors.grey.shade500)),
-                        const SizedBox(height: 20),
-
-                        _sectionTitle('Specialties'),
-                        const SizedBox(height: 8),
-                        specialties.isEmpty
-                            ? Text('None listed',
-                                style: TextStyle(color: Colors.grey.shade500))
-                            : Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: specialties.map((s) => _chip(s)).toList(),
-                              ),
-                        const SizedBox(height: 20),
-
-                        _sectionTitle('Availability'),
-                        const SizedBox(height: 8),
-                        _chip(availability.isNotEmpty ? availability : 'Not set'),
+                        _buildDetailCard('Volunteer Information', [
+                          _detailRow('Language:', language.isNotEmpty ? language : '—'),
+                          _detailRow('Availability:', availability.isNotEmpty ? availability : '—'),
+                          _detailRow('Specialties:', specialties.isNotEmpty ? specialties.join(', ') : 'None'),
+                        ]),
                       ],
                     ),
                   ),
                 ),
 
-                const Divider(height: 28),
+                const Divider(height: 20),
 
                 // Action buttons
                 Row(
@@ -350,9 +353,10 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8)),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                         ),
                         onPressed: () {
                           Navigator.pop(ctx);
@@ -368,9 +372,10 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.red,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8)),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                         ),
                         onPressed: () {
                           Navigator.pop(ctx);
@@ -385,6 +390,118 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
           ),
         ),
       ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // BUILD DETAIL CARD
+  // ---------------------------------------------------------------------------
+
+  Widget _buildDetailCard(String title, List<Widget> children) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+              border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+            ),
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: children,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // DETAIL ROW
+  // ---------------------------------------------------------------------------
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 90,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey.shade700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // STATUS ROW
+  // ---------------------------------------------------------------------------
+
+  Widget _statusRow({
+    required String label,
+    required bool passed,
+    required String text,
+  }) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 120,
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+          ),
+        ),
+        Icon(
+          passed ? Icons.check_circle : Icons.schedule,
+          size: 16,
+          color: passed ? Colors.green : Colors.orange,
+        ),
+        const SizedBox(width: 6),
+        Text(
+          text,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: passed ? Colors.green.shade700 : Colors.orange.shade700,
+          ),
+        ),
+      ],
     );
   }
 
@@ -505,79 +622,6 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
       ),
     );
   }
-
-  // ---------------------------------------------------------------------------
-  // HELPERS
-  // ---------------------------------------------------------------------------
-
-  Widget _sectionTitle(String title) {
-    return Text(
-      title,
-      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-    );
-  }
-
-  Widget _infoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: RichText(
-        text: TextSpan(
-          style: const TextStyle(fontSize: 14, color: Colors.black87),
-          children: [
-            TextSpan(
-              text: '$label: ',
-              style: const TextStyle(fontWeight: FontWeight.w500),
-            ),
-            TextSpan(text: value),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _statusRow({
-    required String label,
-    required bool passed,
-    required String text,
-  }) {
-    return Row(
-      children: [
-        SizedBox(
-          width: 140,
-          child: Text('$label:', style: const TextStyle(fontSize: 14)),
-        ),
-        Icon(
-          passed ? Icons.check_circle : Icons.schedule,
-          size: 16,
-          color: passed ? Colors.green : Colors.orange,
-        ),
-        const SizedBox(width: 6),
-        Text(
-          text,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: passed ? Colors.green.shade700 : Colors.orange.shade700,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _chip(String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.deepPurple.shade50,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.deepPurple.shade100),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(fontSize: 13, color: Colors.deepPurple.shade700),
-      ),
-    );
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -606,6 +650,14 @@ class _VolunteerRowState extends State<_VolunteerRow> {
   late Map<String, dynamic> _data;
   bool _loading = true;
 
+  // Helper function to safely get string value
+  String _safeString(dynamic value) {
+    if (value == null) return '';
+    if (value is String) return value;
+    if (value is List) return value.join(', ');
+    return value.toString();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -632,11 +684,12 @@ class _VolunteerRowState extends State<_VolunteerRow> {
 
   @override
   Widget build(BuildContext context) {
-    final name = _data['name'] ?? '';
-    final email = _data['email'] ?? '';
-    final phone = _data['phoneNumber'] ?? '';
+    final name = _safeString(_data['name']);
+    final email = _safeString(_data['email']);
+    final phone = _safeString(_data['phoneNumber']);
+    final language = _safeString(_data['language']);
     final submittedAt = _data['submittedAt'] as Timestamp?;
-    final backgroundCheck = _data['backgroundCheck'] ?? 'pending';
+    final backgroundCheck = _safeString(_data['backgroundCheck'] ?? 'pending');
     final trainingDone = _data['trainingCompleted'] == true;
 
     final dateStr = submittedAt != null
@@ -663,7 +716,10 @@ class _VolunteerRowState extends State<_VolunteerRow> {
     }
 
     return InkWell(
-      onTap: () => widget.onTap(_data),
+      onTap: () {
+        // Pass the enriched data to the callback
+        widget.onTap(_data);
+      },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         decoration: BoxDecoration(
@@ -682,7 +738,7 @@ class _VolunteerRowState extends State<_VolunteerRow> {
                     style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
                   ),
                   Text(
-                    _data['language'] ?? '—',
+                    language.isNotEmpty ? language : '—',
                     style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
                   ),
                 ],

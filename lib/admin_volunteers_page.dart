@@ -18,6 +18,7 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
   String _selectedAvailability = 'all';
   String _sortBy = 'submittedAt';
   bool _sortAscending = false;
+  String _selectedLocation = 'all';
   
   bool _isLoading = true;
   List<Map<String, dynamic>> _volunteers = [];
@@ -148,6 +149,23 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
     }
   }
 
+  List<String> _getUniqueLocations() {
+    final locations = <String>{};
+    for (var volunteer in _volunteers) {
+      final address = (volunteer['locationAddress'] ?? '').toString();
+      if (address.isNotEmpty && address != 'N/A') {
+        final parts = address.split(',');
+        if (parts.isNotEmpty) {
+          final location = parts[0].trim();
+          if (location.isNotEmpty) {
+            locations.add(location);
+          }
+        }
+      }
+    }
+    return locations.toList()..sort();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -275,156 +293,162 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
       ),
       padding: const EdgeInsets.all(10),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              // Language Filter
-              SizedBox(
-                width: 120,
-                child: DropdownButtonFormField<String>(
-                  value: _selectedLanguage,
-                  decoration: InputDecoration(
-                    labelText: 'Language',
-                    labelStyle: const TextStyle(color: Colors.amber, fontSize: 10),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Language Filter
+                SizedBox(
+                  width: 130,
+                  child: DropdownButtonFormField<String>(
+                    value: _selectedLanguage,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText: 'Language',
+                      labelStyle: const TextStyle(color: Colors.amber, fontSize: 10),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: BorderSide(color: Colors.grey.shade300)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: BorderSide(color: Colors.grey.shade300)),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: const BorderSide(color: Colors.amber, width: 1.5)),
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                     ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
-                      borderSide: const BorderSide(color: Colors.amber, width: 1.5),
-                    ),
-                    filled: true,
-                    fillColor: Colors.grey.shade50,
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    items: const [
+                      DropdownMenuItem(value: 'all', child: Text('All', style: TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis, maxLines: 1)),
+                      DropdownMenuItem(value: 'english', child: Text('English', style: TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis, maxLines: 1)),
+                      DropdownMenuItem(value: 'spanish', child: Text('Spanish', style: TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis, maxLines: 1)),
+                      DropdownMenuItem(value: 'mandarin', child: Text('Mandarin', style: TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis, maxLines: 1)),
+                      DropdownMenuItem(value: 'french', child: Text('French', style: TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis, maxLines: 1)),
+                      DropdownMenuItem(value: 'german', child: Text('German', style: TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis, maxLines: 1)),
+                      DropdownMenuItem(value: 'korean', child: Text('Korean', style: TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis, maxLines: 1)),
+                    ],
+                    onChanged: (value) => setState(() => _selectedLanguage = value ?? 'all'),
                   ),
-                  items: const [
-                    DropdownMenuItem(value: 'all', child: Text('All', style: TextStyle(fontSize: 11))),
-                    DropdownMenuItem(value: 'english', child: Text('English', style: TextStyle(fontSize: 11))),
-                    DropdownMenuItem(value: 'spanish', child: Text('Spanish', style: TextStyle(fontSize: 11))),
-                    DropdownMenuItem(value: 'mandarin', child: Text('Mandarin', style: TextStyle(fontSize: 11))),
-                    DropdownMenuItem(value: 'french', child: Text('French', style: TextStyle(fontSize: 11))),
-                    DropdownMenuItem(value: 'german', child: Text('German', style: TextStyle(fontSize: 11))),
-                    DropdownMenuItem(value: 'korean', child: Text('Korean', style: TextStyle(fontSize: 11))),
-                  ],
-                  onChanged: (value) => setState(() => _selectedLanguage = value ?? 'all'),
                 ),
-              ),
-              // Specialty Filter
-              SizedBox(
-                width: 120,
-                child: DropdownButtonFormField<String>(
-                  value: _selectedSpecialty,
-                  decoration: InputDecoration(
-                    labelText: 'Specialty',
-                    labelStyle: const TextStyle(color: Colors.amber, fontSize: 10),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
+                const SizedBox(width: 8),
+                // Specialty Filter
+                SizedBox(
+                  width: 140,
+                  child: DropdownButtonFormField<String>(
+                    value: _selectedSpecialty,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText: 'Specialty',
+                      labelStyle: const TextStyle(color: Colors.amber, fontSize: 10),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: BorderSide(color: Colors.grey.shade300)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: BorderSide(color: Colors.grey.shade300)),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: const BorderSide(color: Colors.amber, width: 1.5)),
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                     ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
-                      borderSide: const BorderSide(color: Colors.amber, width: 1.5),
-                    ),
-                    filled: true,
-                    fillColor: Colors.grey.shade50,
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    items: const [
+                      DropdownMenuItem(value: 'all', child: Text('All', style: TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis, maxLines: 1)),
+                      DropdownMenuItem(value: 'shopping', child: Text('Shopping', style: TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis, maxLines: 1)),
+                      DropdownMenuItem(value: 'navigation', child: Text('Navigation', style: TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis, maxLines: 1)),
+                      DropdownMenuItem(value: 'reading', child: Text('Reading', style: TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis, maxLines: 1)),
+                      DropdownMenuItem(value: 'tech support', child: Text('Tech Support', style: TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis, maxLines: 1)),
+                      DropdownMenuItem(value: 'emergency assistance', child: Text('Emergency', style: TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis, maxLines: 1)),
+                      DropdownMenuItem(value: 'medical support', child: Text('Medical', style: TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis, maxLines: 1)),
+                      DropdownMenuItem(value: 'transportation', child: Text('Transport', style: TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis, maxLines: 1)),
+                    ],
+                    onChanged: (value) => setState(() => _selectedSpecialty = value ?? 'all'),
                   ),
-                  items: const [
-                    DropdownMenuItem(value: 'all', child: Text('All', style: TextStyle(fontSize: 11))),
-                    DropdownMenuItem(value: 'shopping', child: Text('Shopping', style: TextStyle(fontSize: 11))),
-                    DropdownMenuItem(value: 'navigation', child: Text('Navigation', style: TextStyle(fontSize: 11))),
-                    DropdownMenuItem(value: 'reading', child: Text('Reading', style: TextStyle(fontSize: 11))),
-                    DropdownMenuItem(value: 'tech support', child: Text('Tech Support', style: TextStyle(fontSize: 11))),
-                    DropdownMenuItem(value: 'emergency assistance', child: Text('Emergency', style: TextStyle(fontSize: 11))),
-                    DropdownMenuItem(value: 'medical support', child: Text('Medical', style: TextStyle(fontSize: 11))),
-                    DropdownMenuItem(value: 'transportation', child: Text('Transport', style: TextStyle(fontSize: 11))),
-                  ],
-                  onChanged: (value) => setState(() => _selectedSpecialty = value ?? 'all'),
                 ),
-              ),
-              // Availability Filter
-              SizedBox(
-                width: 120,
-                child: DropdownButtonFormField<String>(
-                  value: _selectedAvailability,
-                  decoration: InputDecoration(
-                    labelText: 'Availability',
-                    labelStyle: const TextStyle(color: Colors.amber, fontSize: 10),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
+                const SizedBox(width: 8),
+                // Availability Filter
+                SizedBox(
+                  width: 140,
+                  child: DropdownButtonFormField<String>(
+                    value: _selectedAvailability,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText: 'Availability',
+                      labelStyle: const TextStyle(color: Colors.amber, fontSize: 10),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: BorderSide(color: Colors.grey.shade300)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: BorderSide(color: Colors.grey.shade300)),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: const BorderSide(color: Colors.amber, width: 1.5)),
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                     ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
-                      borderSide: const BorderSide(color: Colors.amber, width: 1.5),
-                    ),
-                    filled: true,
-                    fillColor: Colors.grey.shade50,
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    items: const [
+                      DropdownMenuItem(value: 'all', child: Text('All', style: TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis, maxLines: 1)),
+                      DropdownMenuItem(value: 'weekends', child: Text('Weekends', style: TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis, maxLines: 1)),
+                      DropdownMenuItem(value: 'weekdays', child: Text('Weekdays', style: TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis, maxLines: 1)),
+                      DropdownMenuItem(value: 'anytime', child: Text('Anytime', style: TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis, maxLines: 1)),
+                      DropdownMenuItem(value: 'emergency only', child: Text('Emergency', style: TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis, maxLines: 1)),
+                    ],
+                    onChanged: (value) => setState(() => _selectedAvailability = value ?? 'all'),
                   ),
-                  items: const [
-                    DropdownMenuItem(value: 'all', child: Text('All', style: TextStyle(fontSize: 11))),
-                    DropdownMenuItem(value: 'weekends', child: Text('Weekends', style: TextStyle(fontSize: 11))),
-                    DropdownMenuItem(value: 'weekdays', child: Text('Weekdays', style: TextStyle(fontSize: 11))),
-                    DropdownMenuItem(value: 'anytime', child: Text('Anytime', style: TextStyle(fontSize: 11))),
-                    DropdownMenuItem(value: 'emergency only', child: Text('Emergency', style: TextStyle(fontSize: 11))),
-                  ],
-                  onChanged: (value) => setState(() => _selectedAvailability = value ?? 'all'),
                 ),
-              ),
-              // Status Filter
-              SizedBox(
-                width: 120,
-                child: DropdownButtonFormField<String>(
-                  value: _filterStatus,
-                  decoration: InputDecoration(
-                    labelText: 'Status',
-                    labelStyle: const TextStyle(color: Colors.amber, fontSize: 10),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
+                const SizedBox(width: 8),
+                // Status Filter
+                SizedBox(
+                  width: 130,
+                  child: DropdownButtonFormField<String>(
+                    value: _filterStatus,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText: 'Status',
+                      labelStyle: const TextStyle(color: Colors.amber, fontSize: 10),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: BorderSide(color: Colors.grey.shade300)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: BorderSide(color: Colors.grey.shade300)),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: const BorderSide(color: Colors.amber, width: 1.5)),
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                     ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
-                      borderSide: const BorderSide(color: Colors.amber, width: 1.5),
-                    ),
-                    filled: true,
-                    fillColor: Colors.grey.shade50,
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    items: const [
+                      DropdownMenuItem(value: 'all', child: Text('All', style: TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis, maxLines: 1)),
+                      DropdownMenuItem(value: 'pending', child: Text('Pending', style: TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis, maxLines: 1)),
+                      DropdownMenuItem(value: 'approved', child: Text('Approved', style: TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis, maxLines: 1)),
+                      DropdownMenuItem(value: 'rejected', child: Text('Rejected', style: TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis, maxLines: 1)),
+                    ],
+                    onChanged: (value) => setState(() => _filterStatus = value ?? 'all'),
                   ),
-                  items: const [
-                    DropdownMenuItem(value: 'all', child: Text('All', style: TextStyle(fontSize: 11))),
-                    DropdownMenuItem(value: 'pending', child: Text('Pending', style: TextStyle(fontSize: 11))),
-                    DropdownMenuItem(value: 'approved', child: Text('Approved', style: TextStyle(fontSize: 11))),
-                    DropdownMenuItem(value: 'rejected', child: Text('Rejected', style: TextStyle(fontSize: 11))),
-                  ],
-                  onChanged: (value) => setState(() => _filterStatus = value ?? 'all'),
                 ),
-              ),
-            ],
+                const SizedBox(width: 8),
+                // Location Filter
+                SizedBox(
+                  width: 140,
+                  child: DropdownButtonFormField<String>(
+                    value: _selectedLocation,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText: 'Location',
+                      labelStyle: const TextStyle(color: Colors.amber, fontSize: 10),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: BorderSide(color: Colors.grey.shade300)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: BorderSide(color: Colors.grey.shade300)),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: const BorderSide(color: Colors.amber, width: 1.5)),
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    ),
+                    items: [
+                      const DropdownMenuItem(value: 'all', child: Text('All', style: TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis, maxLines: 1)),
+                      ..._getUniqueLocations().map((location) => 
+                        DropdownMenuItem(
+                          value: location, 
+                          child: Text(location, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis, maxLines: 1)
+                        )
+                      ),
+                    ],
+                    onChanged: (value) => setState(() => _selectedLocation = value ?? 'all'),
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 4),
           Row(
@@ -437,14 +461,16 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                     _selectedLanguage = 'all';
                     _selectedSpecialty = 'all';
                     _selectedAvailability = 'all';
+                    _selectedLocation = 'all';
                     _searchQuery = '';
                   });
                 },
                 icon: const Icon(Icons.clear_all, size: 14),
-                label: const Text('Clear', style: TextStyle(fontSize: 11)),
+                label: const Text('Clear Filters', style: TextStyle(fontSize: 11)),
                 style: TextButton.styleFrom(
                   foregroundColor: Colors.blue.shade700, 
                   padding: EdgeInsets.zero,
+                  minimumSize: const Size(0, 30),
                 ),
               ),
             ],
@@ -514,10 +540,8 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
       );
     }
 
-    // ✅ FIXED FILTERS - Case insensitive
     var filteredVolunteers = List<Map<String, dynamic>>.from(_volunteers);
 
-    // Search filter
     if (_searchQuery.isNotEmpty) {
       filteredVolunteers = filteredVolunteers.where((data) {
         final name = (data['name'] ?? '').toLowerCase();
@@ -533,7 +557,6 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
       }).toList();
     }
 
-    // ✅ Status filter - case insensitive
     if (_filterStatus != 'all') {
       filteredVolunteers = filteredVolunteers.where((data) {
         final status = (data['status'] ?? '').toLowerCase();
@@ -541,7 +564,6 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
       }).toList();
     }
 
-    // ✅ Language filter - case insensitive
     if (_selectedLanguage != 'all') {
       filteredVolunteers = filteredVolunteers.where((data) {
         final language = (data['language'] ?? '').toLowerCase();
@@ -549,7 +571,6 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
       }).toList();
     }
 
-    // ✅ Availability filter - case insensitive
     if (_selectedAvailability != 'all') {
       filteredVolunteers = filteredVolunteers.where((data) {
         final availability = (data['availability'] ?? '').toLowerCase();
@@ -557,7 +578,6 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
       }).toList();
     }
 
-    // ✅ Specialty filter - case insensitive
     if (_selectedSpecialty != 'all') {
       filteredVolunteers = filteredVolunteers.where((data) {
         final specialties = data['specialties'] as List? ?? [];
@@ -566,7 +586,17 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
       }).toList();
     }
 
-    // Sort
+    if (_selectedLocation != 'all') {
+      filteredVolunteers = filteredVolunteers.where((data) {
+        final address = (data['locationAddress'] ?? '').toString();
+        if (address.isEmpty || address == 'N/A') return false;
+        final parts = address.split(',');
+        if (parts.isEmpty) return false;
+        final location = parts[0].trim();
+        return location.toLowerCase() == _selectedLocation.toLowerCase();
+      }).toList();
+    }
+
     if (filteredVolunteers.isNotEmpty) {
       filteredVolunteers.sort((a, b) {
         int comparison = 0;
@@ -709,7 +739,7 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
         ],
       ),
     );
-  }
+  }  
 
   Widget _buildTableHeader() {
     return Container(
