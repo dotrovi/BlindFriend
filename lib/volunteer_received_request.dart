@@ -975,12 +975,33 @@ class _VolunteerReceivedRequestsScreenState
   Future<void> _acceptRequest(
       HelpRequest request, String volunteerId, String volunteerName) async {
     try {
-      await firestore.collection('help_requests').doc(request.id).update({
+      final batch = firestore.batch();
+
+      // Update help request
+      batch.update(firestore.collection('help_requests').doc(request.id), {
         'status': 'accepted',
         'volunteerId': volunteerId,
         'volunteerName': volunteerName,
         'acceptedAt': Timestamp.now(),
       });
+
+      // Create notification for the blind user
+      batch.set(
+        firestore
+            .collection('notifications')
+            .doc(request.blindUserId)
+            .collection('messages')
+            .doc(),
+        {
+          'title': 'Request Accepted!',
+          'body':
+              '$volunteerName has accepted your ${request.requestType} request.',
+          'createdAt': FieldValue.serverTimestamp(),
+          'read': false,
+        },
+      );
+
+      await batch.commit();
       await _loadMatchingRequests();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -1077,7 +1098,28 @@ void _showRateReminderDialog(HelpRequest request) {
       if (reason.isNotEmpty) {
         updateData['declineReasons.$volunteerId'] = reason;
       }
-      await firestore.collection('help_requests').doc(request.id).update(updateData);
+      final batch = firestore.batch();
+
+      // Update help request
+      batch.update(firestore.collection('help_requests').doc(request.id), updateData);
+
+      // Create notification for the blind user
+      batch.set(
+        firestore
+            .collection('notifications')
+            .doc(request.blindUserId)
+            .collection('messages')
+            .doc(),
+        {
+          'title': 'Volunteer Declined',
+          'body':
+              'A volunteer has declined your ${request.requestType} request. We are still searching.',
+          'createdAt': FieldValue.serverTimestamp(),
+          'read': false,
+        },
+      );
+
+      await batch.commit();
       await _loadMatchingRequests();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(

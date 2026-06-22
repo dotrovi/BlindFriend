@@ -101,11 +101,22 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
   bool _isProcessingVoice = false;
   int _speakGeneration = 0;
   bool _suspendAutoListen = false;
+  StreamSubscription? _notificationSubscription;
 
   @override
   void initState() {
     super.initState();
     _initVoiceAndLoad();
+  }
+
+  @override
+  void dispose() {
+    _notificationSubscription?.cancel();
+    _shouldListen = false;
+    _suspendAutoListen = true;
+    _stt.stop();
+    _tts.stop();
+    super.dispose();
   }
 
   Future<void> _initVoiceAndLoad() async {
@@ -137,11 +148,45 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
         );
 
     await _loadRequests();
+    _listenForNotifications();
 
     if (mounted) {
       await Future.delayed(const Duration(milliseconds: 500));
       await _speakWelcomeMessage();
     }
+  }
+
+  void _listenForNotifications() {
+    final userId = auth.currentUser?.uid;
+    if (userId == null) return;
+
+    _notificationSubscription?.cancel();
+    _notificationSubscription = firestore
+        .collection('notifications')
+        .doc(userId)
+        .collection('messages')
+        .where('read', isEqualTo: false)
+        .orderBy('createdAt', descending: true)
+        .limit(1)
+        .snapshots()
+        .listen((snapshot) {
+      if (snapshot.docs.isNotEmpty) {
+        final notification = snapshot.docs.first;
+        final data = notification.data();
+        final title = data['title'] as String?;
+        final body = data['body'] as String?;
+
+        if (title != null && body != null) {
+          _speakNotification(title, body);
+          notification.reference.update({'read': true});
+        }
+      }
+    });
+  }
+
+  Future<void> _speakNotification(String title, String body) async {
+    await _speak('New notification: $title. $body', thenListen: true);
+    await _loadRequests();
   }
 
   Future<void> _speakWelcomeMessage() async {
@@ -216,7 +261,7 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
   }
 
   void _onMicTap() {
-    print('🎤 Mic tapped');
+    print('Mic tapped');
     if (!_isProcessingVoice && _sttAvailable && !_isListening) {
       _startListening();
     }
@@ -266,7 +311,7 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
     if (_isProcessingVoice) return;
     _isProcessingVoice = true;
 
-    print('🎤 Voice command: $command');
+    print('Voice command: $command');
 
     if (command.trim().isEmpty) {
       _isProcessingVoice = false;
@@ -872,15 +917,6 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
         }
       }
     }
-  }
-
-  @override
-  void dispose() {
-    _shouldListen = false;
-    _suspendAutoListen = true;
-    _stt.stop();
-    _tts.stop();
-    super.dispose();
   }
 
   @override

@@ -7,6 +7,7 @@ import 'admin_login_page.dart';
 import 'admin_dashboard_page.dart';
 import 'blind_home_page.dart';
 import 'services/accessibility_settings.dart';
+import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,11 +36,13 @@ class BlindFriendApp extends StatefulWidget {
 
 class _BlindFriendAppState extends State<BlindFriendApp> {
   final AccessibilitySettings _settings = AccessibilitySettings.instance;
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
   @override
   void initState() {
     super.initState();
     _settings.addListener(_onSettingsChanged);
+    NotificationService().initialize(_navigatorKey);
   }
 
   @override
@@ -55,6 +58,7 @@ class _BlindFriendAppState extends State<BlindFriendApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: _navigatorKey,
       title: 'BlindFriend',
       theme: ThemeData(
         primarySwatch: Colors.purple,

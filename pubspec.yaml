@@ -26,6 +26,7 @@ dependencies:
   youtube_player_flutter: ^9.1.1
   pdf: ^3.11.1
   printing: ^5.13.1
+  firebase_messaging: 16.3.0
 
 
   # a bug where brightness was not found in the latest version of firebase_ui_shared (or something similar), so downgrade it to following if it happens
