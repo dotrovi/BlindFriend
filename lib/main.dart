@@ -6,6 +6,7 @@ import 'firebase_options.dart';
 import 'admin_login_page.dart';
 import 'admin_dashboard_page.dart';
 import 'blind_home_page.dart';
+import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,10 +17,13 @@ void main() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
     print("✅ Firebase initialized successfully!");
+
+    // Initialize notification service
+    await NotificationService().init();
+    print("✅ Notification service initialized!");
   } catch (e) {
     print("❌ Firebase initialization error: $e");
   }
-  
   runApp(const BlindFriendApp());
 }
 
@@ -29,7 +33,8 @@ class BlindFriendApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'BlindFriend',
+  scaffoldMessengerKey: NotificationService().messengerKey,
+  title: 'BlindFriend',
       theme: ThemeData(
         primarySwatch: Colors.purple,
         visualDensity: VisualDensity.adaptivePlatformDensity,

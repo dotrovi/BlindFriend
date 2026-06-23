@@ -11,6 +11,7 @@ import 'volunteer_received_request.dart';
 import 'volunteer_history_page.dart';
 import 'services/firebase_service.dart';
 import 'volunteer_training_page.dart';
+import 'services/notification_service.dart';
 
 class VolunteerHomePage extends StatefulWidget {
   final String userName;
@@ -72,16 +73,50 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
   }
 
   void _setupRealtimeStats() {
-    final uid = _uid;
-    if (uid == null) return;
+  final uid = _uid;
+  if (uid == null) return;
 
-    _helpRequestsSubscription = FirebaseFirestore.instance
-        .collection('help_requests')
-        .snapshots()
-        .listen((snapshot) {
-          _updateStatsFromSnapshot(snapshot);
-        });
-  }
+  bool isFirstLoad = true;
+
+  _helpRequestsSubscription = FirebaseFirestore.instance
+      .collection('help_requests')
+      .snapshots()
+      .listen((snapshot) {
+        _updateStatsFromSnapshot(snapshot);
+
+        // Skip notifications on first load — only fire for NEW requests
+        if (isFirstLoad) {
+          isFirstLoad = false;
+          return;
+        }
+
+        // Check for newly added pending requests
+        for (var change in snapshot.docChanges) {
+          if (change.type == DocumentChangeType.added) {
+            final data = change.doc.data() as Map<String, dynamic>;
+            final status = (data['status'] ?? '').toString().toLowerCase();
+            final volunteerId = data['volunteerId'];
+
+            // Only notify if request is pending and unassigned
+            if (status == 'pending' &&
+                (volunteerId == null || volunteerId.toString().isEmpty)) {
+              final requestType =
+                  (data['requestType'] ?? 'help').toString();
+              final blindUserName =
+                  (data['blindUserName'] ?? 'A blind user').toString();
+              final location =
+                  (data['location'] ?? 'nearby').toString();
+
+              NotificationService().showHelpRequestNotification(
+                blindUserName: blindUserName,
+                requestType: requestType,
+                location: location,
+              );
+            }
+          }
+        }
+      });
+}
 
   void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
     final uid = _uid;
