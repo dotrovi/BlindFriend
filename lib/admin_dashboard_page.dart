@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'pending_verifications_page.dart';
 import 'admin_users_page.dart';
 import 'admin_volunteers_page.dart';
+import 'admin_statistics_page.dart';  // ✅ ADD THIS IMPORT
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -72,6 +73,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           _navItem(icon: Icons.people_outline, label: 'Volunteers', pageKey: 'volunteers'),
           _navItem(icon: Icons.verified_user_outlined, label: 'Verification', pageKey: 'verification'),
           _navItem(icon: Icons.person_outline, label: 'Users', pageKey: 'users'),
+          // ✅ ADD THIS NEW NAV ITEM
+          _navItem(icon: Icons.analytics_outlined, label: 'Statistics', pageKey: 'statistics'),
 
           const Spacer(),
           const Divider(height: 1),
@@ -131,7 +134,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
-
   // ---------------------------------------------------------------------------
   // PAGE SWITCHER
   // ---------------------------------------------------------------------------
@@ -146,6 +148,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         return const AdminVolunteersPage();
       case 'users':
         return const AdminUsersPage();
+      // ✅ ADD THIS CASE
+      case 'statistics':
+        return const AdminStatisticsPage();
       default:
         return _buildOverviewPage();
     }

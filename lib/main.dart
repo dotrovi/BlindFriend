@@ -6,35 +6,56 @@ import 'firebase_options.dart';
 import 'admin_login_page.dart';
 import 'admin_dashboard_page.dart';
 import 'blind_home_page.dart';
-import 'services/notification_service.dart';
+import 'services/accessibility_settings.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   try {
     // Initialize Firebase using FlutterFire
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
     print("✅ Firebase initialized successfully!");
-
-    // Initialize notification service
-    await NotificationService().init();
-    print("✅ Notification service initialized!");
   } catch (e) {
     print("❌ Firebase initialization error: $e");
   }
+
+  await AccessibilitySettings.instance.load();
+
   runApp(const BlindFriendApp());
 }
 
-class BlindFriendApp extends StatelessWidget {
+class BlindFriendApp extends StatefulWidget {
   const BlindFriendApp({super.key});
+
+  @override
+  State<BlindFriendApp> createState() => _BlindFriendAppState();
+}
+
+class _BlindFriendAppState extends State<BlindFriendApp> {
+  final AccessibilitySettings _settings = AccessibilitySettings.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    _settings.addListener(_onSettingsChanged);
+  }
+
+  @override
+  void dispose() {
+    _settings.removeListener(_onSettingsChanged);
+    super.dispose();
+  }
+
+  void _onSettingsChanged() {
+    if (mounted) setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-  scaffoldMessengerKey: NotificationService().messengerKey,
-  title: 'BlindFriend',
+      title: 'BlindFriend',
       theme: ThemeData(
         primarySwatch: Colors.purple,
         visualDensity: VisualDensity.adaptivePlatformDensity,
@@ -49,6 +70,35 @@ class BlindFriendApp extends StatelessWidget {
         '/blind-home': (context) => const BlindHomePage(userName: 'User'),
       },
       debugShowCheckedModeBanner: false,
+      builder: (context, child) {
+        // Keep the wrapper widget tree shape constant across settings
+        // changes (only vary the matrix values) - swapping ColorFiltered
+        // in and out here would reset the app's entire navigation stack.
+        const contrast = 2.2;
+        const translate = (1 - contrast) / 2 * 255;
+        final matrix = _settings.highContrastEnabled
+            ? const <double>[
+                contrast, 0, 0, 0, translate,
+                0, contrast, 0, 0, translate,
+                0, 0, contrast, 0, translate,
+                0, 0, 0, 1, 0,
+              ]
+            : const <double>[
+                1, 0, 0, 0, 0,
+                0, 1, 0, 0, 0,
+                0, 0, 1, 0, 0,
+                0, 0, 0, 1, 0,
+              ];
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.linear(_settings.fontScale),
+          ),
+          child: ColorFiltered(
+            colorFilter: ColorFilter.matrix(matrix),
+            child: child!,
+          ),
+        );
+      },
     );
   }
 }
