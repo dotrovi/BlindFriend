@@ -975,13 +975,28 @@ class _VolunteerReceivedRequestsScreenState
   Future<void> _acceptRequest(
       HelpRequest request, String volunteerId, String volunteerName) async {
     try {
-      await firestore.collection('help_requests').doc(request.id).update({
+      final batch = firestore.batch();
+
+      // Update help request
+      batch.update(firestore.collection('help_requests').doc(request.id), {
         'status': 'accepted',
         'volunteerId': volunteerId,
         'volunteerName': volunteerName,
         'acceptedAt': Timestamp.now(),
       });
-      await _loadMatchingRequests();
+
+      // Create notification for the blind user
+      batch.set(
+          firestore.collection('notifications').doc(request.blindUserId).collection('messages').doc(),
+          {
+            'title': 'Request Accepted!',
+            'body': 'Good news! $volunteerName has accepted your ${request.requestType} request.',
+            'type': 'request_accepted',
+            'read': false,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+
+      await batch.commit();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('Request accepted successfully'),
@@ -992,6 +1007,8 @@ class _VolunteerReceivedRequestsScreenState
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Error: $e')));
       }
+    } finally {
+      await _loadMatchingRequests();
     }
   }
 
@@ -1071,13 +1088,27 @@ void _showRateReminderDialog(HelpRequest request) {
     if (reason == null) return;
 
     try {
+      final batch = firestore.batch();
       final Map<String, dynamic> updateData = {
         'declinedBy': FieldValue.arrayUnion([volunteerId]),
       };
       if (reason.isNotEmpty) {
         updateData['declineReasons.$volunteerId'] = reason;
       }
-      await firestore.collection('help_requests').doc(request.id).update(updateData);
+      batch.update(firestore.collection('help_requests').doc(request.id), updateData);
+
+      // Create notification for the blind user
+      batch.set(
+          firestore.collection('notifications').doc(request.blindUserId).collection('messages').doc(),
+          {
+            'title': 'Request Update',
+            'body': 'A volunteer was unable to accept your ${request.requestType} request. We are still searching for another volunteer.',
+            'type': 'request_declined',
+            'read': false,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+
+      await batch.commit();
       await _loadMatchingRequests();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(

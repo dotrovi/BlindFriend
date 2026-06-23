@@ -101,6 +101,7 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
   bool _isProcessingVoice = false;
   int _speakGeneration = 0;
   bool _suspendAutoListen = false;
+  StreamSubscription? _notificationSubscription;
 
   @override
   void initState() {
@@ -137,11 +138,45 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
         );
 
     await _loadRequests();
+    _listenForNotifications();
 
     if (mounted) {
       await Future.delayed(const Duration(milliseconds: 500));
       await _speakWelcomeMessage();
     }
+  }
+
+  void _listenForNotifications() {
+    final uid = auth.currentUser?.uid;
+    if (uid == null) return;
+
+    _notificationSubscription = firestore
+        .collection('notifications')
+        .doc(uid)
+        .collection('messages')
+        .where('read', isEqualTo: false)
+        .orderBy('createdAt', descending: true)
+        .limit(1)
+        .snapshots()
+        .listen((snapshot) async {
+      if (snapshot.docs.isNotEmpty) {
+        final notification = snapshot.docs.first;
+        final data = notification.data();
+        final title = data['title'] ?? '';
+        final body = data['body'] ?? '';
+
+        if (body.isNotEmpty) {
+          // Announce the notification via TTS
+          await _speak('$title. $body', thenListen: false);
+        }
+
+        // Mark notification as read to prevent re-announcing
+        await notification.reference.update({'read': true});
+
+        // Refresh the list of requests to show the updated status
+        await _loadRequests();
+      }
+    });
   }
 
   Future<void> _speakWelcomeMessage() async {
@@ -880,6 +915,7 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
     _suspendAutoListen = true;
     _stt.stop();
     _tts.stop();
+    _notificationSubscription?.cancel();
     super.dispose();
   }
 
