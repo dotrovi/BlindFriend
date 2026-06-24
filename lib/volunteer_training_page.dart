@@ -54,7 +54,7 @@ const _chapters = [
     subtitle: 'Learn what it means to live with vision loss',
     icon: Icons.visibility_off_rounded,
     color: Color(0xFF3B82F6),
-    youtubeVideoId: 'dQw4w9WgXcQ', // swap with real video
+    youtubeVideoId: "qM7bHjxO9fY", // swap with real video
     article: '''
 Visual impairment affects over 2.2 billion people worldwide. It ranges from partial sight loss to complete blindness, and the experience is unique to every individual.
 
@@ -138,7 +138,7 @@ Vision loss can be emotionally complex. Some individuals were born without sight
     subtitle: 'How to communicate and physically guide someone safely',
     icon: Icons.people_alt_rounded,
     color: Color(0xFF059669),
-    youtubeVideoId: 'dQw4w9WgXcQ', // swap with sighted guide technique video
+    youtubeVideoId: 'O0a_SVC0ZYU', // swap with sighted guide technique video
     article: '''
 Effective communication and safe guiding are the two most practical skills a volunteer can develop. Done well, they build trust and ensure safety.
 
@@ -241,7 +241,7 @@ The golden rule is always ask before touching or guiding. Never grab someone's a
     subtitle: 'Keeping blind users safe in difficult situations',
     icon: Icons.health_and_safety_rounded,
     color: Color(0xFFEF4444),
-    youtubeVideoId: 'dQw4w9WgXcQ', // swap with emergency assistance video
+    youtubeVideoId: 'Z-zbJiGg5Jk', // swap with emergency assistance video
     article: '''
 Emergencies and safety situations require calm, clear, and immediate action. As a volunteer, knowing how to respond can make a critical difference.
 
