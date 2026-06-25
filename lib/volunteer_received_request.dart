@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'volunteer_profile_page.dart';
 
 // ── Shared palette ─────────────────────────────────────────────────
 const Color _kNavyDeep = Color(0xFF120A2E);
@@ -177,7 +176,10 @@ class _VolunteerReceivedRequestsScreenState
         final data = doc.data();
         final status = data['status'] ?? 'pending';
         if (status == 'cancelled') continue;
-        if (status == 'completed' && data['volunteerId'] != volunteerId) {
+        // Pending requests are visible to every volunteer. Once a request is
+        // accepted, in progress, or completed, only the volunteer who
+        // accepted it should see it.
+        if (status != 'pending' && data['volunteerId'] != volunteerId) {
           continue;
         }
         final declinedBy = List<String>.from(data['declinedBy'] ?? []);
@@ -188,7 +190,7 @@ class _VolunteerReceivedRequestsScreenState
       allRequests.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
       setState(() {
-        _matchedRequests = _filterMatchingRequests(allRequests, volunteerId);
+        _matchedRequests = allRequests;
         _isLoading = false;
       });
     } catch (e) {
@@ -197,22 +199,6 @@ class _VolunteerReceivedRequestsScreenState
         _isLoading = false;
       });
     }
-  }
-
-  List<HelpRequest> _filterMatchingRequests(
-      List<HelpRequest> requests, String volunteerId) {
-    return requests.where((request) {
-      if (request.volunteerId == volunteerId) return true;
-      if (request.status == 'pending') {
-        final matchesSpecialty =
-            _volunteerSpecialties.contains(request.requestType.toLowerCase());
-        if (!matchesSpecialty) return false;
-        final requestLanguage =
-            request.preferredLanguage?.toLowerCase() ?? 'english';
-        return _volunteerLanguages.contains(requestLanguage);
-      }
-      return false;
-    }).toList();
   }
 
   Future<void> _refreshRequests() async {
@@ -454,65 +440,23 @@ class _VolunteerReceivedRequestsScreenState
                 'No requests found',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
               ),
-              if (_volunteerSpecialties.isEmpty) ...[
-                const SizedBox(height: 8),
-                Text(
-                  'You have not set any specialties yet, so no requests can '
-                  'match you. Set your specialties and language in your '
-                  'profile to start receiving matching requests.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.6)),
-                ),
-              ],
               const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: _kCardFill.withOpacity(0.6),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.white.withOpacity(0.08)),
-                ),
-                child: Column(
-                  children: [
-                    _emptyStateRow(Icons.star_outline_rounded, 'Specialties',
-                        _volunteerSpecialties.isEmpty ? 'None set' : _volunteerSpecialties.join(', ')),
-                    const SizedBox(height: 8),
-                    _emptyStateRow(Icons.language_rounded, 'Language',
-                        _volunteerLanguages.map((l) => _languageNames[l] ?? l).join(', ')),
-                  ],
-                ),
+              Text(
+                'There are no help requests to show right now.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.6)),
               ),
               const SizedBox(height: 20),
-              if (_volunteerSpecialties.isEmpty)
-                ElevatedButton.icon(
-                  onPressed: () async {
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const VolunteerProfilePage(),
-                      ),
-                    );
-                    if (mounted) _refreshRequests();
-                  },
-                  icon: const Icon(Icons.person_outline_rounded),
-                  label: const Text('Set Up Your Profile'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _kPinkBright,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                )
-              else
-                ElevatedButton.icon(
-                  onPressed: _refreshRequests,
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('Refresh'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _kPinkBright,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
+              ElevatedButton.icon(
+                onPressed: _refreshRequests,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Refresh'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _kPinkBright,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
+              ),
             ],
           ),
         ],
@@ -526,29 +470,6 @@ class _VolunteerReceivedRequestsScreenState
       itemBuilder: (context, index) {
         return _buildRequestCard(requests[index]);
       },
-    );
-  }
-
-  Widget _emptyStateRow(IconData icon, String label, String value) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: _kPinkBright),
-        const SizedBox(width: 8),
-        Text('$label: ',
-            style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: Colors.white)),  // already white
-        Expanded(
-          child: Text(
-            value,
-            style: TextStyle(
-                fontSize: 13,
-                color: Colors.white.withOpacity(0.7)), // FIXED
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ],
     );
   }
 
