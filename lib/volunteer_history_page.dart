@@ -3,6 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'volunteer_received_request.dart';
 
+// ── Shared palette ─────────────────────────────────────────────────
+const Color _kNavyDeep = Color(0xFF120A2E);
+const Color _kNavyMid = Color(0xFF1E1147);
+const Color _kPurple = Color(0xFF3B1E78);
+const Color _kPinkBright = Color(0xFFFF5FD2);
+const Color _kBlueAccent = Color(0xFF4A90E2);
+const Color _kCardFill = Color(0xFF241A45);
+
 class VolunteerHistoryPage extends StatefulWidget {
   const VolunteerHistoryPage({super.key});
 
@@ -21,9 +29,6 @@ class _VolunteerHistoryPageState extends State<VolunteerHistoryPage>
   bool _isLoading = true;
   String? _errorMessage;
   String? _volunteerId;
-
-  static const _emerald = Color(0xFF059669);
-  static const _emeraldDark = Color(0xFF047857);
 
   final Map<String, String> _languageNames = {
     'english': 'English',
@@ -59,14 +64,12 @@ class _VolunteerHistoryPageState extends State<VolunteerHistoryPage>
       final volunteerId = _volunteerId;
       if (volunteerId == null) throw Exception('Not logged in');
 
-      // Requests this volunteer personally completed
       final completedSnap = await firestore
           .collection('help_requests')
           .where('volunteerId', isEqualTo: volunteerId)
           .where('status', isEqualTo: 'completed')
           .get();
 
-      // Requests this volunteer declined (pending → declined)
       final declinedSnap = await firestore
           .collection('help_requests')
           .where('declinedBy', arrayContains: volunteerId)
@@ -98,26 +101,27 @@ class _VolunteerHistoryPageState extends State<VolunteerHistoryPage>
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _buildHeader(),
-        _buildTabBar(),
-        Expanded(
-          child: _isLoading
-              ? _buildLoading()
-              : _errorMessage != null
-                  ? _buildError()
-                  : TabBarView(
-                      controller: _tabController,
-                      children: [
-                        _buildRequestList(
-                            _completedRequests, _HistoryType.completed),
-                        _buildRequestList(
-                            _declinedRequests, _HistoryType.declined),
-                      ],
-                    ),
-        ),
-      ],
+    return Container(
+      color: _kNavyDeep,
+      child: Column(
+        children: [
+          _buildHeader(),
+          _buildTabBar(),
+          Expanded(
+            child: _isLoading
+                ? _buildLoading()
+                : _errorMessage != null
+                    ? _buildError()
+                    : TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _buildRequestList(_completedRequests, _HistoryType.completed),
+                          _buildRequestList(_declinedRequests, _HistoryType.declined),
+                        ],
+                      ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -125,7 +129,7 @@ class _VolunteerHistoryPageState extends State<VolunteerHistoryPage>
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [_emeraldDark, _emerald],
+          colors: [_kPurple, _kNavyMid, _kNavyDeep],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -150,11 +154,10 @@ class _VolunteerHistoryPageState extends State<VolunteerHistoryPage>
             child: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
+                color: Colors.white.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.refresh_rounded,
-                  color: Colors.white, size: 20),
+              child: const Icon(Icons.refresh_rounded, color: Colors.white, size: 20),
             ),
           ),
         ],
@@ -164,19 +167,16 @@ class _VolunteerHistoryPageState extends State<VolunteerHistoryPage>
 
   Widget _buildTabBar() {
     return Container(
-      color: Colors.white,
+      color: _kNavyMid,
       child: TabBar(
         controller: _tabController,
-        indicatorColor: _emerald,
-        labelColor: _emerald,
-        unselectedLabelColor: Colors.grey.shade500,
-        labelStyle:
-            const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
+        indicatorColor: _kPinkBright,
+        labelColor: _kPinkBright,
+        unselectedLabelColor: Colors.white.withOpacity(0.5),
+        labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
         tabs: [
-          _tab(Icons.done_all_rounded, 'Completed',
-              _completedRequests.length, _emerald),
-          _tab(Icons.cancel_outlined, 'Declined',
-              _declinedRequests.length, Colors.red.shade500),
+          _tab(Icons.done_all_rounded, 'Completed', _completedRequests.length, const Color(0xFF6EE7B7)),
+          _tab(Icons.cancel_outlined, 'Declined', _declinedRequests.length, Colors.redAccent),
         ],
       ),
     );
@@ -201,10 +201,9 @@ class _VolunteerHistoryPageState extends State<VolunteerHistoryPage>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          CircularProgressIndicator(color: _emerald),
+          const CircularProgressIndicator(color: _kPinkBright),
           const SizedBox(height: 16),
-          Text('Loading history...',
-              style: TextStyle(color: Colors.grey.shade600)),
+          Text('Loading history...', style: TextStyle(color: Colors.white.withOpacity(0.6))),
         ],
       ),
     );
@@ -222,33 +221,31 @@ class _VolunteerHistoryPageState extends State<VolunteerHistoryPage>
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                  color: Colors.red.shade50, shape: BoxShape.circle),
-              child: Icon(Icons.error_outline_rounded,
-                  size: 52, color: Colors.red.shade400),
+                color: Colors.red.withOpacity(0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.error_outline_rounded, size: 52, color: Colors.redAccent),
             ),
             const SizedBox(height: 16),
-            Text(
+            const Text(
               'Something went wrong',
-              style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.red.shade700),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
             ),
             const SizedBox(height: 8),
-            Text(_errorMessage!,
-                textAlign: TextAlign.center,
-                style:
-                    TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+            Text(
+              _errorMessage!,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.6)),
+            ),
             const SizedBox(height: 20),
             ElevatedButton.icon(
               onPressed: _loadHistory,
               icon: const Icon(Icons.refresh_rounded),
               label: const Text('Try Again'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: _emerald,
+                backgroundColor: _kPinkBright,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
           ],
@@ -257,8 +254,7 @@ class _VolunteerHistoryPageState extends State<VolunteerHistoryPage>
     );
   }
 
-  Widget _buildRequestList(
-      List<HelpRequest> requests, _HistoryType type) {
+  Widget _buildRequestList(List<HelpRequest> requests, _HistoryType type) {
     if (requests.isEmpty) {
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -271,21 +267,22 @@ class _VolunteerHistoryPageState extends State<VolunteerHistoryPage>
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: type.color.withValues(alpha: 0.08),
+                  color: type.color.withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(type.icon,
-                    size: 56, color: type.color.withValues(alpha: 0.5)),
+                child: Icon(type.icon, size: 56, color: type.color.withOpacity(0.5)),
               ),
               const SizedBox(height: 20),
-              Text(type.emptyTitle,
-                  style: const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.bold)),
+              Text(
+                type.emptyTitle,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+              ),
               const SizedBox(height: 8),
-              Text(type.emptySubtitle,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                      fontSize: 13, color: Colors.grey.shade600)),
+              Text(
+                type.emptySubtitle,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.6)),
+              ),
             ],
           ),
         ],
@@ -296,8 +293,7 @@ class _VolunteerHistoryPageState extends State<VolunteerHistoryPage>
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       itemCount: requests.length,
-      itemBuilder: (context, index) =>
-          _buildHistoryCard(requests[index], type),
+      itemBuilder: (context, index) => _buildHistoryCard(requests[index], type),
     );
   }
 
@@ -310,113 +306,141 @@ class _VolunteerHistoryPageState extends State<VolunteerHistoryPage>
       onTap: () => _showRequestDetail(request, type),
       child: Container(
         margin: const EdgeInsets.only(bottom: 14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          border: Border(left: BorderSide(color: type.color, width: 5)),
-          boxShadow: [
-            BoxShadow(
-              color: type.color.withValues(alpha: 0.1),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: type.color.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(type.icon, color: type.color, size: 18),
+              // Left accent bar
+              Container(
+                width: 5,
+                decoration: BoxDecoration(
+                  color: type.color,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(18),
+                    bottomLeft: Radius.circular(18),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          request.requestType.toUpperCase(),
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 14),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        Text(
-                          request.blindUserName,
-                          style: TextStyle(
-                              fontSize: 12, color: Colors.grey.shade600),
-                        ),
-                      ],
-                    ),
-                  ),
-                  _statusBadge(type.label, type.color),
-                ],
+                ),
               ),
-              const SizedBox(height: 10),
-              Text(
-                request.description,
-                style:
-                    TextStyle(fontSize: 13, color: Colors.grey.shade700),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              if (myReason != null && myReason.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 6),
+              // Main card body
+              Expanded(
+                child: Container(
                   decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border:
-                        Border.all(color: Colors.red.shade100),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.comment_outlined,
-                          size: 13, color: Colors.red.shade400),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          myReason,
-                          style: TextStyle(
-                              fontSize: 12, color: Colors.red.shade700),
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                    color: _kCardFill,
+                    borderRadius: const BorderRadius.only(
+                      topRight: Radius.circular(18),
+                      bottomRight: Radius.circular(18),
+                    ),
+                    border: Border.all(color: Colors.white.withOpacity(0.12)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: type.color.withOpacity(0.25),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
                       ),
                     ],
                   ),
-                ),
-              ],
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Flexible(
-                    child: _cardChip(Icons.location_on_rounded,
-                        request.location, Colors.grey.shade600),
-                  ),
-                  const SizedBox(width: 8),
-                  if (request.preferredLanguage != null)
-                    _cardChip(
-                      Icons.language_rounded,
-                      _languageNames[request.preferredLanguage] ??
-                          request.preferredLanguage!,
-                      const Color(0xFF7C3AED),
+                  child: DefaultTextStyle.merge(
+                    style: const TextStyle(color: Colors.white),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: type.color.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Icon(type.icon, color: type.color, size: 18),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      request.requestType.toUpperCase(),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                        color: Colors.white,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    Text(
+                                      request.blindUserName,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.white.withOpacity(0.6),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              _statusBadge(type.label, type.color),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            request.description,
+                            style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.7)),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (myReason != null && myReason.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.red.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.red.withOpacity(0.3)),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.comment_outlined, size: 13, color: Colors.redAccent),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      myReason,
+                                      style: TextStyle(fontSize: 12, color: Colors.redAccent),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 10),
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                _cardChip(Icons.location_on_rounded, request.location, Colors.white60),
+                                const SizedBox(width: 8),
+                                if (request.preferredLanguage != null)
+                                  _cardChip(
+                                    Icons.language_rounded,
+                                    _languageNames[request.preferredLanguage] ?? request.preferredLanguage!,
+                                    _kBlueAccent,
+                                  ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  _formatDate(_dateForType(request, type)),
+                                  style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.4)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  const Spacer(),
-                  Text(
-                    _formatDate(_dateForType(request, type)),
-                    style: TextStyle(
-                        fontSize: 11, color: Colors.grey.shade400),
                   ),
-                ],
+                ),
               ),
             ],
           ),
@@ -438,9 +462,9 @@ class _VolunteerHistoryPageState extends State<VolunteerHistoryPage>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+        color: color.withOpacity(0.15),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        border: Border.all(color: color.withOpacity(0.4)),
       ),
       child: Text(
         label,
@@ -483,163 +507,140 @@ class _VolunteerHistoryPageState extends State<VolunteerHistoryPage>
       builder: (context) {
         return Container(
           decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius:
-                BorderRadius.vertical(top: Radius.circular(28)),
+            color: _kNavyMid,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                margin: const EdgeInsets.only(top: 12),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              Container(
-                margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [type.color, type.color.withValues(alpha: 0.7)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 12),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(2),
                   ),
-                  borderRadius: BorderRadius.circular(16),
                 ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.25),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child:
-                          Icon(type.icon, color: Colors.white, size: 22),
+                Container(
+                  margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [type.color, type.color.withOpacity(0.7)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            request.requestType.toUpperCase(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                          Text(
-                            'From: ${request.blindUserName}',
-                            style: TextStyle(
-                                color:
-                                    Colors.white.withValues(alpha: 0.85),
-                                fontSize: 12),
-                          ),
-                        ],
-                      ),
-                    ),
-                    _statusBadge(
-                      type.label,
-                      Colors.white.withValues(alpha: 0.9),
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    _detailRow(Icons.person_rounded, 'Name',
-                        request.blindUserName),
-                    _detailRow(Icons.phone_rounded, 'Phone',
-                        request.blindUserPhone),
-                    _detailRow(
-                        Icons.category_rounded, 'Type', request.requestType),
-                    _detailRow(Icons.location_on_rounded, 'Location',
-                        request.location),
-                    _detailRow(Icons.description_rounded, 'Description',
-                        request.description),
-                    if (request.preferredLanguage != null)
-                      _detailRow(
-                        Icons.language_rounded,
-                        'Language',
-                        _languageNames[request.preferredLanguage] ??
-                            request.preferredLanguage!,
-                      ),
-                    _detailRow(Icons.access_time_rounded, 'Requested',
-                        _formatDate(request.createdAt)),
-                    if (type == _HistoryType.completed &&
-                        request.completedAt != null)
-                      _detailRow(Icons.done_all_rounded, 'Completed',
-                          _formatDate(request.completedAt!)),
-                    if (myReason != null && myReason.isNotEmpty) ...[
-                      const SizedBox(height: 4),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    children: [
                       Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: Colors.red.shade50,
+                          color: Colors.white.withOpacity(0.25),
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.red.shade100),
                         ),
-                        child: Row(
+                        child: Icon(type.icon, color: Colors.white, size: 22),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(Icons.comment_outlined,
-                                size: 15, color: Colors.red.shade400),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Your decline reason',
-                                    style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.red.shade700),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    myReason,
-                                    style: TextStyle(
-                                        fontSize: 13,
-                                        color: Colors.red.shade700),
-                                  ),
-                                ],
+                            Text(
+                              request.requestType.toUpperCase(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
                               ),
+                            ),
+                            Text(
+                              'From: ${request.blindUserName}',
+                              style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 12),
                             ),
                           ],
                         ),
                       ),
+                      _statusBadge(type.label, Colors.white.withOpacity(0.9)),
                     ],
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: OutlinedButton.styleFrom(
-                          padding:
-                              const EdgeInsets.symmetric(vertical: 14),
-                          side: BorderSide(color: Colors.grey.shade300),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                        ),
-                        child: const Text('Close'),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
+                  ),
                 ),
-              ),
-            ],
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      _detailRow(Icons.person_rounded, 'Name', request.blindUserName),
+                      _detailRow(Icons.phone_rounded, 'Phone', request.blindUserPhone),
+                      _detailRow(Icons.category_rounded, 'Type', request.requestType),
+                      _detailRow(Icons.location_on_rounded, 'Location', request.location),
+                      _detailRow(Icons.description_rounded, 'Description', request.description),
+                      if (request.preferredLanguage != null)
+                        _detailRow(Icons.language_rounded, 'Language',
+                            _languageNames[request.preferredLanguage] ?? request.preferredLanguage!),
+                      _detailRow(Icons.access_time_rounded, 'Requested', _formatDate(request.createdAt)),
+                      if (type == _HistoryType.completed && request.completedAt != null)
+                        _detailRow(Icons.done_all_rounded, 'Completed', _formatDate(request.completedAt!)),
+                      if (myReason != null && myReason.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.red.withOpacity(0.3)),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(Icons.comment_outlined, size: 15, color: Colors.redAccent),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Your decline reason',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.redAccent,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      myReason,
+                                      style: TextStyle(fontSize: 13, color: Colors.redAccent),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            side: BorderSide(color: Colors.white.withOpacity(0.3)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: const Text('Close', style: TextStyle(color: Colors.white)),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -652,18 +653,17 @@ class _VolunteerHistoryPageState extends State<VolunteerHistoryPage>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 16, color: _emerald),
+          Icon(icon, size: 16, color: _kPinkBright),
           const SizedBox(width: 10),
           SizedBox(
             width: 80,
-            child: Text(label,
-                style: const TextStyle(
-                    fontWeight: FontWeight.w600, fontSize: 13)),
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.white70),
+            ),
           ),
           Expanded(
-            child: Text(value,
-                style: TextStyle(
-                    fontSize: 13, color: Colors.grey.shade700)),
+            child: Text(value, style: const TextStyle(fontSize: 13, color: Colors.white)),
           ),
         ],
       ),
@@ -684,9 +684,9 @@ enum _HistoryType {
   Color get color {
     switch (this) {
       case _HistoryType.completed:
-        return const Color(0xFF059669);
+        return const Color(0xFF6EE7B7);
       case _HistoryType.declined:
-        return Colors.red.shade500;
+        return Colors.redAccent;
     }
   }
 

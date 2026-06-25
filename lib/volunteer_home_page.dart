@@ -5,6 +5,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'login_page.dart';
 import 'volunteer_profile_page.dart';
 import 'volunteer_received_request.dart';
@@ -12,6 +14,26 @@ import 'volunteer_history_page.dart';
 import 'services/firebase_service.dart';
 import 'volunteer_training_page.dart';
 import 'services/notification_service.dart';
+
+// ── Shared palette from login page ─────────────────────────────────────────
+const Color _kNavyDeep = Color(0xFF120A2E);
+const Color _kNavyMid = Color(0xFF1E1147);
+const Color _kPurple = Color(0xFF3B1E78);
+const Color _kPinkBright = Color(0xFFFF5FD2);
+const Color _kBlueAccent = Color(0xFF4A90E2);
+const Color _kCardFill = Color(0xFF241A45);
+
+const LinearGradient _kSkyGradient = LinearGradient(
+  begin: Alignment.topCenter,
+  end: Alignment.bottomCenter,
+  colors: [_kNavyDeep, _kNavyMid, _kPurple],
+);
+
+const LinearGradient _kAccentGradient = LinearGradient(
+  begin: Alignment.topLeft,
+  end: Alignment.bottomRight,
+  colors: [_kPinkBright, Color(0xFF9B59B6), _kBlueAccent],
+);
 
 class VolunteerHomePage extends StatefulWidget {
   final String userName;
@@ -31,6 +53,8 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
   bool _isTogglingAvailability = false;
   String _locationText = 'Not set';
   DateTime? _locationLastUpdated;
+  double? _currentLat;
+  double? _currentLng;
   late StreamSubscription<QuerySnapshot> _helpRequestsSubscription;
 
   // Stats
@@ -39,26 +63,14 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
   int _completedCount = 0;
   int _declinedCount = 0;
   bool _isLoadingStats = true;
-  // Training progress state
   int _trainingProgress = 0;
 
-  // Volunteer matching data (for counting pending requests)
+  // Volunteer matching data
   List<String> _volunteerSpecialties = [];
   List<String> _volunteerLanguages = ['english'];
 
-  // Profile data for profile tab
-  String _profilePhone = '';
-  List<String> _profileLanguages = [];
-  List<String> _profileSpecialties = [];
-  String _profileAvailability = '';
-
-  static const _emerald = Color(0xFF059669);
-  static const _emeraldDark = Color(0xFF047857);
-  static const _emeraldLight = Color(0xFFD1FAE5);
-  static const _mintBg = Color(0xFFF0FDF4);
-
   String? get _uid => FirebaseAuth.instance.currentUser?.uid;
-  
+
   String _trainingSubtitle() {
     if (_trainingProgress >= 4) return 'Training complete ✓';
     if (_trainingProgress == 0) return 'Start your induction training';
@@ -73,50 +85,45 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
   }
 
   void _setupRealtimeStats() {
-  final uid = _uid;
-  if (uid == null) return;
+    final uid = _uid;
+    if (uid == null) return;
 
-  bool isFirstLoad = true;
+    bool isFirstLoad = true;
 
-  _helpRequestsSubscription = FirebaseFirestore.instance
-      .collection('help_requests')
-      .snapshots()
-      .listen((snapshot) {
-        _updateStatsFromSnapshot(snapshot);
+    _helpRequestsSubscription = FirebaseFirestore.instance
+        .collection('help_requests')
+        .snapshots()
+        .listen((snapshot) {
+      _updateStatsFromSnapshot(snapshot);
 
-        // Skip notifications on first load — only fire for NEW requests
-        if (isFirstLoad) {
-          isFirstLoad = false;
-          return;
-        }
+      if (isFirstLoad) {
+        isFirstLoad = false;
+        return;
+      }
 
-        // Check for newly added pending requests
-        for (var change in snapshot.docChanges) {
-          if (change.type == DocumentChangeType.added) {
-            final data = change.doc.data() as Map<String, dynamic>;
-            final status = (data['status'] ?? '').toString().toLowerCase();
-            final volunteerId = data['volunteerId'];
+      for (var change in snapshot.docChanges) {
+        if (change.type == DocumentChangeType.added) {
+          final data = change.doc.data() as Map<String, dynamic>;
+          final status = (data['status'] ?? '').toString().toLowerCase();
+          final volunteerId = data['volunteerId'];
 
-            // Only notify if request is pending and unassigned
-            if (status == 'pending' &&
-                (volunteerId == null || volunteerId.toString().isEmpty)) {
-              final requestType =
-                  (data['requestType'] ?? 'help').toString();
-              final blindUserName =
-                  (data['blindUserName'] ?? 'A blind user').toString();
-              final location =
-                  (data['location'] ?? 'nearby').toString();
+          if (status == 'pending' &&
+              (volunteerId == null || volunteerId.toString().isEmpty)) {
+            final requestType = (data['requestType'] ?? 'help').toString();
+            final blindUserName =
+                (data['blindUserName'] ?? 'A blind user').toString();
+            final location = (data['location'] ?? 'nearby').toString();
 
-              NotificationService().showHelpRequestNotification(
-                blindUserName: blindUserName,
-                requestType: requestType,
-                location: location,
-              );
-            }
+            NotificationService().showHelpRequestNotification(
+              blindUserName: blindUserName,
+              requestType: requestType,
+              location: location,
+            );
           }
         }
-      });
-}
+      }
+    });
+  }
 
   void _updateStatsFromSnapshot(QuerySnapshot snapshot) {
     final uid = _uid;
@@ -132,8 +139,7 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
       final rawStatus = data['status'] ?? '';
       final status = rawStatus.toString().toLowerCase();
 
-      final volunteerField =
-          data['volunteerId'] ??
+      final volunteerField = data['volunteerId'] ??
           data['volunteer'] ??
           data['assignedVolunteerId'];
       String? volunteerIdStr;
@@ -147,15 +153,23 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
       final declinedBy = List<String>.from(data['declinedBy'] ?? []);
       if (declinedBy.contains(uid)) declined++;
 
-      if (status == 'accepted' || status == 'assigned' || status == 'in_progress') {
+      if (status == 'accepted' ||
+          status == 'assigned' ||
+          status == 'in_progress') {
         if (isAssignedToMe) accepted++;
-      } else if (status == 'completed' || status == 'done' || status == 'finished') {
+      } else if (status == 'completed' ||
+          status == 'done' ||
+          status == 'finished') {
         if (isAssignedToMe) completed++;
-      } else if (status == 'pending' || status == 'awaiting' || status == 'requested') {
+      } else if (status == 'pending' ||
+          status == 'awaiting' ||
+          status == 'requested') {
         final isUnassigned = volunteerIdStr == null || volunteerIdStr.isEmpty;
         if (isUnassigned) {
-          final requestType = (data['requestType'] ?? '').toString().toLowerCase();
-          final requestLanguage = (data['preferredLanguage'] ?? 'english').toString().toLowerCase();
+          final requestType =
+              (data['requestType'] ?? '').toString().toLowerCase();
+          final requestLanguage =
+              (data['preferredLanguage'] ?? 'english').toString().toLowerCase();
           if (_volunteerSpecialties.contains(requestType) &&
               _volunteerLanguages.contains(requestLanguage)) {
             pending++;
@@ -215,16 +229,6 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
 
       setState(() {
         _isAvailable = data['isAvailable'] ?? true;
-        _profilePhone = data['phoneNumber'] ?? '';
-        if (rawLang is List) {
-          _profileLanguages = List<String>.from(rawLang);
-        } else if (rawLang is String && rawLang.isNotEmpty) {
-          _profileLanguages = [rawLang];
-        } else {
-          _profileLanguages = [];
-        }
-        _profileSpecialties = List<String>.from(data['specialties'] ?? []);
-        _profileAvailability = data['availability'] ?? '';
         if (savedAddress != null && savedAddress.isNotEmpty) {
           _locationText = savedAddress;
         } else if (geoPoint != null) {
@@ -232,6 +236,11 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
               '${geoPoint.latitude.toStringAsFixed(5)}, ${geoPoint.longitude.toStringAsFixed(5)}';
         }
         _locationLastUpdated = updatedAt?.toDate();
+
+        if (geoPoint != null) {
+          _currentLat = geoPoint.latitude;
+          _currentLng = geoPoint.longitude;
+        }
       });
     } catch (_) {}
   }
@@ -291,6 +300,8 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
         setState(() {
           _locationText = address;
           _locationLastUpdated = DateTime.now();
+          _currentLat = position.latitude;
+          _currentLng = position.longitude;
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -359,11 +370,6 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
     return '${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}';
   }
 
-  Future<void> _refreshAllData() async {
-    await _loadVolunteerData();
-    setState(() {});
-  }
-
   Future<Map<String, dynamic>> _getVolunteerRatingData() async {
     final uid = _uid;
     if (uid == null) return {'averageRating': 0.0, 'totalRatings': 0};
@@ -418,7 +424,7 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _mintBg,
+      backgroundColor: _kNavyDeep,
       body: Column(
         children: [
           _buildHeader(),
@@ -429,7 +435,7 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
                 _buildHomePage(),
                 const VolunteerReceivedRequestsScreen(),
                 const VolunteerHistoryPage(),
-                _buildProfilePage(),
+                const SizedBox.shrink(),
               ],
             ),
           ),
@@ -443,7 +449,7 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF047857), Color(0xFF059669)],
+          colors: [_kPurple, _kNavyMid, _kNavyDeep],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -458,15 +464,29 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'BlindFriend',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.5,
-                      ),
+                    const Row(
+                      children: [
+                        Text(
+                          'Blind',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        Text(
+                          'Friend',
+                          style: TextStyle(
+                            color: _kPinkBright,
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
                     ),
+                    const SizedBox(height: 4),
                     Row(
                       children: [
                         Container(
@@ -475,15 +495,27 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
                           decoration: BoxDecoration(
                             color: _isAvailable
                                 ? const Color(0xFF6EE7B7)
-                                : Colors.grey.shade400,
+                                : Colors.grey.shade600,
                             shape: BoxShape.circle,
+                            boxShadow: _isAvailable
+                                ? [
+                                    BoxShadow(
+                                      color: const Color(0xFF6EE7B7)
+                                          .withOpacity(0.6),
+                                      blurRadius: 6,
+                                      spreadRadius: 1,
+                                    ),
+                                  ]
+                                : null,
                           ),
                         ),
                         const SizedBox(width: 5),
                         Text(
                           _isAvailable ? 'Available' : 'Unavailable',
-                          style: const TextStyle(
-                            color: Color(0xFFBBF7D0),
+                          style: TextStyle(
+                            color: _isAvailable
+                                ? const Color(0xFF6EE7B7)
+                                : Colors.grey.shade500,
                             fontSize: 12,
                           ),
                         ),
@@ -508,7 +540,7 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
                       const Text(
                         'Volunteer',
                         style: TextStyle(
-                          color: Color(0xFFBBF7D0),
+                          color: _kPinkBright,
                           fontSize: 11,
                         ),
                       ),
@@ -526,7 +558,7 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
                     },
                     icon: Icon(
                       Icons.logout,
-                      color: Colors.white.withValues(alpha: 0.85),
+                      color: Colors.white.withOpacity(0.85),
                     ),
                   ),
                 ],
@@ -548,11 +580,11 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _kNavyMid,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
+            color: Colors.black.withOpacity(0.3),
             blurRadius: 18,
             offset: const Offset(0, -4),
           ),
@@ -567,15 +599,35 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
               final isSelected = _selectedIndex == i;
               final icon = navItems[i]['icon'] as IconData;
               final label = navItems[i]['label'] as String;
+
               return Expanded(
                 child: GestureDetector(
-                  onTap: () => setState(() => _selectedIndex = i),
+                  onTap: () {
+                    if (i == 3) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const VolunteerProfilePage(),
+                        ),
+                      ).then((_) {
+                        _loadVolunteerData();
+                        FirebaseFirestore.instance
+                            .collection('help_requests')
+                            .get()
+                            .then((snapshot) {
+                          _updateStatsFromSnapshot(snapshot);
+                        });
+                      });
+                    } else {
+                      setState(() => _selectedIndex = i);
+                    }
+                  },
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? _emerald.withValues(alpha: 0.1)
+                          ? _kPinkBright.withOpacity(0.15)
                           : Colors.transparent,
                       borderRadius: BorderRadius.circular(14),
                     ),
@@ -584,7 +636,9 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
                       children: [
                         Icon(
                           icon,
-                          color: isSelected ? _emerald : Colors.grey.shade400,
+                          color: isSelected
+                              ? _kPinkBright
+                              : Colors.grey.shade500,
                           size: 24,
                         ),
                         const SizedBox(height: 3),
@@ -592,7 +646,9 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
                           label,
                           style: TextStyle(
                             fontSize: 11,
-                            color: isSelected ? _emerald : Colors.grey.shade500,
+                            color: isSelected
+                                ? _kPinkBright
+                                : Colors.grey.shade600,
                             fontWeight: isSelected
                                 ? FontWeight.w600
                                 : FontWeight.normal,
@@ -610,1238 +666,728 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
     );
   }
 
-  // ── Home tab ──────────────────────────────────────────────────────────
-
   Widget _buildHomePage() {
-  return RefreshIndicator(
-    onRefresh: () async {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('help_requests')
-          .get();
-      _updateStatsFromSnapshot(snapshot);
-      await _loadVolunteerData();
-    },
-    color: _emerald,
-    child: SingleChildScrollView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-      child: Column(
-        children: [
-          _buildWelcomeBanner(),
-          const SizedBox(height: 16),
-          
-          // ⭐ Rating Summary Card
-          _buildRatingCard(),
-          const SizedBox(height: 16),
-          
-          Row(
-            children: [
-              Expanded(child: _buildAvailabilityCard()),
-              const SizedBox(width: 12),
-              Expanded(child: _buildLocationMiniCard()),
-            ],
+    return RefreshIndicator(
+      onRefresh: () async {
+        final snapshot = await FirebaseFirestore.instance
+            .collection('help_requests')
+            .get();
+        _updateStatsFromSnapshot(snapshot);
+        await _loadVolunteerData();
+      },
+      color: _kPinkBright,
+      backgroundColor: _kNavyMid,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
+          children: [
+            _buildMapSection(),
+            _buildActionGrid(),
+            const SizedBox(height: 12),
+            _buildFeedbackPreview(),
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMapSection() {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final mapHeight = screenHeight * 0.42;
+
+    return Container(
+      height: mapHeight,
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        boxShadow: [
+          BoxShadow(
+            color: _kPinkBright.withOpacity(0.15),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
           ),
-          const SizedBox(height: 16),
-          _buildLocationFullCard(),
-          const SizedBox(height: 16),
-          _buildStatsRow(),
-          const SizedBox(height: 16),
-          
-          // ⭐ NEW: Individual Feedback Section
-          _buildIndividualFeedbackSection(),
-          const SizedBox(height: 16),
-          
-          _buildQuickActions(),
-          const SizedBox(height: 24),
         ],
       ),
-    ),
-  );
-}
-
-  // ⭐ NEW RATING CARD WIDGET
-  Widget _buildRatingCard() {
-    return FutureBuilder<Map<String, dynamic>>(
-      future: _getVolunteerRatingData(),
-      builder: (context, snapshot) {
-        return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Colors.amber.shade700, Colors.amber.shade500],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.amber.withValues(alpha: 0.3),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(14),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Stack(
+          children: [
+            if (_currentLat != null && _currentLng != null)
+              FlutterMap(
+                options: MapOptions(
+                  initialCenter: LatLng(_currentLat!, _currentLng!),
+                  initialZoom: 15.0,
+                  interactionOptions: const InteractionOptions(
+                    flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag,
+                  ),
                 ),
-                child: const Icon(
-                  Icons.star_rate_rounded,
-                  color: Colors.white,
-                  size: 28,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Your Rating',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
+                children: [
+                  TileLayer(
+                    urlTemplate:
+                        'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+                    subdomains: const ['a', 'b', 'c', 'd'],
+                    userAgentPackageName: 'com.blindfriend.app',
+                  ),
+                  MarkerLayer(
+                    markers: [
+                      Marker(
+                        point: LatLng(_currentLat!, _currentLng!),
+                        width: 40,
+                        height: 40,
+                        child: _buildLocationMarker(),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    if (snapshot.connectionState == ConnectionState.waiting)
-                      const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    else if (snapshot.hasData && snapshot.data!['totalRatings'] > 0)
-                      Row(
-                        children: [
-                          ...List.generate(5, (index) {
-                            final avgRating = snapshot.data!['averageRating'] as double;
-                            if (index < avgRating.floor()) {
-                              return const Icon(Icons.star, color: Colors.white, size: 20);
-                            } else if (index < avgRating && avgRating - index >= 0.5) {
-                              return const Icon(Icons.star_half, color: Colors.white, size: 20);
-                            } else {
-                              return const Icon(Icons.star_border, color: Colors.white, size: 20);
-                            }
-                          }),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${snapshot.data!['averageRating'].toStringAsFixed(1)}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '(${snapshot.data!['totalRatings']})',
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.8),
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      )
-                    else
-                      const Text(
-                        'No ratings yet',
+                    ],
+                  ),
+                ],
+              )
+            else
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      _kBlueAccent.withOpacity(0.2),
+                      _kCardFill,
+                    ],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ),
+                ),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.map_outlined,
+                        size: 48,
+                        color: Colors.white.withOpacity(0.4),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'No location set',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: Colors.white.withOpacity(0.6),
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Tap "Update GPS" below',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.4),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            Positioned(
+              top: 12,
+              left: 12,
+              child: _buildMapBadge(
+                icon: Icons.star_rounded,
+                label: _buildRatingBadgeLabel(),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFFFD700), Color(0xFFFFA000)],
+                ),
+              ),
+            ),
+            if (_pendingCount > 0)
+              Positioned(
+                top: 12,
+                right: 12,
+                child: _buildMapBadge(
+                  icon: Icons.notifications_active_rounded,
+                  label: Text(
+                    '$_pendingCount pending',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                  gradient: const LinearGradient(
+                    colors: [Colors.orange, Colors.deepOrange],
+                  ),
+                  showPulse: true,
+                ),
+              ),
+            Positioned(
+              bottom: 8,
+              left: 8,
+              right: 8,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.location_on,
+                        color: _kPinkBright, size: 16),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        _locationText,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                    ),
                   ],
                 ),
               ),
-              Icon(
-                Icons.arrow_forward_ios_rounded,
-                color: Colors.white.withValues(alpha: 0.7),
-                size: 16,
-              ),
-            ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRatingBadgeLabel() {
+    return FutureBuilder<Map<String, dynamic>>(
+      future: _getVolunteerRatingData(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.white,
+            ),
+          );
+        }
+        if (snapshot.hasData && snapshot.data!['totalRatings'] > 0) {
+          final avg =
+              (snapshot.data!['averageRating'] as double).toStringAsFixed(1);
+          return Text(
+            avg,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+            ),
+          );
+        }
+        return const Text(
+          'New',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 12,
           ),
         );
       },
     );
   }
 
-  Widget _buildWelcomeBanner() {
+  Widget _buildMapBadge({
+    required IconData icon,
+    required Widget label,
+    required LinearGradient gradient,
+    bool showPulse = false,
+  }) {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF047857), Color(0xFF059669)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(24),
+        gradient: gradient,
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: _emerald.withValues(alpha: 0.3),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
+            color: (gradient.colors.first).withOpacity(0.5),
+            blurRadius: 12,
+            spreadRadius: 1,
           ),
         ],
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Good day,',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.8),
-                    fontSize: 13,
+          Icon(icon, color: Colors.white, size: 16),
+          const SizedBox(width: 6),
+          label,
+          if (showPulse) ...[
+            const SizedBox(width: 6),
+            _PulsingDot(),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLocationMarker() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 24,
+          height: 24,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: _kAccentGradient,
+            boxShadow: [
+              BoxShadow(
+                color: _kPinkBright.withOpacity(0.6),
+                blurRadius: 12,
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: const Icon(Icons.circle, size: 12, color: Colors.white),
+        ),
+        Container(
+          width: 2,
+          height: 16,
+          color: Colors.white.withOpacity(0.8),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActionGrid() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final padding = 16.0;
+    final spacing = 12.0;
+    final squareSize = (screenWidth - padding * 2 - spacing) / 2;
+
+    final actions = [
+      {
+        'icon': Icons.gps_fixed_rounded,
+        'label': 'Update\nGPS',
+        'color': const Color(0xFF4A90E2),
+        'onTap': _isUpdatingLocation ? null : _updateLocation,
+      },
+      {
+        'icon': _isAvailable
+            ? Icons.toggle_on_rounded
+            : Icons.toggle_off_rounded,
+        'label': _isAvailable ? 'Online' : 'Offline',
+        'color': _isAvailable ? const Color(0xFF6EE7B7) : Colors.grey,
+        'onTap': _isTogglingAvailability ? null : _toggleAvailability,
+      },
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        children: [
+          Row(
+            children: actions.map((action) {
+              final label = action['label'] as String;
+              final icon = action['icon'] as IconData;
+              final color = action['color'] as Color;
+              final onTap = action['onTap'] as VoidCallback?;
+
+              final isLoading = (label.contains('GPS') && _isUpdatingLocation) ||
+                  (label.contains('Online') && _isTogglingAvailability) ||
+                  (label.contains('Offline') && _isTogglingAvailability);
+
+              return Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    right: action == actions.first ? spacing / 2 : 0,
+                    left: action == actions.last ? spacing / 2 : 0,
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  widget.userName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
+                  child: GestureDetector(
+                    onTap: isLoading ? null : onTap,
+                    child: Container(
+                      height: squareSize,
+                      padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: _isAvailable
-                            ? const Color(0xFF6EE7B7)
-                            : Colors.grey.shade300,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      _isAvailable
-                          ? 'Available for help requests'
-                          : 'Not accepting requests',
-                      style: const TextStyle(
-                        color: Color(0xFFBBF7D0),
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.volunteer_activism_rounded,
-              color: Colors.white,
-              size: 32,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAvailabilityCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: _isAvailable
-              ? _emerald.withValues(alpha: 0.3)
-              : Colors.grey.shade200,
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: _isAvailable
-                ? _emerald.withValues(alpha: 0.08)
-                : Colors.black.withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: _isAvailable ? _emeraldLight : Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  _isAvailable
-                      ? Icons.wifi_tethering_rounded
-                      : Icons.wifi_tethering_off_rounded,
-                  color: _isAvailable ? _emerald : Colors.grey.shade500,
-                  size: 18,
-                ),
-              ),
-              const Spacer(),
-              _isTogglingAvailability
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : GestureDetector(
-                      onTap: _toggleAvailability,
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 250),
-                        width: 40,
-                        height: 22,
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          color: _isAvailable ? _emerald : Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(11),
-                        ),
-                        child: AnimatedAlign(
-                          duration: const Duration(milliseconds: 250),
-                          alignment: _isAvailable
-                              ? Alignment.centerRight
-                              : Alignment.centerLeft,
-                          child: Container(
-                            width: 18,
-                            height: 18,
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                            ),
+                        color: _kCardFill.withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(20),
+                        border:
+                            Border.all(color: Colors.white.withOpacity(0.08)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: color.withOpacity(0.2),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
                           ),
-                        ),
+                        ],
                       ),
-                    ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            _isAvailable ? 'Available' : 'Unavailable',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-              color: _isAvailable ? _emeraldDark : Colors.grey.shade700,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            _isAvailable ? 'Accepting requests' : 'Not accepting',
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLocationMiniCard() {
-    final hasLocation = _locationText != 'Not set';
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: hasLocation
-              ? const Color(0xFF7C3AED).withValues(alpha: 0.25)
-              : Colors.grey.shade200,
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: hasLocation
-                      ? const Color(0xFFEDE9FE)
-                      : Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  hasLocation
-                      ? Icons.location_on_rounded
-                      : Icons.location_off_rounded,
-                  color: hasLocation
-                      ? const Color(0xFF7C3AED)
-                      : Colors.grey.shade500,
-                  size: 18,
-                ),
-              ),
-              const Spacer(),
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: hasLocation
-                      ? const Color(0xFF7C3AED)
-                      : Colors.grey.shade300,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          const Text(
-            'Location',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            _formatLastUpdated(),
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLocationFullCard() {
-    final hasLocation = _locationText != 'Not set';
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.my_location_rounded,
-                color: Color(0xFF7C3AED),
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              const Text(
-                'Your Location',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-              ),
-              const Spacer(),
-              _isUpdatingLocation
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : GestureDetector(
-                      onTap: _updateLocation,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 7,
-                        ),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF7C3AED), Color(0xFF9F67FA)],
-                          ),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.gps_fixed_rounded,
-                              color: Colors.white,
-                              size: 13,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (isLoading)
+                            const SizedBox(
+                              width: 30,
+                              height: 30,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: _kPinkBright,
+                              ),
+                            )
+                          else
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    color.withOpacity(0.2),
+                                    color.withOpacity(0.05),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: color.withOpacity(0.4),
+                                  width: 1.5,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: color.withOpacity(0.3),
+                                    blurRadius: 8,
+                                    spreadRadius: 1,
+                                  ),
+                                ],
+                              ),
+                              child: Icon(icon, color: color, size: 28),
                             ),
-                            SizedBox(width: 5),
-                            Text(
-                              'Update GPS',
-                              style: TextStyle(
+                          const SizedBox(height: 10),
+                          Flexible(
+                            child: Text(
+                              label.split('\n')[0],
+                              style: const TextStyle(
                                 color: Colors.white,
-                                fontSize: 12,
                                 fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                              textAlign: TextAlign.center,
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
+                          ),
+                          if (label.contains('\n')) ...[
+                            const SizedBox(height: 2),
+                            Flexible(
+                              child: Text(
+                                label.split('\n')[1],
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.5),
+                                  fontSize: 10,
+                                ),
+                                textAlign: TextAlign.center,
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
                               ),
                             ),
                           ],
-                        ),
+                        ],
                       ),
-                    ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: hasLocation
-                  ? const Color(0xFFEDE9FE)
-                  : Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  hasLocation
-                      ? Icons.location_on_rounded
-                      : Icons.location_searching_rounded,
-                  color: hasLocation
-                      ? const Color(0xFF7C3AED)
-                      : Colors.grey.shade400,
-                  size: 18,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    _locationText,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: hasLocation
-                          ? const Color(0xFF5B21B6)
-                          : Colors.grey.shade500,
                     ),
                   ),
                 ),
-                if (hasLocation)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.check_circle_rounded,
-                        size: 14,
-                        color: Color(0xFF059669),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Shared',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                    ],
-                  ),
-              ],
-            ),
+              );
+            }).toList(),
           ),
-          if (!hasLocation) ...[
-            const SizedBox(height: 8),
-            Text(
-              'Tap "Update GPS" to share your location with nearby blind users.',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-            ),
-          ],
+          const SizedBox(height: 12),
+          _buildTrainingCard(),
         ],
       ),
     );
   }
 
-  Widget _buildStatsRow() {
-    if (_isLoadingStats) {
-      return Column(
-        children: [
-          Row(
-            children: [
-              _buildStatItem('Pending', '...', Icons.pending_actions_rounded, Colors.orange),
-              const SizedBox(width: 10),
-              _buildStatItem('Accepted', '...', Icons.check_circle_outline_rounded, Colors.blue),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              _buildStatItem('Done', '...', Icons.verified_rounded, _emerald),
-              const SizedBox(width: 10),
-              _buildStatItem('Declined', '...', Icons.cancel_outlined, Colors.red.shade500),
-            ],
-          ),
-        ],
-      );
-    }
+  Widget _buildTrainingCard() {
+    final trainingSubtitle = _trainingSubtitle();
+    final isComplete = _trainingProgress >= 4;
 
-    return Column(
-      children: [
-        Row(
-          children: [
-            _buildStatItem('Pending', _pendingCount.toString(), Icons.pending_actions_rounded, Colors.orange),
-            const SizedBox(width: 10),
-            _buildStatItem('Accepted', _acceptedCount.toString(), Icons.check_circle_outline_rounded, Colors.blue),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            _buildStatItem('Done', _completedCount.toString(), Icons.verified_rounded, _emerald),
-            const SizedBox(width: 10),
-            _buildStatItem('Declined', _declinedCount.toString(), Icons.cancel_outlined, Colors.red.shade500),
-          ],
-        ),
-      ],
-    );
-  }
-// Add this new method to fetch individual feedback
-Future<List<Map<String, dynamic>>> _getIndividualFeedback() async {
-  final uid = _uid;
-  if (uid == null) return [];
-  
-  try {
-    // Remove orderBy completely - just filter by volunteerId
-    final snapshot = await FirebaseFirestore.instance
-        .collection('help_requests')
-        .where('volunteerId', isEqualTo: uid)
-        .get();
-    
-    final feedbacks = <Map<String, dynamic>>[];
-    
-    for (var doc in snapshot.docs) {
-      final data = doc.data();
-      final rating = data['rating'] ?? 0;
-      
-      // Only include if rating > 0
-      if (rating > 0) {
-        feedbacks.add({
-          'rating': rating,
-          'comment': data['feedbackComment'] ?? '',
-          'blindUserName': data['blindUserName'] ?? 'Anonymous',
-          'requestType': data['requestType'] ?? 'help',
-          'ratedAt': data['ratedAt'] as Timestamp?,
-        });
-      }
-    }
-    
-    // Sort in memory instead of using orderBy
-    feedbacks.sort((a, b) {
-      final aDate = a['ratedAt'] as Timestamp?;
-      final bDate = b['ratedAt'] as Timestamp?;
-      if (aDate == null && bDate == null) return 0;
-      if (aDate == null) return 1;
-      if (bDate == null) return -1;
-      return bDate.toDate().compareTo(aDate.toDate()); // Descending
-    });
-    
-    return feedbacks;
-  } catch (e) {
-    print('Error fetching feedback: $e');
-    return [];
-  }
-}
-
-// Add this to _buildHomePage() - right after _buildStatsRow()
-Widget _buildIndividualFeedbackSection() {
-  return FutureBuilder<List<Map<String, dynamic>>>(
-    future: _getIndividualFeedback(),
-    builder: (context, snapshot) {
-      if (snapshot.connectionState == ConnectionState.waiting) {
-        return Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: const Center(child: CircularProgressIndicator()),
+    return GestureDetector(
+      onTap: () async {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const VolunteerTrainingPage()),
         );
-      }
-      
-      if (snapshot.hasError || snapshot.data == null || snapshot.data!.isEmpty) {
-        return Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              Icon(Icons.comment_outlined, size: 48, color: Colors.grey.shade400),
-              const SizedBox(height: 12),
-              Text(
-                'No feedback yet',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.grey.shade600,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'When blind users rate you, their comments will appear here',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        );
-      }
-      
-      final feedbacks = snapshot.data!;
-      
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.feedback_rounded, color: _emerald, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                'Individual Feedback (${feedbacks.length})',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          ...feedbacks.map((feedback) => _buildFeedbackCard(feedback)),
-        ],
-      );
-    },
-  );
-}
-
-Widget _buildFeedbackCard(Map<String, dynamic> feedback) {
-  final rating = feedback['rating'] as int;
-  final comment = feedback['comment'] as String;
-  final blindUserName = feedback['blindUserName'] as String;
-  final requestType = feedback['requestType'] as String;
-  final ratedAt = feedback['ratedAt'] as Timestamp?;
-  
-  return Container(
-    margin: const EdgeInsets.only(bottom: 12),
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: Colors.grey.shade200),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withValues(alpha: 0.02),
-          blurRadius: 4,
-          offset: const Offset(0, 2),
-        ),
-      ],
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.amber.shade100,
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: Text(
-                  blindUserName.isNotEmpty ? blindUserName[0].toUpperCase() : 'U',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: Colors.amber.shade800,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    blindUserName,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: List.generate(5, (index) {
-                      return Icon(
-                        index < rating ? Icons.star : Icons.star_border,
-                        size: 16,
-                        color: Colors.amber,
-                      );
-                    }),
-                  ),
-                ],
-              ),
-            ),
-            if (ratedAt != null)
-              Text(
-                _formatDate(ratedAt.toDate()),
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Colors.grey.shade500,
-                ),
-              ),
-          ],
-        ),
-        if (comment.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              comment,
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.grey.shade700,
-                height: 1.4,
-              ),
-            ),
-          ),
-        ],
-        const SizedBox(height: 8),
-        Text(
-          'Request: $requestType',
-          style: TextStyle(
-            fontSize: 11,
-            color: Colors.grey.shade500,
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
-String _formatDate(DateTime date) {
-  return '${date.day}/${date.month}/${date.year}';
-}
-  Widget _buildStatItem(String label, String value, IconData icon, Color color) {
-    return Expanded(
+        _loadVolunteerData();
+      },
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 10),
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
+          gradient: LinearGradient(
+            colors: isComplete
+                ? [
+                    const Color(0xFF6EE7B7).withOpacity(0.15),
+                    _kCardFill.withOpacity(0.7)
+                  ]
+                : [
+                    const Color(0xFFF59E0B).withOpacity(0.15),
+                    _kCardFill.withOpacity(0.7)
+                  ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isComplete
+                ? const Color(0xFF6EE7B7).withOpacity(0.3)
+                : const Color(0xFFF59E0B).withOpacity(0.3),
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+              color: isComplete
+                  ? const Color(0xFF6EE7B7).withOpacity(0.15)
+                  : const Color(0xFFF59E0B).withOpacity(0.15),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
             ),
           ],
-        ),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: color, size: 20),
-            ),
-            const SizedBox(height: 8),
-            Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 2),
-            Text(label, style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildQuickActions() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Quick Actions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          const SizedBox(height: 14),
-          _buildActionTile(
-            icon: Icons.handshake_outlined,
-            iconColor: Colors.blue.shade600,
-            iconBg: Colors.blue.shade50,
-            title: 'View Help Requests',
-            subtitle: 'See requests from blind users',
-            onTap: () => setState(() => _selectedIndex = 1),
-          ),
-          const SizedBox(height: 10),
-          _buildActionTile(
-            icon: Icons.history_rounded,
-            iconColor: Colors.purple.shade600,
-            iconBg: Colors.purple.shade50,
-            title: 'My History',
-            subtitle: 'View completed & declined requests',
-            onTap: () => setState(() => _selectedIndex = 2),
-          ),
-          const SizedBox(height: 10),
-          _buildActionTile(
-            icon: Icons.person_rounded,
-            iconColor: _emerald,
-            iconBg: _emeraldLight,
-            title: 'My Profile',
-            subtitle: 'Update your information',
-            onTap: () => setState(() => _selectedIndex = 3),
-          ),
-          _buildActionTile(
-            icon: Icons.school_rounded,
-            iconColor: const Color(0xFFF59E0B),
-            iconBg: const Color(0xFFFFFBEB),
-            title: 'Induction Training',
-            subtitle: _trainingSubtitle(),
-            onTap: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const VolunteerTrainingPage()),
-              );
-              _loadVolunteerData();
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionTile({
-    required IconData icon,
-    required Color iconColor,
-    required Color iconBg,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.grey.shade50,
-          borderRadius: BorderRadius.circular(14),
         ),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: iconBg,
-                borderRadius: BorderRadius.circular(12),
+                gradient: LinearGradient(
+                  colors: isComplete
+                      ? [const Color(0xFF6EE7B7), const Color(0xFF34D399)]
+                      : [const Color(0xFFF59E0B), const Color(0xFFF97316)],
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: isComplete
+                        ? const Color(0xFF6EE7B7).withOpacity(0.4)
+                        : const Color(0xFFF59E0B).withOpacity(0.4),
+                    blurRadius: 10,
+                    spreadRadius: 1,
+                  ),
+                ],
               ),
-              child: Icon(icon, color: iconColor, size: 22),
+              child: Icon(
+                isComplete ? Icons.verified_rounded : Icons.school_rounded,
+                color: Colors.white,
+                size: 28,
+              ),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                  Text(subtitle, style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                  const Text(
+                    'Induction Training',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    trainingSubtitle,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.6),
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: _trainingProgress / 4,
+                      backgroundColor: Colors.white.withOpacity(0.1),
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        isComplete
+                            ? const Color(0xFF6EE7B7)
+                            : const Color(0xFFF59E0B),
+                      ),
+                      minHeight: 6,
+                    ),
+                  ),
                 ],
               ),
             ),
-            Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400, size: 20),
+            const SizedBox(width: 12),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.arrow_forward_rounded,
+                color: Colors.white.withOpacity(0.7),
+                size: 20,
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildProfilePage() {
-    final user = FirebaseAuth.instance.currentUser;
-    return SingleChildScrollView(
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF047857), Color(0xFF10B981)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+  Widget _buildFeedbackPreview() {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _getIndividualFeedback(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox.shrink();
+        }
+        if (snapshot.hasError ||
+            snapshot.data == null ||
+            snapshot.data!.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        final feedback = snapshot.data!.first;
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: _kCardFill.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withOpacity(0.08)),
             ),
-            child: Column(
+            child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(4),
+                  width: 36,
+                  height: 36,
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.3),
+                    gradient: _kAccentGradient,
                     shape: BoxShape.circle,
                   ),
-                  child: CircleAvatar(
-                    radius: 40,
-                    backgroundColor: Colors.white.withValues(alpha: 0.2),
+                  child: Center(
                     child: Text(
-                      widget.userName.isNotEmpty ? widget.userName[0].toUpperCase() : 'V',
-                      style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
+                      (feedback['blindUserName'] as String).isNotEmpty
+                          ? (feedback['blindUserName'] as String)[0]
+                              .toUpperCase()
+                          : 'U',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
-                Text(widget.userName, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 3),
-                Text(user?.email ?? 'No email', style: const TextStyle(color: Color(0xFFBBF7D0), fontSize: 12)),
-                
-                const SizedBox(height: 10),
-                FutureBuilder<Map<String, dynamic>>(
-                  future: _getVolunteerRatingData(),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
-                      );
-                    }
-                    
-                    if (snapshot.hasError || !snapshot.hasData) {
-                      return const SizedBox.shrink();
-                    }
-                    
-                    final avgRating = snapshot.data!['averageRating'] as double;
-                    final totalRatings = snapshot.data!['totalRatings'] as int;
-                    
-                    if (totalRatings == 0) {
-                      return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Text('No ratings yet', style: TextStyle(color: Colors.white, fontSize: 12)),
-                      );
-                    }
-                    
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.star, color: Colors.amber, size: 16),
-                          const SizedBox(width: 4),
-                          Text(
-                            avgRating.toStringAsFixed(1),
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '($totalRatings)',
-                            style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 11),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-                
-                const SizedBox(height: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.verified_rounded, color: Colors.white, size: 13),
-                      SizedBox(width: 5),
-                      Text('Volunteer', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 12)),
+                      Row(
+                        children: List.generate(
+                          5,
+                          (i) => Icon(
+                            i < (feedback['rating'] as int)
+                                ? Icons.star
+                                : Icons.star_border,
+                            size: 14,
+                            color: const Color(0xFFFFD700),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        (feedback['comment'] as String).isNotEmpty
+                            ? feedback['comment'] as String
+                            : 'No comment',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.7),
+                          fontSize: 12,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 2,
+                      ),
                     ],
                   ),
                 ),
               ],
             ),
           ),
-
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Column(
-              children: [
-                _profileInfoCard(
-                  title: 'CONTACT',
-                  accentColor: Colors.blue.shade600,
-                  icon: Icons.phone_rounded,
-                  children: [
-                    _profileInfoRow(Icons.phone_outlined, 'Phone', _profilePhone.isEmpty ? '—' : _profilePhone),
-                  ],
-                ),
-                _profileInfoCard(
-                  title: 'LANGUAGE',
-                  accentColor: const Color(0xFF7C3AED),
-                  icon: Icons.language_rounded,
-                  children: [
-                    _profileInfoRow(Icons.translate_rounded, 'Speaks', _profileLanguages.isEmpty ? '—' : _profileLanguages.join(', ')),
-                  ],
-                ),
-                _profileInfoCard(
-                  title: 'SPECIALTIES',
-                  accentColor: Colors.orange.shade700,
-                  icon: Icons.star_rounded,
-                  children: [
-                    if (_profileSpecialties.isEmpty)
-                      const Text('—', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500))
-                    else
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: _profileSpecialties.map((s) => Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(colors: [Colors.orange.shade400, Colors.orange.shade600]),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(s, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
-                        )).toList(),
-                      ),
-                  ],
-                ),
-                _profileInfoCard(
-                  title: 'AVAILABILITY',
-                  accentColor: Colors.teal.shade600,
-                  icon: Icons.schedule_rounded,
-                  children: [
-                    _profileInfoRow(Icons.access_time_rounded, 'Schedule', _profileAvailability.isEmpty ? '—' : _profileAvailability),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-            child: ElevatedButton.icon(
-              onPressed: () async {
-                await Navigator.push(context, MaterialPageRoute(builder: (_) => const VolunteerProfilePage()));
-                _loadVolunteerData();
-                final snapshot = await FirebaseFirestore.instance.collection('help_requests').get();
-                _updateStatsFromSnapshot(snapshot);
-              },
-              icon: const Icon(Icons.edit_rounded, size: 18),
-              label: const Text('Edit Profile'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _emerald,
-                foregroundColor: Colors.white,
-                minimumSize: const Size(double.infinity, 52),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                elevation: 0,
-              ),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _profileInfoCard({
-    required String title,
-    required Color accentColor,
-    required IconData icon,
-    required List<Widget> children,
-  }) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border(left: BorderSide(color: accentColor, width: 4)),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2)),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, color: accentColor, size: 14),
-                const SizedBox(width: 6),
-                Text(title, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: accentColor, letterSpacing: 0.8)),
-              ],
-            ),
-            const SizedBox(height: 10),
-            ...children,
-          ],
-        ),
-      ),
-    );
+  Future<List<Map<String, dynamic>>> _getIndividualFeedback() async {
+    final uid = _uid;
+    if (uid == null) return [];
+
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('help_requests')
+          .where('volunteerId', isEqualTo: uid)
+          .get();
+
+      final feedbacks = <Map<String, dynamic>>[];
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final rating = data['rating'] ?? 0;
+        if (rating > 0) {
+          feedbacks.add({
+            'rating': rating,
+            'comment': data['feedbackComment'] ?? '',
+            'blindUserName': data['blindUserName'] ?? 'Anonymous',
+            'requestType': data['requestType'] ?? 'help',
+            'ratedAt': data['ratedAt'] as Timestamp?,
+          });
+        }
+      }
+      feedbacks.sort((a, b) {
+        final aDate = a['ratedAt'] as Timestamp?;
+        final bDate = b['ratedAt'] as Timestamp?;
+        if (aDate == null && bDate == null) return 0;
+        if (aDate == null) return 1;
+        if (bDate == null) return -1;
+        return bDate.toDate().compareTo(aDate.toDate());
+      });
+      return feedbacks;
+    } catch (e) {
+      return [];
+    }
+  }
+}
+
+// ── Pulsing dot widget ────────────────────────────────────────────
+class _PulsingDot extends StatefulWidget {
+  @override
+  __PulsingDotState createState() => __PulsingDotState();
+}
+
+class __PulsingDotState extends State<_PulsingDot>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
   }
 
-  Widget _profileInfoRow(IconData icon, String label, String value) {
-    return Row(
-      children: [
-        Icon(icon, color: _emerald, size: 17),
-        const SizedBox(width: 10),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: const TextStyle(color: Colors.grey, fontSize: 11)),
-            const SizedBox(height: 1),
-            Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-          ],
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: Tween(begin: 0.6, end: 1.0).animate(_controller),
+      child: Container(
+        width: 8,
+        height: 8,
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white,
         ),
-      ],
+      ),
     );
   }
 }
