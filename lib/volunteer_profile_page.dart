@@ -2,9 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'services/firebase_service.dart';
-import 'volunteer_rating_summary.dart';
 
-// Add this new class for feedback items
+// ── Dark theme colours ──────────────────────────────────────────
+const Color _kNavyDeep = Color(0xFF120A2E);
+const Color _kNavyMid = Color(0xFF1E1147);
+const Color _kPurple = Color(0xFF3B1E78);
+const Color _kPinkBright = Color(0xFFFF5FD2);
+const Color _kBlueAccent = Color(0xFF4A90E2);
+const Color _kCardFill = Color(0xFF241A45);
+
+const LinearGradient _kAccentGradient = LinearGradient(
+  begin: Alignment.topLeft,
+  end: Alignment.bottomRight,
+  colors: [_kPinkBright, Color(0xFF9B59B6), _kBlueAccent],
+);
+
+// ── Feedback model ───────────────────────────────────────────────
 class FeedbackItem {
   final String id;
   final String blindUserName;
@@ -34,7 +47,7 @@ class FeedbackItem {
   }
 }
 
-// Update the main VolunteerProfilePage class
+// ── Main Profile Page ────────────────────────────────────────────
 class VolunteerProfilePage extends StatefulWidget {
   const VolunteerProfilePage({super.key});
 
@@ -89,7 +102,6 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
   List<String> _editSpecialties = [];
   String? _editAvailability;
 
-  // Rating data
   double _averageRating = 0.0;
   int _totalRatings = 0;
   List<FeedbackItem> _feedbacks = [];
@@ -98,12 +110,11 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
 
   late TabController _tabController;
 
-  static const _emerald = Color(0xFF059669);
-
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    // FIX: Changed length from 3 to 2
+    _tabController = TabController(length: 2, vsync: this);
     _loadProfile();
     _loadRatingsAndFeedback();
   }
@@ -157,12 +168,9 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    setState(() {
-      _isLoadingFeedback = true;
-    });
+    setState(() => _isLoadingFeedback = true);
 
     try {
-      // Get volunteer data
       final volDoc = await FirebaseFirestore.instance
           .collection('volunteers')
           .doc(user.uid)
@@ -176,46 +184,55 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
         });
       }
 
-      // Get all feedback (ratings) from help_requests
       final feedbackSnapshot = await FirebaseFirestore.instance
           .collection('help_requests')
           .where('volunteerId', isEqualTo: user.uid)
-          .where('rating', isGreaterThanOrEqualTo: 1)
-          .orderBy('ratedAt', descending: true)
           .get();
 
       final feedbacks = <FeedbackItem>[];
       for (var doc in feedbackSnapshot.docs) {
         final data = doc.data();
-        feedbacks.add(FeedbackItem(
-          id: doc.id,
-          blindUserName: data['blindUserName'] ?? 'Anonymous',
-          rating: data['rating'] ?? 0,
-          comment: data['feedbackComment'] ?? '',
-          createdAt:
-              (data['ratedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-          requestType: data['requestType'] ?? 'help',
-        ));
+        final rating = data['rating'] ?? 0;
+        final comment = data['feedbackComment'] ?? data['comment'] ?? '';
+        final blindUserName = data['blindUserName'] ?? data['blindName'] ?? 'Anonymous';
+        final requestType = data['requestType'] ?? data['type'] ?? 'help';
+        final ratedAt = data['ratedAt'] ?? data['createdAt'] ?? data['timestamp'];
+        
+        if (rating > 0) {
+          DateTime? date;
+          if (ratedAt is Timestamp) {
+            date = ratedAt.toDate();
+          } else if (ratedAt != null) {
+            date = DateTime.now();
+          }
+          
+          feedbacks.add(FeedbackItem(
+            id: doc.id,
+            blindUserName: blindUserName.toString(),
+            rating: rating is int ? rating : (rating as num).toInt(),
+            comment: comment.toString(),
+            createdAt: date ?? DateTime.now(),
+            requestType: requestType.toString(),
+          ));
+        }
       }
+      
+      feedbacks.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
       setState(() {
         _feedbacks = feedbacks;
         _isLoadingFeedback = false;
       });
+      
+      debugPrint('✅ Loaded ${feedbacks.length} feedbacks from ${feedbackSnapshot.docs.length} requests');
+      
     } catch (e) {
-      debugPrint('Error loading feedback: $e');
+      debugPrint('❌ Error loading feedback: $e');
       setState(() {
         _isLoadingFeedback = false;
+        _feedbacks = [];
       });
     }
-  }
-
-  List<FeedbackItem> get _filteredFeedbacksByRating {
-    if (_selectedTabIndex == 2) {
-      // Show by rating breakdown
-      return _feedbacks;
-    }
-    return _feedbacks;
   }
 
   Map<int, int> get _ratingDistribution {
@@ -301,554 +318,504 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
 
   void _showError(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg), backgroundColor: Colors.red));
+      SnackBar(content: Text(msg), backgroundColor: Colors.red),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0FDF4),
-      body: _isLoading
-          ? Column(
-              children: [
-                _buildGradientBar(context, showAvatar: false),
-                const Expanded(
-                    child: Center(child: CircularProgressIndicator())),
-              ],
-            )
-          : _isEditing
-              ? Column(
-                  children: [
-                    _buildGradientBar(context, showAvatar: false),
-                    Expanded(child: _buildEditForm()),
-                  ],
-                )
-              : _buildViewScroll(context),
-    );
-  }
-
-  // Gradient bar with rating badge
-  Widget _buildGradientBar(BuildContext context, {required bool showAvatar}) {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF047857), Color(0xFF10B981)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+      backgroundColor: _kNavyDeep,
+      appBar: AppBar(
+        backgroundColor: _kNavyMid,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
         ),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(4, 4, 16, 12),
-          child: Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                    color: Colors.white),
-                onPressed:
-                    _isEditing ? _cancelEditing : () => Navigator.pop(context),
-              ),
-              Expanded(
-                child: Row(
-                  children: [
-                    // Compact rating badge
-                    if (!_isEditing && uid != null && _totalRatings > 0)
-                      Container(
-                        margin: const EdgeInsets.only(right: 8),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.star,
-                                color: Colors.white, size: 14),
-                            const SizedBox(width: 4),
-                            Text(
-                              _averageRating.toStringAsFixed(1),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              '($_totalRatings)',
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.8),
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    Text(
-                      _isEditing ? 'Edit Profile' : 'My Profile',
-                      style: const TextStyle(
+        title: Text(
+          _isEditing ? 'Edit Profile' : 'My Profile',
+          style: const TextStyle(color: Colors.white),
+        ),
+        actions: [
+          if (_isEditing)
+            _isSaving
+                ? const Padding(
+                    padding: EdgeInsets.all(14),
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
                         color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                        strokeWidth: 2,
                       ),
                     ),
-                  ],
-                ),
+                  )
+                : TextButton(
+                    onPressed: _saveProfile,
+                    child: const Text(
+                      'Save',
+                      style: TextStyle(
+                        color: _kPinkBright,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                  )
+          else
+            TextButton.icon(
+              onPressed: _startEditing,
+              icon: const Icon(Icons.edit_rounded, size: 16, color: _kPinkBright),
+              label: const Text(
+                'Edit',
+                style: TextStyle(color: _kPinkBright, fontSize: 14),
               ),
-              if (!_isEditing)
-                TextButton.icon(
-                  onPressed: _startEditing,
-                  icon: const Icon(Icons.edit_rounded,
-                      size: 16, color: Colors.white),
-                  label: const Text('Edit',
-                      style: TextStyle(color: Colors.white, fontSize: 14)),
-                ),
-              if (_isEditing)
-                _isSaving
-                    ? const Padding(
-                        padding: EdgeInsets.all(14),
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                              color: Colors.white, strokeWidth: 2),
+            ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(color: _kPinkBright),
+            )
+          : _isEditing
+              ? _buildEditForm()
+              : _buildViewContent(),
+    );
+  }
+
+  // ── Edit Form ─────────────────────────────────────────────────────
+  Widget _buildEditForm() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildFormSection(
+            label: 'Name',
+            icon: Icons.badge_outlined,
+            child: _textField(_nameController, 'Your full name'),
+          ),
+          const SizedBox(height: 16),
+          _buildFormSection(
+            label: 'Email',
+            icon: Icons.email_outlined,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.05),
+                border: Border.all(color: Colors.white.withOpacity(0.15)),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.lock_outline, size: 16, color: Colors.white.withOpacity(0.4)),
+                  const SizedBox(width: 8),
+                  Text(
+                    _email,
+                    style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 14),
+                  ),
+                ],
+              ),
+            ),
+            note: 'Email cannot be changed.',
+          ),
+          const SizedBox(height: 16),
+          _buildFormSection(
+            label: 'Phone Number',
+            icon: Icons.phone_outlined,
+            child: _textField(_phoneController, 'Your phone number', type: TextInputType.phone),
+          ),
+          const SizedBox(height: 20),
+          _buildFormSection(
+            label: 'Language You Speak',
+            icon: Icons.language_rounded,
+            child: _buildLanguageGrid(),
+          ),
+          const SizedBox(height: 20),
+          _buildFormSection(
+            label: 'Specialties',
+            icon: Icons.star_outline_rounded,
+            note: 'Select areas where you can assist',
+            child: _buildSpecialtiesGrid(),
+          ),
+          const SizedBox(height: 20),
+          _buildFormSection(
+            label: 'Availability',
+            icon: Icons.schedule_rounded,
+            child: _buildAvailabilityDropdown(),
+          ),
+          const SizedBox(height: 28),
+          GestureDetector(
+            onTap: _isSaving ? null : _saveProfile,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              decoration: BoxDecoration(
+                gradient: _kAccentGradient,
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(
+                    color: _kPinkBright.withOpacity(0.35),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Center(
+                child: _isSaving
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
                         ),
                       )
-                    : TextButton(
-                        onPressed: _saveProfile,
-                        child: const Text(
-                          'Save',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                          ),
+                    : const Text(
+                        'Save Changes',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-            ],
+              ),
+            ),
           ),
-        ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: OutlinedButton(
+              onPressed: _cancelEditing,
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: Colors.white.withOpacity(0.3)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(fontSize: 15, color: Colors.white),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  // View mode with tabs for ratings and feedback
-  Widget _buildViewScroll(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-    final volunteerId = user?.uid ?? '';
-    return CustomScrollView(
-      slivers: [
-        SliverToBoxAdapter(
-          child: _buildViewHeader(context),
-        ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+  // ── View Content ──────────────────────────────────────────────────
+  Widget _buildViewContent() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(bottom: 32),
+      child: Column(
+        children: [
+          // Profile Header
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [_kPurple, _kNavyMid, _kNavyDeep],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
             child: Column(
               children: [
-                // Rating and Feedback Section Header
                 Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.star_rate_rounded,
-                          color: Colors.amber, size: 22),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'Ratings & Feedback',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    gradient: _kAccentGradient,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: _kPinkBright.withOpacity(0.4),
+                        blurRadius: 16,
+                        spreadRadius: 2,
                       ),
-                      if (_totalRatings > 0)
-                        Container(
-                          margin: const EdgeInsets.only(left: 8),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: _emerald.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            '$_totalRatings reviews',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: _emerald,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
+                    ],
+                  ),
+                  child: CircleAvatar(
+                    radius: 44,
+                    backgroundColor: Colors.transparent,
+                    child: Text(
+                      _name.isNotEmpty ? _name[0].toUpperCase() : 'V',
+                      style: const TextStyle(
+                        fontSize: 36,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  _name.isNotEmpty ? _name : 'Volunteer',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.verified_rounded, color: Colors.white, size: 13),
+                      SizedBox(width: 5),
+                      Text(
+                        'Volunteer',
+                        style: TextStyle(color: Colors.white, fontSize: 12),
+                      ),
                     ],
                   ),
                 ),
+              ],
+            ),
+          ),
 
-                // Tab Bar
+          // Content
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: Column(
+              children: [
+                // Ratings & Feedback Section
+                Row(
+                  children: [
+                    const Icon(Icons.star_rate_rounded, color: Color(0xFFFFD700), size: 22),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Ratings & Feedback',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    if (_totalRatings > 0)
+                      Container(
+                        margin: const EdgeInsets.only(left: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: _kPinkBright.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '$_totalRatings reviews',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: _kPinkBright,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // Tab Bar Container
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: _kCardFill.withOpacity(0.7),
                     borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
+                    border: Border.all(color: Colors.white.withOpacity(0.08)),
                   ),
                   child: Column(
                     children: [
                       TabBar(
                         controller: _tabController,
-                        onTap: (index) {
-                          setState(() {
-                            _selectedTabIndex = index;
-                          });
-                        },
-                        indicatorColor: _emerald,
-                        labelColor: _emerald,
-                        unselectedLabelColor: Colors.grey.shade600,
+                        onTap: (index) => setState(() => _selectedTabIndex = index),
+                        indicatorColor: _kPinkBright,
+                        labelColor: _kPinkBright,
+                        unselectedLabelColor: Colors.white.withOpacity(0.5),
                         labelStyle: const TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 13,
                         ),
+                        // FIX: Removed 'All Feedback' tab literal item
                         tabs: const [
                           Tab(text: 'Summary'),
-                          Tab(text: 'All Feedback'),
-                          Tab(text: 'By Rating'),
+                          Tab(text: 'Feeback'),
                         ],
                       ),
-                      SizedBox(
-                        height: _selectedTabIndex == 2 ? 400 : 350,
-                        child: IndexedStack(
-                          index: _selectedTabIndex,
-                          children: [
-                            // Summary Tab
-                            _buildRatingSummaryTab(volunteerId),
-
-                            // All Feedback Tab
-                            _buildAllFeedbackTab(),
-
-                            // By Rating Tab
-                            _buildRatingBreakdownTab(),
-                          ],
-                        ),
-                      ),
+                      // FIX: Replaced IndexedStack with direct dynamic layout conditional expression
+                      _selectedTabIndex == 0
+                          ? _buildRatingSummaryTab()
+                          : _buildRatingBreakdownTab(),
                     ],
                   ),
                 ),
-
                 const SizedBox(height: 16),
-
-                // Profile Information Cards
-                _buildInfoCard(
-                  title: 'ACCOUNT',
-                  accentColor: _emerald,
-                  icon: Icons.person_rounded,
-                  children: [
-                    _InfoRow(
-                        icon: Icons.badge_outlined,
-                        label: 'Name',
-                        value: _name.isEmpty ? '—' : _name),
-                    const Divider(height: 20),
-                    _InfoRow(
-                        icon: Icons.email_outlined,
-                        label: 'Email',
-                        value: _email.isEmpty ? '—' : _email),
-                  ],
-                ),
-                _buildInfoCard(
-                  title: 'CONTACT',
-                  accentColor: Colors.blue.shade600,
-                  icon: Icons.phone_rounded,
-                  children: [
-                    _InfoRow(
-                        icon: Icons.phone_outlined,
-                        label: 'Phone',
-                        value: _phone.isEmpty ? '—' : _phone),
-                  ],
-                ),
-                _buildInfoCard(
-                  title: 'LANGUAGE',
-                  accentColor: const Color(0xFF7C3AED),
-                  icon: Icons.language_rounded,
-                  children: [
-                    _InfoRow(
-                        icon: Icons.translate_rounded,
-                        label: 'Language',
-                        value: _languageList.isEmpty
-                            ? '—'
-                            : _languageList.join(', ')),
-                  ],
-                ),
-                _buildInfoCard(
-                  title: 'SPECIALTIES',
-                  accentColor: Colors.orange.shade700,
-                  icon: Icons.star_rounded,
-                  children: [
-                    if (_specialties.isEmpty)
-                      const Text('—',
-                          style: TextStyle(
-                              fontSize: 15, fontWeight: FontWeight.w500))
-                    else
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: _specialties
-                            .map((s) => Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        Colors.orange.shade400,
-                                        Colors.orange.shade600,
-                                      ],
-                                    ),
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: Text(
-                                    s,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ))
-                            .toList(),
-                      ),
-                  ],
-                ),
-                _buildInfoCard(
-                  title: 'AVAILABILITY',
-                  accentColor: Colors.teal.shade600,
-                  icon: Icons.schedule_rounded,
-                  children: [
-                    _InfoRow(
-                        icon: Icons.access_time_rounded,
-                        label: 'Schedule',
-                        value: _availability.isEmpty ? '—' : _availability),
-                  ],
-                ),
               ],
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  // Rating Summary Tab
-  Widget _buildRatingSummaryTab(String volunteerId) {
-    return SingleChildScrollView(
+  // ── Rating Summary Tab ────────────────────────────────────────────
+  Widget _buildRatingSummaryTab() {
+    // FIX: Removed inner SingleChildScrollView to fix layout constraints
+    return Padding(
       padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          // Large rating display
-          if (_totalRatings > 0) ...[
-            Container(
+      child: _totalRatings > 0
+          ? Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.amber.shade50,
+                color: const Color(0xFFFFD700).withOpacity(0.1),
                 borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.3)),
               ),
-              child: Column(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  Text(
+                    _averageRating.toStringAsFixed(1),
+                    style: const TextStyle(
+                      fontSize: 48,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFFFD700),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        _averageRating.toStringAsFixed(1),
-                        style: const TextStyle(
-                          fontSize: 48,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.amber,
-                        ),
+                      Row(
+                        children: List.generate(5, (i) => Icon(
+                          i < _averageRating.floor()
+                              ? Icons.star
+                              : (i < _averageRating && _averageRating - i >= 0.5)
+                                  ? Icons.star_half
+                                  : Icons.star_border,
+                          color: const Color(0xFFFFD700),
+                          size: 24,
+                        )),
                       ),
-                      const SizedBox(width: 16),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: List.generate(5, (index) {
-                              if (index < _averageRating.floor()) {
-                                return const Icon(Icons.star,
-                                    color: Colors.amber, size: 24);
-                              } else if (index < _averageRating &&
-                                  _averageRating - index >= 0.5) {
-                                return const Icon(Icons.star_half,
-                                    color: Colors.amber, size: 24);
-                              } else {
-                                return const Icon(Icons.star_border,
-                                    color: Colors.amber, size: 24);
-                              }
-                            }),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Based on $_totalRatings ratings',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                        ],
+                      const SizedBox(height: 4),
+                      Text(
+                        'Based on $_totalRatings ratings',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.white.withOpacity(0.6),
+                        ),
                       ),
                     ],
                   ),
                 ],
               ),
-            ),
-          ] else ...[
-            Container(
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                children: [
-                  Icon(Icons.star_outline,
-                      size: 48, color: Colors.grey.shade400),
-                  const SizedBox(height: 12),
-                  Text(
-                    'No ratings yet',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey.shade600,
-                    ),
+            )
+          : Column(
+              children: [
+                Icon(Icons.star_outline, size: 48, color: Colors.white.withOpacity(0.3)),
+                const SizedBox(height: 12),
+                Text(
+                  'No ratings yet',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.white.withOpacity(0.7),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Ratings will appear after you complete help requests',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade500,
-                    ),
-                    textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Ratings will appear after you complete help requests',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white.withOpacity(0.5),
                   ),
-                ],
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+    );
+  }
+
+  // ── Rating Breakdown Tab ──────────────────────────────────────────
+  Widget _buildRatingBreakdownTab() {
+    if (_isLoadingFeedback) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32),
+          child: CircularProgressIndicator(color: _kPinkBright),
+        ),
+      );
+    }
+    
+    final dist = _ratingDistribution;
+    final total = _feedbacks.length;
+    
+    // FIX: Removed inner SingleChildScrollView to fix nested layout constraints
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (int r = 5; r >= 1; r--)
+            _buildRatingBar(r, dist[r] ?? 0, total),
+          
+          const SizedBox(height: 20),
+          
+          if (_feedbacks.isNotEmpty) ...[
+            const Text(
+              'Reviews by Rating',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
               ),
             ),
+            const SizedBox(height: 12),
+            for (int r = 5; r >= 1; r--) ...[
+              if ((dist[r] ?? 0) > 0) ...[
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Row(
+                    children: [
+                      Text(
+                        '$r',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const Icon(Icons.star, size: 14, color: Color(0xFFFFD700)),
+                      const SizedBox(width: 8),
+                      Text(
+                        '(${dist[r]})',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.white.withOpacity(0.5),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ..._feedbacks
+                    .where((fb) => fb.rating == r)
+                    .map((fb) => _buildFeedbackCard(fb)),
+                const SizedBox(height: 12),
+              ],
+            ],
           ],
         ],
       ),
     );
   }
 
-  // All Feedback Tab
-  Widget _buildAllFeedbackTab() {
-    if (_isLoadingFeedback) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(32),
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-
-    if (_feedbacks.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.comment_outlined,
-                  size: 48, color: Colors.grey.shade400),
-              const SizedBox(height: 12),
-              Text(
-                'No feedback yet',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.grey.shade600,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Feedback from blind users will appear here',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey.shade500,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: _feedbacks.length,
-      itemBuilder: (context, index) {
-        final feedback = _feedbacks[index];
-        return _buildFeedbackCard(feedback);
-      },
-    );
-  }
-
-  // Rating Breakdown Tab
-  Widget _buildRatingBreakdownTab() {
-    if (_isLoadingFeedback) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(32),
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-
-    final distribution = _ratingDistribution;
-    final total = _feedbacks.length;
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          for (int rating = 5; rating >= 1; rating--)
-            _buildRatingBar(rating, distribution[rating] ?? 0, total),
-          const SizedBox(height: 16),
-          if (_feedbacks.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.info_outline,
-                      size: 18, color: Colors.blue.shade700),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Tap on any rating in the "All Feedback" tab to see detailed comments',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.blue.shade700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildRatingBar(int rating, int count, int total) {
-    final percentage = total > 0 ? (count / total) : 0.0;
-
+    final pct = total > 0 ? count / total : 0.0;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -857,9 +824,14 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
             width: 50,
             child: Row(
               children: [
-                Text('$rating',
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
-                const Icon(Icons.star, size: 14, color: Colors.amber),
+                Text(
+                  '$rating',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+                const Icon(Icons.star, size: 14, color: Color(0xFFFFD700)),
               ],
             ),
           ),
@@ -867,32 +839,29 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
             child: ClipRRect(
               borderRadius: BorderRadius.circular(4),
               child: LinearProgressIndicator(
-                value: percentage,
+                value: pct,
                 minHeight: 8,
-                backgroundColor: Colors.grey.shade200,
+                backgroundColor: Colors.white.withOpacity(0.1),
                 valueColor: AlwaysStoppedAnimation<Color>(
                   rating >= 4
-                      ? Colors.green.shade600
+                      ? const Color(0xFF66BB6A)
                       : rating == 3
-                          ? Colors.orange.shade600
-                          : Colors.red.shade600,
+                          ? const Color(0xFFFFA726)
+                          : const Color(0xFFEF5350),
                 ),
               ),
             ),
           ),
           SizedBox(
             width: 45,
-            child: Padding(
-              padding: const EdgeInsets.only(left: 8),
-              child: Text(
-                '$count',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey.shade600,
-                  fontWeight: FontWeight.w500,
-                ),
-                textAlign: TextAlign.right,
+            child: Text(
+              '$count',
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.white.withOpacity(0.6),
+                fontWeight: FontWeight.w500,
               ),
+              textAlign: TextAlign.right,
             ),
           ),
         ],
@@ -900,21 +869,15 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
     );
   }
 
-  Widget _buildFeedbackCard(FeedbackItem feedback) {
+  // ── Feedback Card ─────────────────────────────────────────────────
+  Widget _buildFeedbackCard(FeedbackItem fb) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _kCardFill.withOpacity(0.6),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -925,18 +888,16 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: Colors.amber.shade100,
+                  gradient: _kAccentGradient,
                   shape: BoxShape.circle,
                 ),
                 child: Center(
                   child: Text(
-                    feedback.blindUserName.isNotEmpty
-                        ? feedback.blindUserName[0].toUpperCase()
-                        : 'U',
-                    style: TextStyle(
+                    fb.blindUserName.isNotEmpty ? fb.blindUserName[0].toUpperCase() : 'U',
+                    style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
-                      color: Colors.amber.shade800,
+                      color: Colors.white,
                     ),
                   ),
                 ),
@@ -947,49 +908,46 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      feedback.blindUserName,
+                      fb.blindUserName,
                       style: const TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 14,
+                        color: Colors.white,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Row(
-                      children: List.generate(5, (index) {
-                        return Icon(
-                          index < feedback.rating
-                              ? Icons.star
-                              : Icons.star_border,
-                          size: 16,
-                          color: Colors.amber,
-                        );
-                      }),
+                      children: List.generate(5, (i) => Icon(
+                        i < fb.rating ? Icons.star : Icons.star_border,
+                        size: 16,
+                        color: const Color(0xFFFFD700),
+                      )),
                     ),
                   ],
                 ),
               ),
               Text(
-                _formatDate(feedback.createdAt),
+                '${fb.createdAt.day}/${fb.createdAt.month}/${fb.createdAt.year}',
                 style: TextStyle(
                   fontSize: 11,
-                  color: Colors.grey.shade500,
+                  color: Colors.white.withOpacity(0.5),
                 ),
               ),
             ],
           ),
-          if (feedback.comment.isNotEmpty) ...[
+          if (fb.comment.isNotEmpty) ...[
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.grey.shade50,
+                color: Colors.white.withOpacity(0.05),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                feedback.comment,
+                fb.comment,
                 style: TextStyle(
                   fontSize: 13,
-                  color: Colors.grey.shade700,
+                  color: Colors.white.withOpacity(0.7),
                   height: 1.4,
                 ),
               ),
@@ -997,10 +955,10 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
           ],
           const SizedBox(height: 8),
           Text(
-            'Request: ${feedback.requestType}',
+            'Request: ${fb.requestType}',
             style: TextStyle(
               fontSize: 11,
-              color: Colors.grey.shade500,
+              color: Colors.white.withOpacity(0.5),
             ),
           ),
         ],
@@ -1008,71 +966,7 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
     );
   }
 
-  Widget _buildViewHeader(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF047857), Color(0xFF10B981)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.3),
-                shape: BoxShape.circle,
-              ),
-              child: CircleAvatar(
-                radius: 44,
-                backgroundColor: Colors.white.withValues(alpha: 0.2),
-                child: Text(
-                  _name.isNotEmpty ? _name[0].toUpperCase() : 'V',
-                  style: const TextStyle(
-                    fontSize: 36,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              _name.isNotEmpty ? _name : 'Volunteer',
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 4),
-            Container(
-              margin: const EdgeInsets.only(bottom: 20),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: const [
-                  Icon(Icons.verified_rounded, color: Colors.white, size: 13),
-                  SizedBox(width: 5),
-                  Text('Volunteer',
-                      style: TextStyle(color: Colors.white, fontSize: 12)),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
+  // ── Helper Widgets ────────────────────────────────────────────────
   Widget _buildInfoCard({
     required String title,
     required Color accentColor,
@@ -1083,12 +977,17 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
       width: double.infinity,
       margin: const EdgeInsets.only(top: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _kCardFill.withOpacity(0.6),
         borderRadius: BorderRadius.circular(16),
-        border: Border(left: BorderSide(color: accentColor, width: 4)),
+        border: Border(
+          left: BorderSide(color: accentColor, width: 4),
+          top: BorderSide(color: Colors.white.withOpacity(0.08)),
+          right: BorderSide(color: Colors.white.withOpacity(0.08)),
+          bottom: BorderSide(color: Colors.white.withOpacity(0.08)),
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: Colors.black.withOpacity(0.2),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -1122,125 +1021,36 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
     );
   }
 
-  // Edit form remains the same as before
-  Widget _buildEditForm() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildFormSection(
-            label: 'Name',
-            icon: Icons.badge_outlined,
-            child: _textField(_nameController, 'Your full name'),
-          ),
-          const SizedBox(height: 16),
-          _buildFormSection(
-            label: 'Email',
-            icon: Icons.email_outlined,
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                border: Border.all(color: Colors.grey.shade300),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.lock_outline,
-                      size: 16, color: Colors.grey.shade400),
-                  const SizedBox(width: 8),
-                  Text(_email,
-                      style:
-                          TextStyle(color: Colors.grey.shade600, fontSize: 14)),
-                ],
-              ),
-            ),
-            note: 'Email cannot be changed.',
-          ),
-          const SizedBox(height: 16),
-          _buildFormSection(
-            label: 'Phone Number',
-            icon: Icons.phone_outlined,
-            child: _textField(_phoneController, 'Your phone number',
-                type: TextInputType.phone),
-          ),
-          const SizedBox(height: 20),
-          _buildFormSection(
-            label: 'Language You Speak',
-            icon: Icons.language_rounded,
-            child: _buildLanguageGrid(),
-          ),
-          const SizedBox(height: 20),
-          _buildFormSection(
-            label: 'Specialties',
-            icon: Icons.star_outline_rounded,
-            note: 'Select areas where you can assist',
-            child: _buildSpecialtiesGrid(),
-          ),
-          const SizedBox(height: 20),
-          _buildFormSection(
-            label: 'Availability',
-            icon: Icons.schedule_rounded,
-            child: _buildAvailabilityDropdown(),
-          ),
-          const SizedBox(height: 28),
-          Container(
-            width: double.infinity,
-            height: 52,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF047857), Color(0xFF059669)],
-              ),
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: [
-                BoxShadow(
-                  color: _emerald.withValues(alpha: 0.35),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
+  Widget _infoRow(IconData icon, String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: _kPinkBright, size: 18),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.5),
+                  fontSize: 11,
                 ),
-              ],
-            ),
-            child: ElevatedButton(
-              onPressed: _isSaving ? null : _saveProfile,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.transparent,
-                shadowColor: Colors.transparent,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
               ),
-              child: _isSaving
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                          color: Colors.white, strokeWidth: 2))
-                  : const Text(
-                      'Save Changes',
-                      style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white),
-                    ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: OutlinedButton(
-              onPressed: _cancelEditing,
-              style: OutlinedButton.styleFrom(
-                side: BorderSide(color: Colors.grey.shade300),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
+              const SizedBox(height: 1),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white,
+                ),
               ),
-              child: const Text('Cancel', style: TextStyle(fontSize: 15)),
-            ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -1255,14 +1065,14 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
       children: [
         Row(
           children: [
-            Icon(icon, size: 16, color: Colors.grey.shade700),
+            Icon(icon, size: 16, color: Colors.white70),
             const SizedBox(width: 6),
             Text(
               label,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: Colors.grey.shade800,
+                color: Colors.white,
               ),
             ),
           ],
@@ -1271,34 +1081,45 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
         child,
         if (note != null) ...[
           const SizedBox(height: 4),
-          Text(note,
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+          Text(
+            note,
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.white.withOpacity(0.5),
+            ),
+          ),
         ],
       ],
     );
   }
 
-  Widget _textField(TextEditingController controller, String hint,
-      {TextInputType type = TextInputType.text}) {
+  Widget _textField(
+    TextEditingController controller,
+    String hint, {
+    TextInputType type = TextInputType.text,
+  }) {
     return TextField(
       controller: controller,
       keyboardType: type,
+      style: const TextStyle(color: Colors.white, fontSize: 14),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+        hintStyle: TextStyle(color: Colors.white.withOpacity(0.35)),
         filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        fillColor: Colors.white.withOpacity(0.05),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.15)),
+        ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: Colors.grey.shade300),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.15)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: _emerald, width: 1.5),
+          borderSide: const BorderSide(color: _kPinkBright, width: 1.5),
         ),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         isDense: true,
       ),
     );
@@ -1329,25 +1150,31 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             decoration: BoxDecoration(
-              gradient: isSelected
-                  ? const LinearGradient(
-                      colors: [Color(0xFF7C3AED), Color(0xFF9F67FA)],
-                    )
-                  : null,
-              color: isSelected ? null : Colors.white,
+              gradient: isSelected ? _kAccentGradient : null,
+              color: isSelected ? null : Colors.white.withOpacity(0.05),
               border: Border.all(
-                color:
-                    isSelected ? const Color(0xFF7C3AED) : Colors.grey.shade300,
+                color: isSelected
+                    ? _kPinkBright.withOpacity(0.6)
+                    : Colors.white.withOpacity(0.15),
                 width: 1.5,
               ),
               borderRadius: BorderRadius.circular(10),
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: _kPinkBright.withOpacity(0.3),
+                        blurRadius: 6,
+                        spreadRadius: 1,
+                      ),
+                    ]
+                  : null,
             ),
             child: Center(
               child: Text(
                 lang,
                 style: TextStyle(
                   fontSize: 13,
-                  color: isSelected ? Colors.white : Colors.black87,
+                  color: isSelected ? Colors.white : Colors.white70,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                 ),
               ),
@@ -1383,29 +1210,31 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             decoration: BoxDecoration(
-              gradient: isSelected
-                  ? LinearGradient(
-                      colors: [
-                        Colors.orange.shade500,
-                        Colors.orange.shade700,
-                      ],
-                    )
-                  : null,
-              color: isSelected ? null : Colors.white,
+              gradient: isSelected ? _kAccentGradient : null,
+              color: isSelected ? null : Colors.white.withOpacity(0.05),
               border: Border.all(
-                color:
-                    isSelected ? Colors.orange.shade400 : Colors.grey.shade300,
+                color: isSelected
+                    ? _kPinkBright.withOpacity(0.6)
+                    : Colors.white.withOpacity(0.15),
                 width: 1.5,
               ),
               borderRadius: BorderRadius.circular(10),
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: _kPinkBright.withOpacity(0.3),
+                        blurRadius: 6,
+                        spreadRadius: 1,
+                      ),
+                    ]
+                  : null,
             ),
             child: Center(
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (isSelected) ...[
-                    const Icon(Icons.check_circle_rounded,
-                        color: Colors.white, size: 14),
+                    const Icon(Icons.check_circle_rounded, color: Colors.white, size: 14),
                     const SizedBox(width: 5),
                   ],
                   Flexible(
@@ -1413,9 +1242,8 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
                       specialty,
                       style: TextStyle(
                         fontSize: 12,
-                        color: isSelected ? Colors.white : Colors.black87,
-                        fontWeight:
-                            isSelected ? FontWeight.w600 : FontWeight.normal,
+                        color: isSelected ? Colors.white : Colors.white70,
+                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -1433,59 +1261,30 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.grey.shade300),
+        color: Colors.white.withOpacity(0.05),
+        border: Border.all(color: Colors.white.withOpacity(0.15)),
         borderRadius: BorderRadius.circular(10),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: _editAvailability,
-          hint: Text('Select availability',
-              style: TextStyle(color: Colors.grey.shade400, fontSize: 14)),
+          hint: Text(
+            'Select availability',
+            style: TextStyle(color: Colors.white.withOpacity(0.4)),
+          ),
           isExpanded: true,
-          icon: const Icon(Icons.keyboard_arrow_down_rounded),
-          style: const TextStyle(color: Colors.black87, fontSize: 14),
+          icon: Icon(
+            Icons.arrow_drop_down_rounded,
+            color: Colors.white.withOpacity(0.6),
+          ),
+          dropdownColor: _kCardFill,
+          style: const TextStyle(color: Colors.white, fontSize: 14),
           onChanged: (value) => setState(() => _editAvailability = value),
           items: _availabilityOptions
               .map((opt) => DropdownMenuItem(value: opt, child: Text(opt)))
               .toList(),
         ),
       ),
-    );
-  }
-
-  String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
-  }
-}
-
-// Info Row widget
-class _InfoRow extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  const _InfoRow(
-      {required this.icon, required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, color: const Color(0xFF059669), size: 18),
-        const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label,
-                style: const TextStyle(color: Colors.grey, fontSize: 11)),
-            const SizedBox(height: 1),
-            Text(value,
-                style:
-                    const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-          ],
-        ),
-      ],
     );
   }
 }
