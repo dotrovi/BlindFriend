@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:speech_to_text/speech_to_text.dart';
+import 'theme/app_palette.dart';
 
 class BlindReportVolunteerPage extends StatefulWidget {
   final String helpRequestId;
@@ -258,10 +259,22 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
     // Report type selection — longer phrases first so "one" doesn't match
     // inside "option one" prematurely.
     final optionMap = <String, int>{
-      'option one': 0, 'option two': 1, 'option three': 2, 'option four': 3,
-      'first': 0, 'second': 1, 'third': 2, 'fourth': 3,
-      'one': 0, 'two': 1, 'three': 2, 'four': 3,
-      'option 1': 0, 'option 2': 1, 'option 3': 2, 'option 4': 3,
+      'option one': 0,
+      'option two': 1,
+      'option three': 2,
+      'option four': 3,
+      'first': 0,
+      'second': 1,
+      'third': 2,
+      'fourth': 3,
+      'one': 0,
+      'two': 1,
+      'three': 2,
+      'four': 3,
+      'option 1': 0,
+      'option 2': 1,
+      'option 3': 2,
+      'option 4': 3,
     };
     final sortedKeys = optionMap.keys.toList()
       ..sort((a, b) => b.length.compareTo(a.length));
@@ -338,7 +351,8 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
   /// Re-prompts the user based on whatever step they are currently on.
   Future<void> _repromptCurrentStep() async {
     if (_awaitingDescription) {
-      await _speak('I did not catch that. Please say your description, or say skip.');
+      await _speak(
+          'I did not catch that. Please say your description, or say skip.');
     } else if (_selectedReportType == null) {
       await _speak(
         'I did not catch that. '
@@ -407,7 +421,8 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
       if (mounted) {
         _suspendAutoListen = false;
         setState(() => _isSubmitting = false);
-        await _speak('Failed to submit report. Please try again, or say go back to cancel.');
+        await _speak(
+            'Failed to submit report. Please try again, or say go back to cancel.');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Failed to submit report. Please try again.'),
@@ -425,11 +440,12 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F5),
+      backgroundColor: kNavyDeep,
       appBar: AppBar(
         title: const Text('Report Volunteer'),
-        backgroundColor: Colors.red.shade700,
+        backgroundColor: kNavyMid,
         foregroundColor: Colors.white,
+        elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () async {
@@ -450,13 +466,13 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.red.shade50,
+                color: kRedAccent.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.red.shade200),
+                border: Border.all(color: kRedAccent.withValues(alpha: 0.4)),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.flag_rounded, color: Colors.red.shade700, size: 24),
+                  const Icon(Icons.flag_rounded, color: kRedAccent, size: 24),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -467,14 +483,15 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 15,
+                            color: Colors.white,
                           ),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           'Request type: ${widget.requestType}',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 13,
-                            color: Colors.red.shade700,
+                            color: kRedAccent,
                           ),
                         ),
                       ],
@@ -486,7 +503,11 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
             const SizedBox(height: 20),
             const Text(
               'What happened?',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
             ),
             const SizedBox(height: 12),
             ...List.generate(_reportTypes.length, (i) {
@@ -505,21 +526,16 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
                   margin: const EdgeInsets.only(bottom: 10),
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: isSelected ? Colors.red.shade50 : Colors.white,
+                    color: isSelected
+                        ? kRedAccent.withValues(alpha: 0.12)
+                        : Colors.white.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: isSelected
-                          ? Colors.red.shade400
-                          : Colors.grey.shade300,
+                          ? kRedAccent.withValues(alpha: 0.6)
+                          : Colors.white.withValues(alpha: 0.15),
                       width: isSelected ? 2 : 1,
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
                   ),
                   child: Row(
                     children: [
@@ -528,8 +544,8 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
                         height: 30,
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? Colors.red.shade400
-                              : Colors.grey.shade200,
+                              ? kRedAccent.withValues(alpha: 0.6)
+                              : Colors.white.withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                         ),
                         child: Center(
@@ -540,7 +556,7 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
                               fontSize: 13,
                               color: isSelected
                                   ? Colors.white
-                                  : Colors.grey.shade600,
+                                  : Colors.white60,
                             ),
                           ),
                         ),
@@ -556,23 +572,23 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
                                 color: isSelected
-                                    ? Colors.red.shade700
-                                    : Colors.black87,
+                                    ? kRedAccent
+                                    : Colors.white,
                               ),
                             ),
                             Text(
                               type['desc']!,
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 12,
-                                color: Colors.grey.shade500,
+                                color: Colors.white54,
                               ),
                             ),
                           ],
                         ),
                       ),
                       if (isSelected)
-                        Icon(Icons.check_circle_rounded,
-                            color: Colors.red.shade400, size: 20),
+                        const Icon(Icons.check_circle_rounded,
+                            color: kRedAccent, size: 20),
                     ],
                   ),
                 ),
@@ -581,19 +597,36 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
             const SizedBox(height: 20),
             const Text(
               'Additional Details (optional)',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
             ),
             const SizedBox(height: 8),
             TextField(
               controller: _descriptionController,
               maxLines: 4,
+              style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
                 hintText: 'Describe what happened...',
+                hintStyle: const TextStyle(color: Colors.white38),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
+                  borderSide:
+                      BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide:
+                      BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+                ),
+                focusedBorder: const OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(12)),
+                  borderSide: BorderSide(color: kPinkBright),
                 ),
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: Colors.white.withValues(alpha: 0.05),
                 contentPadding: const EdgeInsets.all(16),
               ),
             ),
@@ -602,18 +635,19 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
+                  color: kBlueAccent.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.blue.shade200),
+                  border:
+                      Border.all(color: kBlueAccent.withValues(alpha: 0.4)),
                 ),
-                child: Row(
+                child: const Row(
                   children: [
-                    Icon(Icons.mic, color: Colors.blue.shade700, size: 18),
-                    const SizedBox(width: 8),
+                    Icon(Icons.mic, color: kBlueAccent, size: 18),
+                    SizedBox(width: 8),
                     Text(
                       'Speak your description now...',
                       style: TextStyle(
-                        color: Colors.blue.shade700,
+                        color: kBlueAccent,
                         fontSize: 13,
                       ),
                     ),
@@ -638,12 +672,12 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
                 label: Text(_isSubmitting ? 'Submitting...' : 'Submit Report'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _selectedReportType != null
-                      ? Colors.red.shade700
-                      : Colors.grey.shade400,
+                      ? kRedAccent
+                      : Colors.white24,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(30),
                   ),
                   textStyle: const TextStyle(
                     fontSize: 15,
@@ -680,7 +714,7 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.red.withOpacity(0.3),
+              color: Colors.red.withValues(alpha: 0.3),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -722,7 +756,7 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
                             ? 'Say "option one" to "option four"'
                             : 'Say "describe", "submit", or "go back"',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.85),
+                      color: Colors.white.withValues(alpha: 0.85),
                       fontSize: 12,
                     ),
                   ),

@@ -109,10 +109,10 @@ class _VolunteerDetailsPageState extends State<VolunteerDetailsPage> {
     );
 
     // ✅ Create FirebaseService instance
-    final FirebaseService _firebaseService = FirebaseService();
+    final FirebaseService firebaseService = FirebaseService();
 
     // ✅ SAVE TO FIRESTORE
-    bool saved = await _firebaseService.saveVolunteerDetails(
+    bool saved = await firebaseService.saveVolunteerDetails(
       uid: widget.uid,
       idCardNumber: _idCardController.text.trim(),
       phoneNumber: _phoneController.text,
@@ -323,15 +323,13 @@ class _VolunteerDetailsPageState extends State<VolunteerDetailsPage> {
                     child: Container(
                       decoration: BoxDecoration(
                         border: Border.all(
-                          color: isSelected
-                              ? Colors.purple
-                              : Colors.grey.shade300,
+                          color:
+                              isSelected ? Colors.purple : Colors.grey.shade300,
                           width: 1.2,
                         ),
                         borderRadius: BorderRadius.circular(8),
-                        color: isSelected
-                            ? Colors.purple.shade50
-                            : Colors.white,
+                        color:
+                            isSelected ? Colors.purple.shade50 : Colors.white,
                       ),
                       child: Center(
                         child: Text(
@@ -395,15 +393,13 @@ class _VolunteerDetailsPageState extends State<VolunteerDetailsPage> {
                     child: Container(
                       decoration: BoxDecoration(
                         border: Border.all(
-                          color: isSelected
-                              ? Colors.purple
-                              : Colors.grey.shade300,
+                          color:
+                              isSelected ? Colors.purple : Colors.grey.shade300,
                           width: 1.2,
                         ),
                         borderRadius: BorderRadius.circular(8),
-                        color: isSelected
-                            ? Colors.purple.shade50
-                            : Colors.white,
+                        color:
+                            isSelected ? Colors.purple.shade50 : Colors.white,
                       ),
                       child: Center(
                         child: Text(
@@ -628,7 +624,6 @@ class VolunteerCompletePage extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 28),
-
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -659,7 +654,6 @@ class VolunteerCompletePage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 28),
-
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(

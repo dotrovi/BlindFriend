@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'theme/app_palette.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({super.key});
@@ -250,7 +251,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     final screenHeight = MediaQuery.of(context).size.height;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: kNavyDeep,
       body: SingleChildScrollView(
         child: Column(
           children: [
@@ -262,15 +263,13 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                 duration: const Duration(milliseconds: 300),
                 height: screenHeight,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: _isListening
-                        ? [const Color(0xFF27AE60), const Color(0xFF2ECC71)]
-                        : _isSpeaking
-                            ? [const Color(0xFF6C3483), const Color(0xFF9B59B6)]
-                            : [const Color(0xFF4A90E2), const Color(0xFF9B59B6)],
-                  ),
+                  gradient: _isListening
+                      ? const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Colors.green, Colors.lightGreen],
+                        )
+                      : kSkyGradient,
                 ),
                 child: SafeArea(
                   child: Column(
@@ -286,14 +285,24 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                       ),
 
                       // Title
-                      const Padding(
-                        padding: EdgeInsets.only(top: 16, bottom: 6),
-                        child: Text(
-                          'BlindFriend',
-                          style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16, bottom: 6),
+                        child: RichText(
+                          text: const TextSpan(
+                            style: TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            children: [
+                              TextSpan(
+                                text: 'Blind',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                              TextSpan(
+                                text: 'Friend',
+                                style: TextStyle(color: kPinkBright),
+                              ),
+                            ],
                           ),
                         ),
                       ),
@@ -383,7 +392,10 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                       child: Text(
                         'Reset password manually',
                         style: TextStyle(
-                            fontSize: 22, fontWeight: FontWeight.bold),
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -391,22 +403,41 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                       child: Text(
                         'Enter your email and we will send you a reset link.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 14, color: Colors.grey),
+                        style: TextStyle(fontSize: 14, color: Colors.white60),
                       ),
                     ),
                     const SizedBox(height: 32),
 
                     const Text('Email',
                         style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w500)),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white,
+                        )),
                     const SizedBox(height: 8),
                     TextFormField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
+                      style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
                         hintText: 'Enter your email',
+                        hintStyle: const TextStyle(color: Colors.white38),
+                        filled: true,
+                        fillColor: Colors.white.withValues(alpha: 0.05),
                         border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8)),
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide:
+                              BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide:
+                              BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+                        ),
+                        focusedBorder: const OutlineInputBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(14)),
+                          borderSide: BorderSide(color: kPinkBright),
+                        ),
                         contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 14),
                       ),
@@ -428,12 +459,12 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                         onPressed: _isLoading ? null : _sendResetEmail,
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 14),
-                          backgroundColor: Colors.blue,
+                          backgroundColor: kPinkBright,
                           foregroundColor: Colors.white,
                           textStyle: const TextStyle(
                               fontSize: 16, fontWeight: FontWeight.w600),
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8)),
+                              borderRadius: BorderRadius.circular(30)),
                         ),
                         child: _isLoading
                             ? const CircularProgressIndicator(
@@ -448,7 +479,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                         onPressed: () => Navigator.pop(context),
                         child: const Text('Back to Login',
                             style:
-                                TextStyle(color: Colors.blue, fontSize: 14)),
+                                TextStyle(color: kBlueAccent, fontSize: 14)),
                       ),
                     ),
                     const SizedBox(height: 20),

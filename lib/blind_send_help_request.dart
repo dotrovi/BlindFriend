@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'theme/app_palette.dart';
 
 class BlindSendHelpRequestScreen extends StatefulWidget {
   const BlindSendHelpRequestScreen({super.key});
@@ -75,20 +76,21 @@ class _BlindSendHelpRequestScreenState
     final micStatus = await Permission.microphone.request();
     if (!mounted) return;
 
-    _sttAvailable = micStatus.isGranted && await _stt.initialize(
-      onStatus: (status) {
-        if (!mounted) return;
-        if (status == 'listening') {
-          setState(() => _isListening = true);
-        } else if (status == 'done' || status == 'notListening') {
-          setState(() => _isListening = false);
-        }
-      },
-      onError: (error) {
-        debugPrint('STT error: ${error.errorMsg}');
-        if (mounted) setState(() => _isListening = false);
-      },
-    );
+    _sttAvailable = micStatus.isGranted &&
+        await _stt.initialize(
+          onStatus: (status) {
+            if (!mounted) return;
+            if (status == 'listening') {
+              setState(() => _isListening = true);
+            } else if (status == 'done' || status == 'notListening') {
+              setState(() => _isListening = false);
+            }
+          },
+          onError: (error) {
+            debugPrint('STT error: ${error.errorMsg}');
+            if (mounted) setState(() => _isListening = false);
+          },
+        );
 
     if (mounted) {
       await _speak(
@@ -118,13 +120,15 @@ class _BlindSendHelpRequestScreenState
     });
 
     await _tts.speak(text);
-    await completer.future.timeout(const Duration(seconds: 90), onTimeout: () {});
+    await completer.future
+        .timeout(const Duration(seconds: 90), onTimeout: () {});
 
     if (mounted) setState(() => _isSpeaking = false);
   }
 
   Future<void> _startListening() async {
-    if (!_sttAvailable || !mounted || !_shouldListen || _stt.isListening) return;
+    if (!_sttAvailable || !mounted || !_shouldListen || _stt.isListening)
+      return;
 
     setState(() => _isListening = true);
     await _stt.listen(
@@ -175,7 +179,8 @@ class _BlindSendHelpRequestScreenState
     // Description command
     if (command.contains('description')) {
       _currentVoiceStep = 'description';
-      await _speak('Please say your description. For example: I need help finding the cereal aisle.');
+      await _speak(
+          'Please say your description. For example: I need help finding the cereal aisle.');
       _shouldListen = true;
       _isProcessingVoice = false;
       return;
@@ -184,7 +189,8 @@ class _BlindSendHelpRequestScreenState
     // Location command
     if (command.contains('location') || command.contains('address')) {
       _currentVoiceStep = 'location';
-      await _speak('Please say your location. For example: Giant Supermarket, KLCC.');
+      await _speak(
+          'Please say your location. For example: Giant Supermarket, KLCC.');
       _shouldListen = true;
       _isProcessingVoice = false;
       return;
@@ -270,7 +276,8 @@ class _BlindSendHelpRequestScreenState
       if (!userDoc.exists) throw Exception('User document not found');
 
       final userData = userDoc.data() as Map<String, dynamic>;
-      final userName = '${userData['name'] ?? ''} ${userData['lastName'] ?? ''}'.trim();
+      final userName =
+          '${userData['name'] ?? ''} ${userData['lastName'] ?? ''}'.trim();
       final userPhone = userData['phone'] ?? 'N/A';
 
       final helpRequestData = {
@@ -305,7 +312,8 @@ class _BlindSendHelpRequestScreenState
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _errorMessage = 'Failed to send request. Please try again.');
+        setState(
+            () => _errorMessage = 'Failed to send request. Please try again.');
         await _speak('Failed to send request. Please try again.');
       }
     } finally {
@@ -326,10 +334,12 @@ class _BlindSendHelpRequestScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: kNavyDeep,
       appBar: AppBar(
         title: const Text('Request Help'),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: kNavyMid,
         foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
           // Voice mic button
           IconButton(
@@ -352,11 +362,7 @@ class _BlindSendHelpRequestScreenState
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Colors.deepPurple.shade700, Colors.deepPurple.shade500],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
+                    gradient: kAccentGradient,
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Row(
@@ -364,10 +370,11 @@ class _BlindSendHelpRequestScreenState
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
+                          color: Colors.white.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(Icons.help_outline, color: Colors.white, size: 28),
+                        child: const Icon(Icons.help_outline,
+                            color: Colors.white, size: 28),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
@@ -376,12 +383,17 @@ class _BlindSendHelpRequestScreenState
                           children: [
                             const Text(
                               'Need Assistance?',
-                              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
+                              style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               'Our volunteers are ready to help you',
-                              style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.8)),
+                              style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.white.withValues(alpha: 0.8)),
                             ),
                           ],
                         ),
@@ -396,24 +408,31 @@ class _BlindSendHelpRequestScreenState
                     padding: const EdgeInsets.all(12),
                     margin: const EdgeInsets.only(bottom: 16),
                     decoration: BoxDecoration(
-                      color: Colors.red.shade50,
+                      color: kRedAccent.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.red.shade200),
+                      border:
+                          Border.all(color: kRedAccent.withValues(alpha: 0.4)),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.error_outline, color: Colors.red.shade700),
+                        const Icon(Icons.error_outline, color: kRedAccent),
                         const SizedBox(width: 12),
-                        Expanded(child: Text(_errorMessage!, style: TextStyle(color: Colors.red.shade700))),
+                        Expanded(
+                            child: Text(_errorMessage!,
+                                style: const TextStyle(color: Colors.white))),
                         GestureDetector(
                           onTap: () => setState(() => _errorMessage = null),
-                          child: Icon(Icons.close, color: Colors.red.shade700),
+                          child: const Icon(Icons.close, color: kRedAccent),
                         ),
                       ],
                     ),
                   ),
 
-                const Text('Type of Help Needed', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                const Text('Type of Help Needed',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white)),
                 const SizedBox(height: 12),
                 GridView.count(
                   shrinkWrap: true,
@@ -423,7 +442,8 @@ class _BlindSendHelpRequestScreenState
                   crossAxisSpacing: 12,
                   childAspectRatio: 2.5,
                   children: _requestTypes.entries.map((entry) {
-                    return _buildRequestTypeCard(entry.key, entry.value, _selectedRequestType == entry.key);
+                    return _buildRequestTypeCard(entry.key, entry.value,
+                        _selectedRequestType == entry.key);
                   }).toList(),
                 ),
                 const SizedBox(height: 24),
@@ -431,22 +451,30 @@ class _BlindSendHelpRequestScreenState
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.deepPurple.shade50,
+                    color: kCardFill.withValues(alpha: 0.6),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.deepPurple.shade200),
+                    border:
+                        Border.all(color: Colors.white.withValues(alpha: 0.08)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
+                      const Row(
                         children: [
-                          Icon(Icons.language, color: Colors.deepPurple.shade700),
-                          const SizedBox(width: 8),
-                          Text('Preferred Language', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.deepPurple.shade700)),
+                          Icon(Icons.language, color: kPinkBright),
+                          SizedBox(width: 8),
+                          Text('Preferred Language',
+                              style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white)),
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text('Select your preferred language for volunteer communication', style: TextStyle(fontSize: 12, color: Colors.deepPurple.shade600)),
+                      const Text(
+                          'Select your preferred language for volunteer communication',
+                          style:
+                              TextStyle(fontSize: 12, color: Colors.white60)),
                       const SizedBox(height: 12),
                       Wrap(
                         spacing: 8,
@@ -456,12 +484,17 @@ class _BlindSendHelpRequestScreenState
                           return FilterChip(
                             selected: isSelected,
                             label: Text(entry.value),
+                            labelStyle: TextStyle(
+                              color: isSelected ? Colors.white : Colors.white70,
+                            ),
                             onSelected: (selected) {
                               setState(() => _selectedLanguage = entry.key);
                             },
-                            backgroundColor: Colors.white,
-                            selectedColor: Colors.deepPurple.shade100,
-                            checkmarkColor: Colors.deepPurple,
+                            backgroundColor: Colors.white.withValues(alpha: 0.05),
+                            selectedColor: kPinkBright.withValues(alpha: 0.3),
+                            checkmarkColor: Colors.white,
+                            side: BorderSide(
+                                color: Colors.white.withValues(alpha: 0.15)),
                             showCheckmark: true,
                           );
                         }).toList(),
@@ -471,30 +504,44 @@ class _BlindSendHelpRequestScreenState
                 ),
                 const SizedBox(height: 24),
 
-                const Text('Describe your request', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                const Text('Describe your request',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white)),
                 const SizedBox(height: 8),
                 TextField(
                   controller: _descriptionController,
                   maxLines: 3,
+                  style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
                     hintText: 'e.g., I need help finding the cereal aisle...',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    hintStyle: const TextStyle(color: Colors.white38),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
                     filled: true,
-                    fillColor: Colors.grey.shade50,
+                    fillColor: Colors.white.withValues(alpha: 0.05),
                   ),
                 ),
                 const SizedBox(height: 16),
 
-                const Text('Your Location', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                const Text('Your Location',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white)),
                 const SizedBox(height: 8),
                 TextField(
                   controller: _locationController,
+                  style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
                     hintText: 'e.g., Giant Supermarket, KLCC',
-                    prefixIcon: const Icon(Icons.location_on),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    hintStyle: const TextStyle(color: Colors.white38),
+                    prefixIcon: const Icon(Icons.location_on, color: Colors.white54),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
                     filled: true,
-                    fillColor: Colors.grey.shade50,
+                    fillColor: Colors.white.withValues(alpha: 0.05),
                   ),
                 ),
                 const SizedBox(height: 32),
@@ -505,13 +552,16 @@ class _BlindSendHelpRequestScreenState
                   child: ElevatedButton(
                     onPressed: _isSubmitting ? null : _submitHelpRequest,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.deepPurple,
+                      backgroundColor: kPinkBright,
                       foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30)),
                     ),
                     child: _isSubmitting
                         ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text('Send Help Request', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                        : const Text('Send Help Request',
+                            style: TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.w600)),
                   ),
                 ),
               ],
@@ -525,7 +575,8 @@ class _BlindSendHelpRequestScreenState
               right: 0,
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 20),
-                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+                padding:
+                    const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
                 decoration: BoxDecoration(
                   color: Colors.black87,
                   borderRadius: BorderRadius.circular(30),
@@ -535,16 +586,18 @@ class _BlindSendHelpRequestScreenState
                   children: [
                     const Icon(Icons.mic, color: Colors.red, size: 20),
                     const SizedBox(width: 8),
-                    const Expanded(child: Text('Listening...', style: TextStyle(color: Colors.white))),
+                    const Expanded(
+                        child: Text('Listening...',
+                            style: TextStyle(color: Colors.white))),
                     GestureDetector(
                       onTap: () => _stt.cancel(),
-                      child: const Icon(Icons.close, color: Colors.white, size: 20),
+                      child: const Icon(Icons.close,
+                          color: Colors.white, size: 20),
                     ),
                   ],
                 ),
               ),
             ),
-          
         ],
       ),
     );
@@ -555,16 +608,25 @@ class _BlindSendHelpRequestScreenState
       onTap: () => setState(() => _selectedRequestType = type),
       child: Container(
         decoration: BoxDecoration(
-          color: isSelected ? Colors.deepPurple.shade50 : Colors.white,
+          gradient: isSelected ? kAccentGradient : null,
+          color: isSelected ? null : Colors.white.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: isSelected ? Colors.deepPurple : Colors.grey.shade300, width: isSelected ? 2 : 1),
+          border: isSelected
+              ? null
+              : Border.all(color: Colors.white.withValues(alpha: 0.15)),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: isSelected ? Colors.deepPurple : Colors.grey.shade600, size: 20),
+            Icon(icon,
+                color: isSelected ? Colors.white : Colors.white60,
+                size: 20),
             const SizedBox(width: 8),
-            Text(type.toUpperCase(), style: TextStyle(color: isSelected ? Colors.deepPurple : Colors.grey.shade700, fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal)),
+            Text(type.toUpperCase(),
+                style: TextStyle(
+                    color: isSelected ? Colors.white : Colors.white70,
+                    fontWeight:
+                        isSelected ? FontWeight.w600 : FontWeight.normal)),
           ],
         ),
       ),

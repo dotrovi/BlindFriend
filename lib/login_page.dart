@@ -11,6 +11,7 @@ import 'services/firebase_service.dart';
 import 'forgot_password_page.dart';
 import 'blind_home_page.dart';
 import 'volunteer_home_page.dart';
+import 'theme/app_palette.dart';
 
 void main() {
   runApp(const BlindFriendApp());
@@ -34,6 +35,7 @@ class BlindFriendApp extends StatelessWidget {
   }
 }
 
+
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -48,6 +50,7 @@ class _LoginPageState extends State<LoginPage> {
   final FirebaseService _firebaseService = FirebaseService();
   final FlutterTts _tts = FlutterTts();
   final SpeechToText _stt = SpeechToText();
+  final ScrollController _scrollController = ScrollController();
 
   String? _selectedUserType;
   bool _rememberMe = false;
@@ -55,14 +58,14 @@ class _LoginPageState extends State<LoginPage> {
   bool _shouldListen = true;
   bool _isListening = false;
   bool _isSpeaking = false;
+  bool _obscurePassword = true;
 
   int _speakGeneration = 0;
   bool _cancelledBySpeech = false;
   bool _gotResult = false;
   bool _reaskScheduled = false;
 
-  static const String _loginGuide =
-      'This is the login page. '
+  static const String _loginGuide = 'This is the login page. '
       'Please press the button in the middle of the screen to say your email and password to log in. '
       'If you do not have an account, say Register. '
       'If you forgot your password, say Forgot Password.';
@@ -176,8 +179,9 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _startListening() async {
-    if (!_sttAvailable || !mounted || !_shouldListen || _stt.isListening)
+    if (!_sttAvailable || !mounted || !_shouldListen || _stt.isListening) {
       return;
+    }
     _gotResult = false;
     _cancelledBySpeech = false;
     _reaskScheduled = false;
@@ -476,392 +480,726 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  void _scrollToForm() {
+    _scrollController.animateTo(
+      MediaQuery.of(context).size.height,
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  void _scrollToVoice() {
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
+    );
+  }
+
   @override
   void dispose() {
     _shouldListen = false;
     _emailController.dispose();
     _passwordController.dispose();
+    _scrollController.dispose();
     _stt.stop();
     super.dispose();
   }
+
+  // ── UI ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: kNavyDeep,
       body: SingleChildScrollView(
+        controller: _scrollController,
+        physics: const ClampingScrollPhysics(),
         child: Column(
           children: [
-            // ── Full-screen voice button ───────────────────────────────
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: _pressToSpeak,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                height: screenHeight,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: _isListening
-                        ? [const Color(0xFF27AE60), const Color(0xFF2ECC71)]
-                        : _isSpeaking
-                        ? [const Color(0xFF6C3483), const Color(0xFF9B59B6)]
-                        : [const Color(0xFF4A90E2), const Color(0xFF9B59B6)],
-                  ),
-                ),
-                child: SafeArea(
-                  child: Column(
-                    children: [
-                      // Title
-                      const Padding(
-                        padding: EdgeInsets.only(top: 48, bottom: 8),
-                        child: Text(
-                          'BlindFriend',
-                          style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                      const Text(
-                        'Welcome back',
-                        style: TextStyle(fontSize: 18, color: Colors.white70),
-                      ),
+            _buildVoiceSection(screenHeight),
+            _buildFormSection(screenHeight),
+          ],
+        ),
+      ),
+    );
+  }
 
-                      // Centre: mic + status
-                      Expanded(
-                        child: Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 250),
-                                child: Icon(
-                                  _isListening ? Icons.mic : Icons.mic_none,
-                                  key: ValueKey(_isListening),
-                                  color: Colors.white,
-                                  size: 100,
-                                ),
+  // ── Section 1: voice / splash ────────────────────────────────────────────
+  Widget _buildVoiceSection(double screenHeight) {
+    return Container(
+      height: screenHeight,
+      width: double.infinity,
+      decoration: const BoxDecoration(gradient: kSkyGradient),
+      child: Stack(
+        children: [
+          ..._decorativeBokeh(),
+          Positioned.fill(
+            child: SafeArea(
+              child: SingleChildScrollView(
+                child: Column(
+                children: [
+                  const SizedBox(height: 28),
+                  _buildAppIcon(),
+                  const SizedBox(height: 18),
+                  RichText(
+                    text: const TextSpan(
+                      style: TextStyle(
+                        fontSize: 34,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.2,
+                      ),
+                      children: [
+                        TextSpan(
+                          text: 'Blind',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                        TextSpan(
+                          text: 'Friend',
+                          style: TextStyle(color: kPinkBright),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'The World Should Not Be Dark Anymore',
+                    style: TextStyle(color: Colors.white70, fontSize: 14),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildDivider(icon: Icons.favorite, width: 90),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 20),
+                    child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: _pressToSpeak,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                _buildWaveBars(reversed: true),
+                                const SizedBox(width: 18),
+                                _buildMicButton(),
+                                const SizedBox(width: 18),
+                                _buildWaveBars(reversed: false),
+                              ],
+                            ),
+                            const SizedBox(height: 28),
+                            Text(
+                              _isSpeaking
+                                  ? 'Speaking...'
+                                  : _isListening
+                                      ? 'Listening...'
+                                      : 'Tap to Speak',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 26,
+                                fontWeight: FontWeight.bold,
                               ),
-                              const SizedBox(height: 24),
-                              Text(
-                                _isSpeaking
-                                    ? 'Speaking...'
-                                    : _isListening
-                                    ? 'Listening...'
-                                    : 'Tap to Speak',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 32,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              Text(
-                                _isSpeaking
-                                    ? 'Please wait...'
-                                    : _isListening
-                                    ? (_currentStep == 'email'
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              _isSpeaking
+                                  ? 'Please wait...'
+                                  : _isListening
+                                      ? (_currentStep == 'email'
                                           ? 'Say your email address'
                                           : 'Say your password')
-                                    : (_currentStep == 'email'
+                                      : (_currentStep == 'email'
                                           ? 'Press to say your email'
                                           : _currentStep == 'password'
-                                          ? 'Press to say your password'
-                                          : 'Processing...'),
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 17,
-                                ),
-                                textAlign: TextAlign.center,
+                                              ? 'Press to say your password'
+                                              : 'Processing...'),
+                              style: const TextStyle(
+                                color: Colors.white60,
+                                fontSize: 14,
                               ),
-                            ],
-                          ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
                         ),
                       ),
+                    ),
+                  ),
+                  _buildPillButton(
+                    label: 'Continue Manually',
+                    icon: Icons.arrow_forward,
+                    filled: false,
+                    onTap: _scrollToForm,
+                  ),
+                  const SizedBox(height: 14),
+                  GestureDetector(
+                    onTap: _scrollToForm,
+                    child: const Icon(
+                      Icons.keyboard_arrow_up,
+                      color: Colors.white54,
+                      size: 26,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: IgnorePointer(
+              child: SizedBox(
+                height: 90,
+                width: double.infinity,
+                child: CustomPaint(painter: _SkylinePainter()),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-                      // Scroll hint
-                      const Padding(
-                        padding: EdgeInsets.only(bottom: 28),
+  // ── Section 2: login form ────────────────────────────────────────────────
+  Widget _buildFormSection(double screenHeight) {
+    return Container(
+      constraints: BoxConstraints(minHeight: screenHeight),
+      width: double.infinity,
+      decoration: const BoxDecoration(gradient: kSkyGradient),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -60,
+            right: -40,
+            child: Container(
+              width: 160,
+              height: 160,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.06),
+              ),
+            ),
+          ),
+          ..._decorativeBokeh(),
+          SizedBox(
+            width: double.infinity,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 36, 24, 24),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const Text(
+                        'Welcome Back!',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 26,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Sign in to continue your journey',
+                        style: TextStyle(color: Colors.white60, fontSize: 14),
+                      ),
+                      const SizedBox(height: 14),
+                      _buildDivider(icon: Icons.favorite, width: 90),
+                      const SizedBox(height: 24),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: kCardFill.withOpacity(0.65),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.08),
+                          ),
+                        ),
                         child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(
-                              Icons.keyboard_arrow_down,
-                              color: Colors.white60,
-                              size: 28,
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              'Scroll down to type manually',
+                            const Text(
+                              'I am a:',
                               style: TextStyle(
-                                color: Colors.white60,
-                                fontSize: 13,
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _buildRoleButton(
+                                    label: 'Blind User',
+                                    icon: Icons.visibility,
+                                    selected: (_selectedUserType ?? 'blind') ==
+                                        'blind',
+                                    onTap: () => setState(
+                                      () => _selectedUserType = 'blind',
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: _buildRoleButton(
+                                    label: 'Volunteer',
+                                    icon: Icons.people_alt,
+                                    selected: _selectedUserType == 'volunteer',
+                                    onTap: () => setState(
+                                      () => _selectedUserType = 'volunteer',
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 20),
+                            const Text(
+                              'Email',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            _buildDarkField(
+                              controller: _emailController,
+                              hint: 'Enter your email',
+                              icon: Icons.mail_outline,
+                              keyboardType: TextInputType.emailAddress,
+                              validator: (value) =>
+                                  (value == null || value.isEmpty)
+                                      ? 'Please enter your email'
+                                      : null,
+                            ),
+                            const SizedBox(height: 18),
+                            const Text(
+                              'Password',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            _buildDarkField(
+                              controller: _passwordController,
+                              hint: 'Enter your password',
+                              icon: Icons.lock_outline,
+                              obscureText: _obscurePassword,
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _obscurePassword
+                                      ? Icons.visibility_off
+                                      : Icons.visibility,
+                                  color: Colors.white54,
+                                  size: 20,
+                                ),
+                                onPressed: () => setState(
+                                  () => _obscurePassword = !_obscurePassword,
+                                ),
+                              ),
+                              validator: (value) =>
+                                  (value == null || value.isEmpty)
+                                      ? 'Please enter your password'
+                                      : null,
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Transform.scale(
+                                  scale: 0.9,
+                                  child: Checkbox(
+                                    value: _rememberMe,
+                                    activeColor: kPinkBright,
+                                    checkColor: Colors.white,
+                                    side: const BorderSide(
+                                      color: Colors.white54,
+                                    ),
+                                    onChanged: (value) => setState(
+                                      () => _rememberMe = value ?? false,
+                                    ),
+                                  ),
+                                ),
+                                const Text(
+                                  'Remember me',
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                const Spacer(),
+                                TextButton(
+                                  onPressed: () {
+                                    _shouldListen = false;
+                                    _speak('Opening forgot password page.');
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            const ForgotPasswordPage(),
+                                      ),
+                                    ).then((_) => _resumeOnReturn(_loginGuide));
+                                  },
+                                  child: const Text(
+                                    'Forgot Password?',
+                                    style: TextStyle(
+                                      color: kPinkBright,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            _buildPillButton(
+                              label: 'Login',
+                              icon: Icons.lock,
+                              filled: true,
+                              fullWidth: true,
+                              onTap: () {
+                                _shouldListen = false;
+                                if (_selectedUserType == null) {
+                                  setState(() => _selectedUserType = 'blind');
+                                }
+                                _handleLogin();
+                              },
+                            ),
+                            const SizedBox(height: 18),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Divider(
+                                    color: Colors.white.withOpacity(0.2),
+                                  ),
+                                ),
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 10),
+                                  child: Text(
+                                    'OR',
+                                    style: TextStyle(
+                                      color: Colors.white54,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Divider(
+                                    color: Colors.white.withOpacity(0.2),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 18),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: () {
+                                  _scrollToVoice();
+                                  Future.delayed(
+                                    const Duration(milliseconds: 550),
+                                    _pressToSpeak,
+                                  );
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                  backgroundColor: kNavyMid.withOpacity(0.6),
+                                  side: BorderSide(
+                                    color: Colors.white.withOpacity(0.25),
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(30),
+                                  ),
+                                ),
+                                icon: const Icon(
+                                  Icons.mic,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
+                                label: const Text(
+                                  'Login with Voice',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Center(
+                              child: TextButton(
+                                onPressed: () {
+                                  _shouldListen = false;
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const RegisterPage(),
+                                    ),
+                                  ).then((_) => _resumeOnReturn(_loginGuide));
+                                },
+                                child: RichText(
+                                  text: const TextSpan(
+                                    style: TextStyle(
+                                      color: Colors.white60,
+                                      fontSize: 13,
+                                    ),
+                                    children: [
+                                      TextSpan(text: "Don't have an account? "),
+                                      TextSpan(
+                                        text: 'Register',
+                                        style: TextStyle(
+                                          color: kPinkBright,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
                             ),
                           ],
                         ),
                       ),
+                      const SizedBox(height: 16),
+                      TextButton(
+                        onPressed: () => Navigator.pushNamed(context, '/admin'),
+                        child: const Text(
+                          'Admin Portal',
+                          style: TextStyle(color: Colors.white38, fontSize: 12),
+                        ),
+                      ),
+                      const SizedBox(height: 70),
                     ],
                   ),
                 ),
               ),
             ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: IgnorePointer(
+              child: SizedBox(
+                height: 90,
+                width: double.infinity,
+                child: CustomPaint(painter: _SkylinePainter()),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-            // ── Manual form ────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Center(
-                      child: Text(
-                        'Sign in manually',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
+  // ── Reusable pieces ───────────────────────────────────────────────────────
 
-                    // User type
-                    const Text(
-                      'I am a:',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () =>
-                                setState(() => _selectedUserType = 'blind'),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              decoration: BoxDecoration(
-                                border: Border.all(
-                                  color: _selectedUserType == 'blind'
-                                      ? Colors.blue
-                                      : Colors.grey.shade300,
-                                  width: 2,
-                                ),
-                                borderRadius: BorderRadius.circular(8),
-                                color: _selectedUserType == 'blind'
-                                    ? Colors.blue.shade50
-                                    : Colors.white,
-                              ),
-                              child: Center(
-                                child: Text(
-                                  'Blind User',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: _selectedUserType == 'blind'
-                                        ? FontWeight.w600
-                                        : FontWeight.normal,
-                                    color: _selectedUserType == 'blind'
-                                        ? Colors.blue
-                                        : Colors.black87,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () =>
-                                setState(() => _selectedUserType = 'volunteer'),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              decoration: BoxDecoration(
-                                border: Border.all(
-                                  color: _selectedUserType == 'volunteer'
-                                      ? Colors.blue
-                                      : Colors.grey.shade300,
-                                  width: 2,
-                                ),
-                                borderRadius: BorderRadius.circular(8),
-                                color: _selectedUserType == 'volunteer'
-                                    ? Colors.blue.shade50
-                                    : Colors.white,
-                              ),
-                              child: Center(
-                                child: Text(
-                                  'Volunteer',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: _selectedUserType == 'volunteer'
-                                        ? FontWeight.w600
-                                        : FontWeight.normal,
-                                    color: _selectedUserType == 'volunteer'
-                                        ? Colors.blue
-                                        : Colors.black87,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
+  Widget _buildAppIcon() {
+    return Container(
+      width: 84,
+      height: 84,
+      decoration: BoxDecoration(
+        gradient: kAccentGradient,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: kPinkBright.withOpacity(0.45),
+            blurRadius: 24,
+            spreadRadius: 2,
+          ),
+        ],
+      ),
+      child: const Stack(
+        children: [
+          Center(
+            child: Icon(
+              Icons.visibility_off_rounded,
+              color: Colors.white,
+              size: 38,
+            ),
+          ),
+          Positioned(
+            right: 10,
+            top: 10,
+            child: Icon(Icons.graphic_eq, color: Colors.white70, size: 14),
+          ),
+        ],
+      ),
+    );
+  }
 
-                    // Email
-                    const Text(
-                      'Email',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: InputDecoration(
-                        hintText: 'Enter your email',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 14,
-                        ),
-                      ),
-                      validator: (value) => (value == null || value.isEmpty)
-                          ? 'Please enter your email'
-                          : null,
-                    ),
-                    const SizedBox(height: 24),
+  Widget _buildMicButton() {
+    final active = _isListening || _isSpeaking;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      width: 120,
+      height: 120,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: kAccentGradient,
+        boxShadow: [
+          BoxShadow(
+            color: kPinkBright.withOpacity(active ? 0.65 : 0.4),
+            blurRadius: active ? 36 : 24,
+            spreadRadius: active ? 6 : 2,
+          ),
+        ],
+      ),
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 250),
+        child: Icon(
+          _isListening ? Icons.mic : Icons.mic_none,
+          key: ValueKey(_isListening),
+          color: Colors.white,
+          size: 52,
+        ),
+      ),
+    );
+  }
 
-                    // Password
-                    const Text(
-                      'Password',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _passwordController,
-                      obscureText: true,
-                      decoration: InputDecoration(
-                        hintText: 'Enter your password',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 14,
-                        ),
-                      ),
-                      validator: (value) => (value == null || value.isEmpty)
-                          ? 'Please enter your password'
-                          : null,
-                    ),
-                    const SizedBox(height: 16),
+  Widget _buildWaveBars({required bool reversed}) {
+    final heights = reversed
+        ? [10.0, 18.0, 28.0, 18.0, 10.0]
+        : [10.0, 18.0, 28.0, 18.0, 10.0];
+    final active = _isListening;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: heights
+          .map(
+            (h) => AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              margin: const EdgeInsets.symmetric(horizontal: 2),
+              width: 4,
+              height: active ? h : h * 0.5,
+              decoration: BoxDecoration(
+                color: (reversed ? kBlueAccent : kPinkBright)
+                    .withOpacity(active ? 0.9 : 0.4),
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          )
+          .toList(),
+    );
+  }
 
-                    Row(
-                      children: [
-                        Checkbox(
-                          value: _rememberMe,
-                          onChanged: (value) =>
-                              setState(() => _rememberMe = value ?? false),
-                        ),
-                        const Text('Remember me'),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
+  Widget _buildDivider({required IconData icon, required double width}) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: width,
+          height: 1,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.transparent, kPinkBright.withOpacity(0.6)],
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Icon(icon, color: kPinkBright, size: 14),
+        ),
+        Container(
+          width: width,
+          height: 1,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [kPinkBright.withOpacity(0.6), Colors.transparent],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          _shouldListen = false;
-                          if (_selectedUserType == null) {
-                            setState(() => _selectedUserType = 'blind');
-                          }
-                          _handleLogin();
-                        },
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          backgroundColor: _selectedUserType == 'volunteer'
-                              ? Colors.green
-                              : Colors.blue,
-                          foregroundColor: Colors.white,
-                          textStyle: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: const Text('Login'),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    Center(
-                      child: TextButton(
-                        onPressed: () {
-                          _shouldListen = false;
-                          _speak('Opening forgot password page.');
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const ForgotPasswordPage(),
-                            ),
-                          ).then((_) => _resumeOnReturn(_loginGuide));
-                        },
-                        child: const Text(
-                          'Forgot Password?',
-                          style: TextStyle(color: Colors.blue),
-                        ),
-                      ),
-                    ),
-                    Center(
-                      child: TextButton(
-                        onPressed: () {
-                          _shouldListen = false;
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const RegisterPage(),
-                            ),
-                          ).then((_) => _resumeOnReturn(_loginGuide));
-                        },
-                        child: const Text(
-                          "Don't have an account? Register",
-                          style: TextStyle(color: Colors.blue),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Admin portal link
-                    Center(
-                      child: TextButton(
-                        onPressed: () => Navigator.pushNamed(context, '/admin'),
-                        child: const Text(
-                          'Admin Portal',
-                          style: TextStyle(color: Colors.grey, fontSize: 12),
-                        ),
-                      ),
-                    ),
-                  ],
+  Widget _buildPillButton({
+    required String label,
+    required IconData icon,
+    required bool filled,
+    required VoidCallback onTap,
+    bool fullWidth = false,
+  }) {
+    final child = Container(
+      width: fullWidth ? double.infinity : null,
+      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+      decoration: BoxDecoration(
+        gradient: filled ? kAccentGradient : null,
+        color: filled ? null : Colors.transparent,
+        border:
+            filled ? null : Border.all(color: Colors.white.withOpacity(0.4)),
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: filled
+            ? [
+                BoxShadow(
+                  color: kPinkBright.withOpacity(0.35),
+                  blurRadius: 16,
+                  spreadRadius: 1,
                 ),
+              ]
+            : null,
+      ),
+      child: Row(
+        mainAxisSize: fullWidth ? MainAxisSize.max : MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: Colors.white, size: 18),
+          const SizedBox(width: 10),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+              fontSize: 16,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    return GestureDetector(onTap: onTap, child: child);
+  }
+
+  Widget _buildRoleButton({
+    required String label,
+    required IconData icon,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          gradient: selected ? kAccentGradient : null,
+          color: selected ? null : Colors.white.withOpacity(0.04),
+          border: selected
+              ? null
+              : Border.all(color: Colors.white.withOpacity(0.25)),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              color: selected ? Colors.white : Colors.white70,
+              size: 20,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? Colors.white : Colors.white70,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                fontSize: 14,
               ),
             ),
           ],
@@ -869,4 +1207,102 @@ class _LoginPageState extends State<LoginPage> {
       ),
     );
   }
+
+  Widget _buildDarkField({
+    required TextEditingController controller,
+    required String hint,
+    required IconData icon,
+    TextInputType? keyboardType,
+    bool obscureText = false,
+    Widget? suffixIcon,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: keyboardType,
+      obscureText: obscureText,
+      style: const TextStyle(color: Colors.white),
+      validator: validator,
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(color: Colors.white38),
+        prefixIcon: Icon(icon, color: Colors.white54, size: 20),
+        suffixIcon: suffixIcon,
+        filled: true,
+        fillColor: Colors.white.withOpacity(0.05),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.15)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.15)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: kPinkBright),
+        ),
+        errorStyle: const TextStyle(color: Colors.orangeAccent),
+      ),
+    );
+  }
+
+  List<Widget> _decorativeBokeh() {
+    final specs = <List<double>>[
+      [40, 0.08, 30, 30], // size, opacity, top, left
+      [16, 0.5, 70, 260],
+      [10, 0.6, 130, 60],
+      [22, 0.12, 220, 320],
+      [14, 0.45, 300, 40],
+      [8, 0.5, 380, 280],
+    ];
+    return specs
+        .map(
+          (s) => Positioned(
+            top: s[2],
+            left: s[3],
+            child: Container(
+              width: s[0],
+              height: s[0],
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(s[1]),
+              ),
+            ),
+          ),
+        )
+        .toList();
+  }
+}
+
+class _SkylinePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..shader = LinearGradient(
+        colors: [kBlueAccent.withOpacity(0.5), kPinkBright.withOpacity(0.6)],
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+
+    final path = Path()..moveTo(0, size.height);
+    const heights = [0.35, 0.6, 0.25, 0.5, 0.3, 0.55, 0.4];
+    final segW = size.width / heights.length;
+    for (var i = 0; i < heights.length; i++) {
+      final x = i * segW;
+      final h = size.height * (1 - heights[i]);
+      path.lineTo(x, h);
+      path.lineTo(x + segW, h);
+    }
+    path.lineTo(size.width, size.height);
+    path.close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

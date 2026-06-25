@@ -113,7 +113,7 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.1),
+                color: iconColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(icon, color: iconColor, size: 22),
@@ -174,7 +174,9 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Padding(
                   padding: EdgeInsets.all(48),
-                  child: Center(child: CircularProgressIndicator(color: Colors.deepPurple)),
+                  child: Center(
+                      child:
+                          CircularProgressIndicator(color: Colors.deepPurple)),
                 );
               }
 
@@ -247,7 +249,7 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
     final phone = _safeString(data['phoneNumber']);
     final idCard = _safeString(data['idCardNumber']);
     final language = _safeString(data['language']);
-    
+
     // Safely handle specialties - could be List or String
     List<String> specialties = [];
     final specialtiesData = data['specialties'];
@@ -258,7 +260,7 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
     } else if (specialtiesData != null) {
       specialties = [specialtiesData.toString()];
     }
-    
+
     final availability = _safeString(data['availability']);
     final backgroundCheck = _safeString(data['backgroundCheck'] ?? 'pending');
     final trainingDone = data['trainingCompleted'] == true;
@@ -289,7 +291,8 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
                   children: [
                     const Text(
                       'Volunteer Details',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                     ),
                     IconButton(
                       icon: const Icon(Icons.close),
@@ -311,16 +314,18 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
                           _detailRow('Name:', name.isNotEmpty ? name : '—'),
                           _detailRow('Email:', email.isNotEmpty ? email : '—'),
                           _detailRow('Phone:', phone.isNotEmpty ? phone : '—'),
-                          _detailRow('IC Number:', idCard.isNotEmpty ? idCard : '—'),
+                          _detailRow(
+                              'IC Number:', idCard.isNotEmpty ? idCard : '—'),
                           _detailRow('Applied:', dateStr),
                         ]),
                         const SizedBox(height: 12),
-
                         _buildDetailCard('Verification Status', [
                           _statusRow(
                             label: 'Background Check',
                             passed: backgroundCheck == 'passed',
-                            text: backgroundCheck == 'passed' ? 'Passed' : 'Pending',
+                            text: backgroundCheck == 'passed'
+                                ? 'Passed'
+                                : 'Pending',
                           ),
                           const SizedBox(height: 4),
                           _statusRow(
@@ -330,11 +335,16 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
                           ),
                         ]),
                         const SizedBox(height: 12),
-
                         _buildDetailCard('Volunteer Information', [
-                          _detailRow('Language:', language.isNotEmpty ? language : '—'),
-                          _detailRow('Availability:', availability.isNotEmpty ? availability : '—'),
-                          _detailRow('Specialties:', specialties.isNotEmpty ? specialties.join(', ') : 'None'),
+                          _detailRow('Language:',
+                              language.isNotEmpty ? language : '—'),
+                          _detailRow('Availability:',
+                              availability.isNotEmpty ? availability : '—'),
+                          _detailRow(
+                              'Specialties:',
+                              specialties.isNotEmpty
+                                  ? specialties.join(', ')
+                                  : 'None'),
                         ]),
                       ],
                     ),
@@ -411,7 +421,8 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               color: Colors.grey.shade100,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(8)),
               border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
             ),
             child: Text(
@@ -527,7 +538,8 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.green,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
             ),
             onPressed: () async {
               Navigator.pop(ctx);
@@ -578,10 +590,10 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
               maxLines: 3,
               decoration: InputDecoration(
                 hintText: 'e.g. Incomplete documents...',
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8)),
-                contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 14),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               ),
             ),
           ],
@@ -595,7 +607,8 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
             ),
             onPressed: () async {
               Navigator.pop(ctx);
@@ -709,7 +722,8 @@ class _VolunteerRowState extends State<_VolunteerRow> {
           child: SizedBox(
             width: 16,
             height: 16,
-            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.deepPurple),
+            child: CircularProgressIndicator(
+                strokeWidth: 2, color: Colors.deepPurple),
           ),
         ),
       );
@@ -735,7 +749,8 @@ class _VolunteerRowState extends State<_VolunteerRow> {
                 children: [
                   Text(
                     name.isNotEmpty ? name : 'Unknown',
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+                    style: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w500),
                   ),
                   Text(
                     language.isNotEmpty ? language : '—',
@@ -752,7 +767,8 @@ class _VolunteerRowState extends State<_VolunteerRow> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(children: [
-                    Icon(Icons.email_outlined, size: 13, color: Colors.grey.shade400),
+                    Icon(Icons.email_outlined,
+                        size: 13, color: Colors.grey.shade400),
                     const SizedBox(width: 4),
                     Flexible(
                       child: Text(
@@ -764,7 +780,8 @@ class _VolunteerRowState extends State<_VolunteerRow> {
                   ]),
                   const SizedBox(height: 2),
                   Row(children: [
-                    Icon(Icons.phone_outlined, size: 13, color: Colors.grey.shade400),
+                    Icon(Icons.phone_outlined,
+                        size: 13, color: Colors.grey.shade400),
                     const SizedBox(width: 4),
                     Text(
                       phone.isNotEmpty ? phone : '—',
@@ -804,7 +821,8 @@ class _VolunteerRowState extends State<_VolunteerRow> {
                   ),
                   const SizedBox(height: 4),
                   _qualBadge(
-                    label: trainingDone ? 'Training Done' : 'Training Incomplete',
+                    label:
+                        trainingDone ? 'Training Done' : 'Training Incomplete',
                     passed: trainingDone,
                   ),
                 ],

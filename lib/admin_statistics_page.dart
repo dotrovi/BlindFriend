@@ -61,24 +61,26 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
       final performers = <Map<String, dynamic>>[];
 
       for (var doc in volunteers) {
-        final data = doc.data() as Map<String, dynamic>;
+        final data = doc.data();
         final status = (data['status'] ?? 'pending').toString().toLowerCase();
 
         // Count statuses
-        if (status == 'pending') pending++;
-        else if (status == 'approved') approved++;
+        if (status == 'pending') {
+          pending++;
+        } else if (status == 'approved')
+          approved++;
         else if (status == 'rejected') rejected++;
 
         // ✅ Get name from data or use Unknown
         String volunteerName = data['name'] ?? 'Unknown';
-        
+
         // Try to get name from users collection if not available
         if (volunteerName == 'Unknown' || volunteerName.isEmpty) {
           try {
             final uid = data['uid'] ?? doc.id;
             final userDoc = await firestore.collection('users').doc(uid).get();
             if (userDoc.exists) {
-              final userData = userDoc.data() as Map<String, dynamic>?;
+              final userData = userDoc.data();
               volunteerName = userData?['name'] ?? 'Unknown';
             }
           } catch (_) {}
@@ -126,7 +128,8 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
       _totalCompletedRequests = completedSnapshot.docs.length;
 
       // Calculate average rating
-      _overallAverageRating = totalRatings > 0 ? totalRatingSum / totalRatings : 0.0;
+      _overallAverageRating =
+          totalRatings > 0 ? totalRatingSum / totalRatings : 0.0;
       _totalRatings = totalRatings;
 
       // Get exact rating distribution from help_requests
@@ -136,17 +139,17 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
           .get();
 
       for (var doc in ratingSnapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>;
-        
+        final data = doc.data();
+
         dynamic ratingValue = data['rating'] ?? 0;
         int rating = 0;
-        
+
         if (ratingValue is int) {
           rating = ratingValue;
         } else if (ratingValue is double) {
           rating = ratingValue.toInt();
         }
-        
+
         if (rating >= 1 && rating <= 5) {
           ratingDist[rating] = (ratingDist[rating] ?? 0) + 1;
         }
@@ -232,7 +235,7 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(8),
             ),
             child: const Icon(Icons.analytics, color: Colors.white, size: 22),
@@ -244,11 +247,15 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
               children: [
                 const Text(
                   'Volunteer Statistics',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white),
+                  style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white),
                 ),
                 Text(
                   'Overview of volunteer performance and ratings',
-                  style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.8)),
+                  style: TextStyle(
+                      fontSize: 12, color: Colors.white.withValues(alpha: 0.8)),
                 ),
               ],
             ),
@@ -298,7 +305,9 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
             icon: Icons.star,
             iconColor: Colors.amber,
             label: 'Avg Rating',
-            value: _totalRatings > 0 ? _overallAverageRating.toStringAsFixed(1) : 'N/A',
+            value: _totalRatings > 0
+                ? _overallAverageRating.toStringAsFixed(1)
+                : 'N/A',
           ),
         ),
       ],
@@ -319,7 +328,7 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -330,7 +339,7 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.1),
+              color: iconColor.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(icon, color: iconColor, size: 20),
@@ -346,7 +355,8 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
                 ),
                 Text(
                   value,
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
@@ -357,130 +367,135 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
   }
 
   Widget _buildRatingDistribution() {
-  final existingRatings = _ratingDistribution.entries
-      .where((entry) => entry.value > 0)
-      .toList()
+    final existingRatings = _ratingDistribution.entries
+        .where((entry) => entry.value > 0)
+        .toList()
       ..sort((a, b) => b.key.compareTo(a.key));
 
-  final total = _ratingDistribution.values.fold(0, (a, b) => a + b);
+    final total = _ratingDistribution.values.fold(0, (a, b) => a + b);
 
-  if (total == 0) {
+    if (total == 0) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: const Center(
+          child: Text('No ratings yet'),
+        ),
+      );
+    }
+
+    final maxCount =
+        existingRatings.fold(0, (a, b) => a > b.value ? a : b.value);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      child: const Center(
-        child: Text('No ratings yet'),
-      ),
-    );
-  }
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.bar_chart, size: 18, color: Colors.purple),
+              SizedBox(width: 8),
+              Text(
+                'Rating Distribution',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ...existingRatings.map((entry) {
+            final rating = entry.key;
+            final count = entry.value;
+            final percentage = maxCount > 0 ? count / maxCount : 0.0;
 
-  final maxCount = existingRatings.fold(0, (a, b) => a > b.value ? a : b.value);
+            Color barColor;
+            if (rating == 5) {
+              barColor = Colors.green.shade600;
+            } else if (rating == 4) {
+              barColor = Colors.blue.shade600;
+            } else if (rating == 3) {
+              barColor = Colors.orange.shade600;
+            } else if (rating == 2) {
+              barColor = Colors.deepOrange.shade600;
+            } else {
+              barColor = Colors.red.shade600;
+            }
 
-  return Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(10),
-      border: Border.all(color: Colors.grey.shade200),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.04),
-          blurRadius: 8,
-          offset: const Offset(0, 2),
-        ),
-      ],
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Row(
-          children: [
-            Icon(Icons.bar_chart, size: 18, color: Colors.purple),
-            SizedBox(width: 8),
-            Text(
-              'Rating Distribution',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        ...existingRatings.map((entry) {
-          final rating = entry.key;
-          final count = entry.value;
-          final percentage = maxCount > 0 ? count / maxCount : 0.0;
-
-          Color barColor;
-          if (rating == 5) {
-            barColor = Colors.green.shade600;
-          } else if (rating == 4) {
-            barColor = Colors.blue.shade600;
-          } else if (rating == 3) {
-            barColor = Colors.orange.shade600;
-          } else if (rating == 2) {
-            barColor = Colors.deepOrange.shade600;
-          } else {
-            barColor = Colors.red.shade600;
-          }
-
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 50,
-                  child: Row(
-                    children: [
-                      Text('$rating', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                      const Icon(Icons.star, size: 12, color: Colors.amber),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: Container(
-                    height: 20,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade200,
-                      borderRadius: BorderRadius.circular(8),
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 50,
+                    child: Row(
+                      children: [
+                        Text('$rating',
+                            style: const TextStyle(
+                                fontSize: 12, fontWeight: FontWeight.w600)),
+                        const Icon(Icons.star, size: 12, color: Colors.amber),
+                      ],
                     ),
-                    child: Align(
-                      alignment: Alignment.centerLeft, // ✅ FIX: Bar starts from the left
-                      child: FractionallySizedBox(
-                        widthFactor: percentage,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: barColor,
-                            borderRadius: BorderRadius.circular(8),
+                  ),
+                  Expanded(
+                    child: Container(
+                      height: 20,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade200,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Align(
+                        alignment: Alignment
+                            .centerLeft, // ✅ FIX: Bar starts from the left
+                        child: FractionallySizedBox(
+                          widthFactor: percentage,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: barColor,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                SizedBox(
-                  width: 45,
-                  child: Text(
-                    count.toString(),
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-                    textAlign: TextAlign.right,
+                  SizedBox(
+                    width: 45,
+                    child: Text(
+                      count.toString(),
+                      style: const TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w500),
+                      textAlign: TextAlign.right,
+                    ),
                   ),
-                ),
-              ],
-            ),
-          );
-        }).toList(),
-        const SizedBox(height: 8),
-        Text(
-          'Total ratings: $total',
-          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-        ),
-      ],
-    ),
-  );
-}
+                ],
+              ),
+            );
+          }),
+          const SizedBox(height: 8),
+          Text(
+            'Total ratings: $total',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildStatusBreakdown() {
     final total = _totalVolunteers;
@@ -494,7 +509,7 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -586,7 +601,8 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
         children: [
           Text(
             '$count',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color),
+            style: TextStyle(
+                fontSize: 16, fontWeight: FontWeight.bold, color: color),
           ),
           Text(
             label,
@@ -624,7 +640,7 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -676,12 +692,14 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
 
               return Container(
                 margin: const EdgeInsets.only(bottom: 6),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
                   color: isFirst ? Colors.amber.shade50 : Colors.grey.shade50,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: isFirst ? Colors.amber.shade300 : Colors.grey.shade200,
+                    color:
+                        isFirst ? Colors.amber.shade300 : Colors.grey.shade200,
                   ),
                 ),
                 child: Row(
@@ -697,7 +715,8 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
                     Expanded(
                       child: Text(
                         name,
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                        style: const TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w500),
                       ),
                     ),
                     Row(
@@ -706,18 +725,21 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
                         const SizedBox(width: 2),
                         Text(
                           avgRating.toStringAsFixed(1),
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
                             color: Colors.purple.shade100,
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
                             '$totalRatings ratings',
-                            style: TextStyle(fontSize: 9, color: Colors.purple.shade700),
+                            style: TextStyle(
+                                fontSize: 9, color: Colors.purple.shade700),
                           ),
                         ),
                       ],

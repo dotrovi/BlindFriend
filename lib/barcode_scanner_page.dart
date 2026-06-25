@@ -3,6 +3,8 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'services/platform_support.dart';
+import 'theme/app_palette.dart';
 
 class BarcodeScannerPage extends StatefulWidget {
   const BarcodeScannerPage({super.key});
@@ -14,18 +16,22 @@ class BarcodeScannerPage extends StatefulWidget {
 class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
   final FlutterTts _tts = FlutterTts();
   final MobileScannerController _scannerController = MobileScannerController();
-  
+
   bool _isLoading = false;
   bool _isScanning = true;
   ProductInfo? _scannedProduct;
   String? _errorMessage;
-  List<ProductInfo> _recentScans = [];
+  final List<ProductInfo> _recentScans = [];
 
   @override
   void initState() {
     super.initState();
     _initTts();
-    _speak('Barcode scanner opened. Point your camera at a product barcode.');
+    if (barcodeScanningSupported) {
+      _speak('Barcode scanner opened. Point your camera at a product barcode.');
+    } else {
+      _speak('Barcode scanning is not available on this device.');
+    }
   }
 
   Future<void> _initTts() async {
@@ -46,34 +52,34 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
 
   Future<void> _handleBarcodeDetected(BarcodeCapture capture) async {
     if (!_isScanning || _isLoading) return;
-    
+
     final barcode = capture.barcodes.first;
     final rawValue = barcode.rawValue;
-    
+
     if (rawValue != null && rawValue.isNotEmpty) {
       setState(() {
         _isScanning = false;
         _isLoading = true;
       });
-      
+
       await _scannerController.stop();
       _speak('Barcode detected: $rawValue. Looking up product information.');
-      
+
       final product = await _fetchProductInfo(rawValue);
-      
+
       setState(() {
         _isLoading = false;
       });
-      
+
       if (product != null) {
         setState(() {
           _scannedProduct = product;
           _recentScans.insert(0, product);
           if (_recentScans.length > 10) _recentScans.removeLast();
         });
-        
+
         _speak(_getProductDescription(product));
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Found: ${product.name}'),
@@ -86,7 +92,7 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
           _errorMessage = 'Product not found. Try scanning again.';
         });
         _speak('Product not found in database. Please try another barcode.');
-        
+
         Future.delayed(const Duration(seconds: 3), () {
           if (mounted) {
             setState(() {
@@ -104,9 +110,10 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
   Future<ProductInfo?> _fetchProductInfo(String barcode) async {
     try {
       final response = await http.get(
-        Uri.parse('https://world.openfoodfacts.org/api/v0/product/$barcode.json'),
+        Uri.parse(
+            'https://world.openfoodfacts.org/api/v0/product/$barcode.json'),
       );
-      
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['status'] == 1) {
@@ -115,7 +122,8 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
             barcode: barcode,
             name: product['product_name'] ?? 'Unknown product',
             brand: product['brands'] ?? 'Unknown brand',
-            ingredients: product['ingredients_text'] ?? 'Ingredients not available',
+            ingredients:
+                product['ingredients_text'] ?? 'Ingredients not available',
             quantity: product['quantity'] ?? '',
             imageUrl: product['image_url'] ?? '',
             nutrition: _extractNutrition(product),
@@ -172,7 +180,8 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
   }
 
   void _readAllergens() {
-    if (_scannedProduct != null && _scannedProduct!.allergens != 'Not specified') {
+    if (_scannedProduct != null &&
+        _scannedProduct!.allergens != 'Not specified') {
       _speak('Allergen warning: ${_scannedProduct!.allergens}');
     } else {
       _speak('No allergens information available for this product.');
@@ -186,12 +195,61 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
     super.dispose();
   }
 
+  Widget _buildUnsupportedView() {
+    return Scaffold(
+      backgroundColor: kNavyDeep,
+      appBar: AppBar(
+        backgroundColor: kNavyMid,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'Shopping Helper',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.videocam_off_outlined,
+                  size: 64, color: kAmberAccent.withValues(alpha: 0.8)),
+              const SizedBox(height: 16),
+              const Text(
+                'Camera not available',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Barcode scanning needs a camera and only works on Android, '
+                'iOS, macOS, or in a web browser.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white60, fontSize: 14),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (!barcodeScanningSupported) return _buildUnsupportedView();
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: kNavyDeep,
       appBar: AppBar(
-        backgroundColor: Colors.blue,
+        backgroundColor: kNavyMid,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
@@ -246,12 +304,13 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.crop_free, size: 50, color: Colors.green),
+                          const Icon(Icons.crop_free,
+                              size: 50, color: Colors.green),
                           const SizedBox(height: 8),
                           Text(
                             'Align barcode here',
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.9),
+                              color: Colors.white.withValues(alpha: 0.9),
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -262,52 +321,52 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
                 ],
               ),
             ),
-          
+
           // Loading Indicator
           if (_isLoading)
             Container(
               height: 300,
               margin: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: kCardFill.withValues(alpha: 0.6),
                 borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8),
-                ],
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
               ),
               child: const Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    CircularProgressIndicator(color: Colors.blue),
+                    CircularProgressIndicator(color: kBlueAccent),
                     SizedBox(height: 16),
-                    Text('Looking up product...', style: TextStyle(fontSize: 16)),
+                    Text('Looking up product...',
+                        style: TextStyle(fontSize: 16, color: Colors.white70)),
                   ],
                 ),
               ),
             ),
-          
+
           // Scan Button (when not scanning and no product)
           if (!_isScanning && !_isLoading && _scannedProduct == null)
             Container(
               margin: const EdgeInsets.all(16),
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: kCardFill.withValues(alpha: 0.6),
                 borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8),
-                ],
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
               ),
               child: Column(
                 children: [
-                  const Icon(Icons.qr_code_scanner, size: 60, color: Colors.blue),
+                  const Icon(Icons.qr_code_scanner,
+                      size: 60, color: kBlueAccent),
                   const SizedBox(height: 16),
                   Text(
                     _errorMessage ?? 'No product scanned',
                     style: TextStyle(
                       fontSize: 16,
-                      color: _errorMessage != null ? Colors.red : Colors.grey,
+                      color: _errorMessage != null
+                          ? Colors.redAccent
+                          : Colors.white60,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -317,9 +376,10 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
                     icon: const Icon(Icons.qr_code_scanner),
                     label: const Text('Scan Another Barcode'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
+                      backgroundColor: kBlueAccent,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -328,7 +388,7 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
                 ],
               ),
             ),
-          
+
           // Product Details Section
           if (_scannedProduct != null)
             Expanded(
@@ -345,7 +405,9 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
-                          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8),
+                          BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.05),
+                              blurRadius: 8),
                         ],
                       ),
                       child: Column(
@@ -357,11 +419,14 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
                               Expanded(
                                 child: Text(
                                   _scannedProduct!.name,
-                                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                                  style: const TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold),
                                 ),
                               ),
                               IconButton(
-                                icon: const Icon(Icons.volume_up, color: Colors.blue, size: 28),
+                                icon: const Icon(Icons.volume_up,
+                                    color: Colors.blue, size: 28),
                                 onPressed: _readProductDetails,
                               ),
                             ],
@@ -369,23 +434,26 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
                           const SizedBox(height: 8),
                           Text(
                             'Brand: ${_scannedProduct!.brand}',
-                            style: const TextStyle(fontSize: 14, color: Colors.grey),
+                            style: const TextStyle(
+                                fontSize: 14, color: Colors.grey),
                           ),
                           if (_scannedProduct!.quantity.isNotEmpty) ...[
                             const SizedBox(height: 4),
                             Text(
                               'Size: ${_scannedProduct!.quantity}',
-                              style: const TextStyle(fontSize: 14, color: Colors.grey),
+                              style: const TextStyle(
+                                  fontSize: 14, color: Colors.grey),
                             ),
                           ],
                           const SizedBox(height: 8),
                           const Divider(),
                           const SizedBox(height: 8),
-                          
+
                           // INGREDIENTS SECTION
                           const Text(
                             'Ingredients:',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 15),
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -393,7 +461,7 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
                             style: const TextStyle(fontSize: 14),
                           ),
                           const SizedBox(height: 12),
-                          
+
                           // Allergen Warning
                           if (_scannedProduct!.allergens != 'Not specified')
                             Container(
@@ -409,13 +477,18 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         const Text(
                                           'Allergen Warning',
-                                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+                                          style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.red),
                                         ),
-                                        Text(_scannedProduct!.allergens, style: const TextStyle(fontSize: 13)),
+                                        Text(_scannedProduct!.allergens,
+                                            style:
+                                                const TextStyle(fontSize: 13)),
                                       ],
                                     ),
                                   ),
@@ -427,7 +500,7 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
                               ),
                             ),
                           const SizedBox(height: 12),
-                          
+
                           // Nutrition
                           Container(
                             padding: const EdgeInsets.all(12),
@@ -437,7 +510,8 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
                             ),
                             child: Row(
                               children: [
-                                const Icon(Icons.food_bank, color: Colors.green),
+                                const Icon(Icons.food_bank,
+                                    color: Colors.green),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
@@ -447,26 +521,29 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
                                 ),
                                 IconButton(
                                   icon: const Icon(Icons.volume_up, size: 20),
-                                  onPressed: () => _speak(_scannedProduct!.nutrition),
+                                  onPressed: () =>
+                                      _speak(_scannedProduct!.nutrition),
                                 ),
                               ],
                             ),
                           ),
                           const SizedBox(height: 12),
-                          
+
                           // Barcode
                           Row(
                             children: [
-                              const Icon(Icons.qr_code, size: 16, color: Colors.grey),
+                              const Icon(Icons.qr_code,
+                                  size: 16, color: Colors.grey),
                               const SizedBox(width: 8),
                               Text(
                                 'Barcode: ${_scannedProduct!.barcode}',
-                                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                style: const TextStyle(
+                                    fontSize: 12, color: Colors.grey),
                               ),
                             ],
                           ),
                           const SizedBox(height: 16),
-                          
+
                           // Action Buttons
                           Row(
                             children: [
@@ -477,7 +554,8 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
                                   label: const Text('Ingredients'),
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: Colors.blue,
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 12),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(10),
                                     ),
@@ -493,7 +571,8 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.blue,
                                     foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 12),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(10),
                                     ),
@@ -506,7 +585,7 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    
+
                     // Recent Scans Section
                     if (_recentScans.length > 1)
                       Container(
@@ -516,7 +595,9 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
-                            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8),
+                            BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.05),
+                                blurRadius: 8),
                           ],
                         ),
                         child: Column(
@@ -524,24 +605,30 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
                           children: [
                             const Text(
                               'Recent Scans',
-                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                  fontSize: 18, fontWeight: FontWeight.bold),
                             ),
                             const SizedBox(height: 12),
-                            ..._recentScans.skip(1).take(5).map((product) => ListTile(
-                              leading: const Icon(Icons.qr_code, color: Colors.blue),
-                              title: Text(product.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                              subtitle: Text(product.brand),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.volume_up, size: 20),
-                                onPressed: () => _speak(_getProductDescription(product)),
-                              ),
-                              onTap: () {
-                                setState(() {
-                                  _scannedProduct = product;
-                                });
-                                _speak(_getProductDescription(product));
-                              },
-                            )),
+                            ..._recentScans.skip(1).take(5).map((product) =>
+                                ListTile(
+                                  leading: const Icon(Icons.qr_code,
+                                      color: Colors.blue),
+                                  title: Text(product.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis),
+                                  subtitle: Text(product.brand),
+                                  trailing: IconButton(
+                                    icon: const Icon(Icons.volume_up, size: 20),
+                                    onPressed: () =>
+                                        _speak(_getProductDescription(product)),
+                                  ),
+                                  onTap: () {
+                                    setState(() {
+                                      _scannedProduct = product;
+                                    });
+                                    _speak(_getProductDescription(product));
+                                  },
+                                )),
                           ],
                         ),
                       ),

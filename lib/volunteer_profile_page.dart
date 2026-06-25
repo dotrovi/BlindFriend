@@ -50,14 +50,27 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
   final _phoneController = TextEditingController();
 
   final List<String> _languages = [
-    'English', 'Spanish', 'Mandarin', 'French', 'German', 'Korean',
+    'English',
+    'Spanish',
+    'Mandarin',
+    'French',
+    'German',
+    'Korean',
   ];
   final List<String> _allSpecialties = [
-    'Shopping', 'Navigation', 'Reading', 'Tech Support',
-    'Emergency Assistance', 'Medical Support', 'Transportation',
+    'Shopping',
+    'Navigation',
+    'Reading',
+    'Tech Support',
+    'Emergency Assistance',
+    'Medical Support',
+    'Transportation',
   ];
   final List<String> _availabilityOptions = [
-    'Weekdays', 'Weekends', 'Anytime', 'Emergency Only',
+    'Weekdays',
+    'Weekends',
+    'Anytime',
+    'Emergency Only',
   ];
 
   bool _isLoading = true;
@@ -80,7 +93,8 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
   double _averageRating = 0.0;
   int _totalRatings = 0;
   List<FeedbackItem> _feedbacks = [];
-  int _selectedTabIndex = 0; // 0 = rating summary, 1 = all feedback, 2 = by rating
+  int _selectedTabIndex =
+      0; // 0 = rating summary, 1 = all feedback, 2 = by rating
 
   late TabController _tabController;
 
@@ -178,7 +192,8 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
           blindUserName: data['blindUserName'] ?? 'Anonymous',
           rating: data['rating'] ?? 0,
           comment: data['feedbackComment'] ?? '',
-          createdAt: (data['ratedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          createdAt:
+              (data['ratedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
           requestType: data['requestType'] ?? 'help',
         ));
       }
@@ -285,8 +300,8 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
   }
 
   void _showError(String msg) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: Colors.red));
   }
 
   @override
@@ -333,9 +348,8 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
               IconButton(
                 icon: const Icon(Icons.arrow_back_ios_new_rounded,
                     color: Colors.white),
-                onPressed: _isEditing
-                    ? _cancelEditing
-                    : () => Navigator.pop(context),
+                onPressed:
+                    _isEditing ? _cancelEditing : () => Navigator.pop(context),
               ),
               Expanded(
                 child: Row(
@@ -344,15 +358,17 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
                     if (!_isEditing && uid != null && _totalRatings > 0)
                       Container(
                         margin: const EdgeInsets.only(right: 8),
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
+                          color: Colors.white.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.star, color: Colors.white, size: 14),
+                            const Icon(Icons.star,
+                                color: Colors.white, size: 14),
                             const SizedBox(width: 4),
                             Text(
                               _averageRating.toStringAsFixed(1),
@@ -366,7 +382,7 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
                             Text(
                               '($_totalRatings)',
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.8),
+                                color: Colors.white.withValues(alpha: 0.8),
                                 fontSize: 11,
                               ),
                             ),
@@ -440,7 +456,8 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
                   margin: const EdgeInsets.only(bottom: 12),
                   child: Row(
                     children: [
-                      const Icon(Icons.star_rate_rounded, color: Colors.amber, size: 22),
+                      const Icon(Icons.star_rate_rounded,
+                          color: Colors.amber, size: 22),
                       const SizedBox(width: 8),
                       const Text(
                         'Ratings & Feedback',
@@ -452,9 +469,10 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
                       if (_totalRatings > 0)
                         Container(
                           margin: const EdgeInsets.only(left: 8),
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
-                            color: _emerald.withOpacity(0.1),
+                            color: _emerald.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
@@ -477,7 +495,7 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
+                        color: Colors.black.withValues(alpha: 0.04),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
@@ -512,10 +530,10 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
                           children: [
                             // Summary Tab
                             _buildRatingSummaryTab(volunteerId),
-                            
+
                             // All Feedback Tab
                             _buildAllFeedbackTab(),
-                            
+
                             // By Rating Tab
                             _buildRatingBreakdownTab(),
                           ],
@@ -563,7 +581,9 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
                     _InfoRow(
                         icon: Icons.translate_rounded,
                         label: 'Language',
-                        value: _languageList.isEmpty ? '—' : _languageList.join(', ')),
+                        value: _languageList.isEmpty
+                            ? '—'
+                            : _languageList.join(', ')),
                   ],
                 ),
                 _buildInfoCard(
@@ -658,12 +678,15 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
                           Row(
                             children: List.generate(5, (index) {
                               if (index < _averageRating.floor()) {
-                                return const Icon(Icons.star, color: Colors.amber, size: 24);
+                                return const Icon(Icons.star,
+                                    color: Colors.amber, size: 24);
                               } else if (index < _averageRating &&
                                   _averageRating - index >= 0.5) {
-                                return const Icon(Icons.star_half, color: Colors.amber, size: 24);
+                                return const Icon(Icons.star_half,
+                                    color: Colors.amber, size: 24);
                               } else {
-                                return const Icon(Icons.star_border, color: Colors.amber, size: 24);
+                                return const Icon(Icons.star_border,
+                                    color: Colors.amber, size: 24);
                               }
                             }),
                           ),
@@ -691,7 +714,8 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
               ),
               child: Column(
                 children: [
-                  Icon(Icons.star_outline, size: 48, color: Colors.grey.shade400),
+                  Icon(Icons.star_outline,
+                      size: 48, color: Colors.grey.shade400),
                   const SizedBox(height: 12),
                   Text(
                     'No ratings yet',
@@ -737,7 +761,8 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.comment_outlined, size: 48, color: Colors.grey.shade400),
+              Icon(Icons.comment_outlined,
+                  size: 48, color: Colors.grey.shade400),
               const SizedBox(height: 12),
               Text(
                 'No feedback yet',
@@ -801,7 +826,8 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
               ),
               child: Row(
                 children: [
-                  Icon(Icons.info_outline, size: 18, color: Colors.blue.shade700),
+                  Icon(Icons.info_outline,
+                      size: 18, color: Colors.blue.shade700),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -822,7 +848,7 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
 
   Widget _buildRatingBar(int rating, int count, int total) {
     final percentage = total > 0 ? (count / total) : 0.0;
-    
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -831,7 +857,8 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
             width: 50,
             child: Row(
               children: [
-                Text('$rating', style: const TextStyle(fontWeight: FontWeight.w600)),
+                Text('$rating',
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
                 const Icon(Icons.star, size: 14, color: Colors.amber),
               ],
             ),
@@ -844,8 +871,11 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
                 minHeight: 8,
                 backgroundColor: Colors.grey.shade200,
                 valueColor: AlwaysStoppedAnimation<Color>(
-                  rating >= 4 ? Colors.green.shade600 :
-                  rating == 3 ? Colors.orange.shade600 : Colors.red.shade600,
+                  rating >= 4
+                      ? Colors.green.shade600
+                      : rating == 3
+                          ? Colors.orange.shade600
+                          : Colors.red.shade600,
                 ),
               ),
             ),
@@ -880,7 +910,7 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: Colors.black.withValues(alpha: 0.02),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -995,12 +1025,12 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
             Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.3),
+                color: Colors.white.withValues(alpha: 0.3),
                 shape: BoxShape.circle,
               ),
               child: CircleAvatar(
                 radius: 44,
-                backgroundColor: Colors.white.withOpacity(0.2),
+                backgroundColor: Colors.white.withValues(alpha: 0.2),
                 child: Text(
                   _name.isNotEmpty ? _name[0].toUpperCase() : 'V',
                   style: const TextStyle(
@@ -1024,14 +1054,13 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
               margin: const EdgeInsets.only(bottom: 20),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: const [
-                  Icon(Icons.verified_rounded,
-                      color: Colors.white, size: 13),
+                  Icon(Icons.verified_rounded, color: Colors.white, size: 13),
                   SizedBox(width: 5),
                   Text('Volunteer',
                       style: TextStyle(color: Colors.white, fontSize: 12)),
@@ -1059,7 +1088,7 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
         border: Border(left: BorderSide(color: accentColor, width: 4)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -1111,8 +1140,7 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
             icon: Icons.email_outlined,
             child: Container(
               width: double.infinity,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
               decoration: BoxDecoration(
                 color: Colors.grey.shade100,
                 border: Border.all(color: Colors.grey.shade300),
@@ -1124,8 +1152,8 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
                       size: 16, color: Colors.grey.shade400),
                   const SizedBox(width: 8),
                   Text(_email,
-                      style: TextStyle(
-                          color: Colors.grey.shade600, fontSize: 14)),
+                      style:
+                          TextStyle(color: Colors.grey.shade600, fontSize: 14)),
                 ],
               ),
             ),
@@ -1168,7 +1196,7 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
               borderRadius: BorderRadius.circular(14),
               boxShadow: [
                 BoxShadow(
-                  color: _emerald.withOpacity(0.35),
+                  color: _emerald.withValues(alpha: 0.35),
                   blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),
@@ -1208,8 +1236,7 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14)),
               ),
-              child: const Text('Cancel',
-                  style: TextStyle(fontSize: 15)),
+              child: const Text('Cancel', style: TextStyle(fontSize: 15)),
             ),
           ),
         ],
@@ -1261,8 +1288,7 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
         hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
         filled: true,
         fillColor: Colors.white,
-        border:
-            OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(color: Colors.grey.shade300),
@@ -1310,9 +1336,8 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
                   : null,
               color: isSelected ? null : Colors.white,
               border: Border.all(
-                color: isSelected
-                    ? const Color(0xFF7C3AED)
-                    : Colors.grey.shade300,
+                color:
+                    isSelected ? const Color(0xFF7C3AED) : Colors.grey.shade300,
                 width: 1.5,
               ),
               borderRadius: BorderRadius.circular(10),
@@ -1323,9 +1348,7 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
                 style: TextStyle(
                   fontSize: 13,
                   color: isSelected ? Colors.white : Colors.black87,
-                  fontWeight: isSelected
-                      ? FontWeight.w600
-                      : FontWeight.normal,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                 ),
               ),
             ),
@@ -1370,9 +1393,8 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
                   : null,
               color: isSelected ? null : Colors.white,
               border: Border.all(
-                color: isSelected
-                    ? Colors.orange.shade400
-                    : Colors.grey.shade300,
+                color:
+                    isSelected ? Colors.orange.shade400 : Colors.grey.shade300,
                 width: 1.5,
               ),
               borderRadius: BorderRadius.circular(10),
@@ -1392,9 +1414,8 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
                       style: TextStyle(
                         fontSize: 12,
                         color: isSelected ? Colors.white : Colors.black87,
-                        fontWeight: isSelected
-                            ? FontWeight.w600
-                            : FontWeight.normal,
+                        fontWeight:
+                            isSelected ? FontWeight.w600 : FontWeight.normal,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -1420,16 +1441,13 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
         child: DropdownButton<String>(
           value: _editAvailability,
           hint: Text('Select availability',
-              style: TextStyle(
-                  color: Colors.grey.shade400, fontSize: 14)),
+              style: TextStyle(color: Colors.grey.shade400, fontSize: 14)),
           isExpanded: true,
           icon: const Icon(Icons.keyboard_arrow_down_rounded),
           style: const TextStyle(color: Colors.black87, fontSize: 14),
-          onChanged: (value) =>
-              setState(() => _editAvailability = value),
+          onChanged: (value) => setState(() => _editAvailability = value),
           items: _availabilityOptions
-              .map((opt) =>
-                  DropdownMenuItem(value: opt, child: Text(opt)))
+              .map((opt) => DropdownMenuItem(value: opt, child: Text(opt)))
               .toList(),
         ),
       ),
@@ -1460,12 +1478,11 @@ class _InfoRow extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(label,
-                style: const TextStyle(
-                    color: Colors.grey, fontSize: 11)),
+                style: const TextStyle(color: Colors.grey, fontSize: 11)),
             const SizedBox(height: 1),
             Text(value,
-                style: const TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.w500)),
+                style:
+                    const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
           ],
         ),
       ],

@@ -13,6 +13,7 @@ import 'blind_track_help_request.dart'; // Add this import
 import 'obstacle_detection_page.dart';
 import 'tactile_path_page.dart';
 import 'accessibility_settings_page.dart';
+import 'theme/app_palette.dart';
 
 class BlindHomePage extends StatefulWidget {
   final String userName;
@@ -55,7 +56,8 @@ class _BlindHomePageState extends State<BlindHomePage> {
     await _tts.setPitch(1.0);
 
     final micStatus = await Permission.microphone.request();
-    print('🎤 Mic permission status: $micStatus (granted=${micStatus.isGranted})');
+    print(
+        '🎤 Mic permission status: $micStatus (granted=${micStatus.isGranted})');
     if (!mounted) return;
 
     final sttInitialized = await _stt.initialize(
@@ -168,8 +170,9 @@ class _BlindHomePageState extends State<BlindHomePage> {
   }
 
   Future<void> _startListening() async {
-    if (!_sttAvailable || !mounted || !_shouldListen || _stt.isListening)
+    if (!_sttAvailable || !mounted || !_shouldListen || _stt.isListening) {
       return;
+    }
 
     setState(() => _isListening = true);
     await _stt.listen(
@@ -205,15 +208,17 @@ class _BlindHomePageState extends State<BlindHomePage> {
     } else if (command.contains('path') || command.contains('navigation')) {
       await _speak('Path detection. Tactile path guidance recognition.');
       _setSelectedIndex(3);
-    } else if (command.contains('request help') || 
-               (command.contains('send') && command.contains('help'))) {
+    } else if (command.contains('request help') ||
+        (command.contains('send') && command.contains('help'))) {
       await _speak('Opening request help page. Please describe your need.');
       _navigateToSendHelpRequest();
     } else if (command.contains('track') && command.contains('request')) {
-      await _speak('Opening your help requests. Here are your recent requests.');
+      await _speak(
+          'Opening your help requests. Here are your recent requests.');
       _navigateToTrackRequests();
     } else if (command.contains('volunteer') || command.contains('help')) {
-      await _speak('Finding volunteers. You can request help or track your requests.');
+      await _speak(
+          'Finding volunteers. You can request help or track your requests.');
       _setSelectedIndex(4);
     } else if (command.contains('home') || command.contains('dashboard')) {
       await _speak('Returning to home page.');
@@ -355,10 +360,31 @@ class _BlindHomePageState extends State<BlindHomePage> {
     super.dispose();
   }
 
+  Widget _headerIconButton({
+    required IconData icon,
+    required Color color,
+    required VoidCallback onPressed,
+    String? tooltip,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 8),
+      child: Material(
+        color: color.withValues(alpha: 0.18),
+        shape: const CircleBorder(),
+        child: IconButton(
+          onPressed: onPressed,
+          icon: Icon(icon, size: 22),
+          color: color,
+          tooltip: tooltip,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F5),
+      backgroundColor: kNavyDeep,
       body: SafeArea(
         child: Column(
           children: [
@@ -366,14 +392,11 @@ class _BlindHomePageState extends State<BlindHomePage> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+                color: kNavyMid,
+                border: Border(
+                  bottom:
+                      BorderSide(color: Colors.white.withValues(alpha: 0.06)),
+                ),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -381,26 +404,49 @@ class _BlindHomePageState extends State<BlindHomePage> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'BlindFriend',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue,
+                      RichText(
+                        text: const TextSpan(
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          children: [
+                            TextSpan(
+                              text: 'Blind',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                            TextSpan(
+                              text: 'Friend',
+                              style: TextStyle(color: kPinkBright),
+                            ),
+                          ],
                         ),
                       ),
-                      Text(
-                        'Welcome, ${widget.userName}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey.shade600,
+                      RichText(
+                        text: TextSpan(
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Colors.white60,
+                          ),
+                          children: [
+                            const TextSpan(text: 'Welcome back, '),
+                            TextSpan(
+                              text: widget.userName,
+                              style: const TextStyle(
+                                color: kBlueAccent,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                   Row(
                     children: [
-                      IconButton(
+                      _headerIconButton(
+                        icon: Icons.person,
+                        color: kBlueAccent,
                         onPressed: () async {
                           _shouldListen = false;
                           _speak('Opening your profile.');
@@ -412,22 +458,21 @@ class _BlindHomePageState extends State<BlindHomePage> {
                           );
                           _shouldListen = true;
                         },
-                        icon: const Icon(Icons.person, size: 28),
-                        color: Colors.blue,
                       ),
-                      IconButton(
+                      _headerIconButton(
+                        icon: Icons.accessibility_new,
+                        color: kPurpleAccent,
+                        tooltip: 'Accessibility Settings',
                         onPressed: () {
                           _shouldListen = false;
                           _speak('Opening accessibility settings.');
                           _navigateToAccessibilitySettings();
                         },
-                        icon: const Icon(Icons.accessibility_new, size: 28),
-                        color: Colors.purple,
-                        tooltip: 'Accessibility Settings',
                       ),
-                      IconButton(
+                      _headerIconButton(
+                        icon: Icons.logout,
+                        color: kRedAccent,
                         onPressed: () async {
-                          print("🔴 Logout button pressed");
                           try {
                             await _tts.stop();
                             await _tts.speak(
@@ -437,10 +482,8 @@ class _BlindHomePageState extends State<BlindHomePage> {
                               const Duration(milliseconds: 800),
                             );
 
-                            print("🔴 Signing out from Firebase");
                             await FirebaseAuth.instance.signOut();
 
-                            print("🔴 Navigating to LoginPage");
                             // Force navigation to login page
                             if (mounted) {
                               Navigator.of(
@@ -453,7 +496,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
                               );
                             }
                           } catch (e) {
-                            print("🔴 Logout error: $e");
                             // Force navigation even on error
                             if (mounted) {
                               Navigator.of(context).pushReplacement(
@@ -464,8 +506,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
                             }
                           }
                         },
-                        icon: const Icon(Icons.logout, size: 28),
-                        color: Colors.red,
                       ),
                     ],
                   ),
@@ -490,24 +530,21 @@ class _BlindHomePageState extends State<BlindHomePage> {
             // Bottom Navigation Bar
             Container(
               decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, -2),
-                  ),
-                ],
+                color: kNavyMid,
+                border: Border(
+                  top: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
+                ),
               ),
               child: BottomNavigationBar(
                 currentIndex: _selectedIndex,
                 onTap: _onNavBarTap,
                 type: BottomNavigationBarType.fixed,
-                backgroundColor: Colors.white,
-                selectedItemColor: Colors.blue,
-                unselectedItemColor: Colors.grey,
+                backgroundColor: kNavyMid,
+                selectedItemColor: kBlueAccent,
+                unselectedItemColor: Colors.white38,
                 selectedFontSize: 12,
                 unselectedFontSize: 12,
+                elevation: 0,
                 items: const [
                   BottomNavigationBarItem(
                     icon: Icon(Icons.home),
@@ -541,93 +578,128 @@ class _BlindHomePageState extends State<BlindHomePage> {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // Voice Command Button
+          // Voice Command Card
           GestureDetector(
             onTapDown: _onTapDown,
             onTapUp: _onTapUp,
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(32),
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: _isListening
-                      ? [Colors.green, Colors.lightGreen]
-                      : [Colors.blue, Colors.blue],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+                color: kCardFill.withValues(alpha: 0.6),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: (_isListening ? Colors.greenAccent : kPinkBright)
+                      .withValues(alpha: 0.4),
                 ),
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.blue.withOpacity(0.3),
-                    blurRadius: 12,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
               ),
-              child: Column(
+              child: Row(
                 children: [
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 250),
-                    child: Icon(
-                      _isListening ? Icons.mic : Icons.mic_none,
-                      key: ValueKey(_isListening),
-                      color: Colors.white,
-                      size: 64,
+                  _buildVoiceWaveBars(reversed: true, compact: true),
+                  const SizedBox(width: 14),
+                  Container(
+                    width: 76,
+                    height: 76,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: _isListening
+                          ? const LinearGradient(
+                              colors: [Colors.green, Colors.lightGreen],
+                            )
+                          : kAccentGradient,
+                      boxShadow: [
+                        BoxShadow(
+                          color: (_isListening ? Colors.green : kPinkBright)
+                              .withValues(alpha: 0.5),
+                          blurRadius: 22,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 250),
+                      child: Icon(
+                        _isListening ? Icons.mic : Icons.mic_none,
+                        key: ValueKey(_isListening),
+                        color: Colors.white,
+                        size: 36,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    _isListening ? 'Listening...' : 'Tap to Speak',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _isListening ? 'Listening...' : 'Tap to Speak',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Press and hold for 3 seconds\nfor Emergency',
+                          style: TextStyle(color: Colors.white60, fontSize: 12),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Press and hold for 3 seconds for Emergency',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.8),
-                      fontSize: 12,
-                    ),
-                  ),
+                  _buildVoiceWaveBars(reversed: false, compact: false),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
 
           // Feature Cards
-          _buildFeatureCard(
-            icon: Icons.qr_code_scanner,
-            title: 'Shopping Helper',
-            description: 'Scan barcodes and get audio feedback',
-            color: Colors.purple,
-            index: 1,
-          ),
-          _buildFeatureCard(
-            icon: Icons.warning_amber,
-            title: 'Obstacle Detection',
-            description: 'Real-time voice alerts for obstacles',
-            color: Colors.orange,
-            index: 2,
-          ),
-          _buildFeatureCard(
-            icon: Icons.map_outlined,
-            title: 'Path Detection',
-            description: 'Tactile path guidance recognition',
-            color: Colors.teal,
-            index: 3,
-          ),
-          _buildFeatureCard(
-            icon: Icons.people_alt,
-            title: 'Find Volunteers',
-            description: 'Get help from verified volunteers nearby',
-            color: Colors.green,
-            index: 4,
-            onTapOverride: _openHelpCenter,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _buildFeatureCard(
+                  icon: Icons.qr_code_scanner,
+                  title: 'Shopping Helper',
+                  description: 'Scan barcodes and get audio feedback',
+                  color: kPurpleAccent,
+                  index: 1,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildFeatureCard(
+                  icon: Icons.warning_amber,
+                  title: 'Obstacle Detection',
+                  description: 'Real-time voice alerts for obstacles',
+                  color: kAmberAccent,
+                  index: 2,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildFeatureCard(
+                  icon: Icons.map_outlined,
+                  title: 'Path Detection',
+                  description: 'Tactile path guidance recognition',
+                  color: kTealAccent,
+                  index: 3,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildFeatureCard(
+                  icon: Icons.people_alt,
+                  title: 'Find Volunteers',
+                  description: 'Get help from verified volunteers nearby',
+                  color: kTealAccent,
+                  index: 4,
+                  onTapOverride: _openHelpCenter,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
 
@@ -636,39 +708,74 @@ class _BlindHomePageState extends State<BlindHomePage> {
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.red.shade50,
+              color: kRedAccent.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.red.shade200),
+              border: Border.all(color: kRedAccent.withValues(alpha: 0.4)),
             ),
-            child: Column(
+            child: Stack(
               children: [
-                const Icon(Icons.emergency, size: 32, color: Colors.red),
-                const SizedBox(height: 8),
-                const Text(
-                  'Emergency Contact',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: Colors.red,
+                Positioned(
+                  right: -10,
+                  top: 0,
+                  bottom: 0,
+                  child: Icon(
+                    Icons.shield_outlined,
+                    size: 70,
+                    color: kRedAccent.withValues(alpha: 0.12),
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Press and hold the voice command button for 3 seconds',
-                  style: TextStyle(fontSize: 12, color: Colors.red.shade700),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                ElevatedButton.icon(
-                  onPressed: _handleEmergency,
-                  icon: const Icon(Icons.call),
-                  label: const Text('Call Emergency Services'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                SizedBox(
+                  width: double.infinity,
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: kRedAccent.withValues(alpha: 0.18),
+                          boxShadow: [
+                            BoxShadow(
+                              color: kRedAccent.withValues(alpha: 0.4),
+                              blurRadius: 16,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.emergency,
+                          size: 28,
+                          color: kRedAccent,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      const Text(
+                        'Emergency Contact',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Press and hold the voice command button for 3 seconds',
+                        style: TextStyle(fontSize: 12, color: Colors.white60),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 12),
+                      ElevatedButton.icon(
+                        onPressed: _handleEmergency,
+                        icon: const Icon(Icons.call),
+                        label: const Text('Call Emergency Services'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: kRedAccent,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -677,36 +784,85 @@ class _BlindHomePageState extends State<BlindHomePage> {
 
           const SizedBox(height: 16),
 
-          // Voice Commands List
+          // Voice Commands Grid
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: kCardFill.withValues(alpha: 0.6),
               borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Voice Commands',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                const Row(
+                  children: [
+                    Icon(Icons.graphic_eq, color: kPinkBright, size: 18),
+                    SizedBox(width: 8),
+                    Text(
+                      'Voice Commands',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 12),
-                _buildCommandTile('Shopping', 'Open shopping helper'),
-                _buildCommandTile('Obstacle', 'Start obstacle detection'),
-                _buildCommandTile('Path', 'Activate path detection'),
-                _buildCommandTile('Request Help', 'Send a new help request'),
-                _buildCommandTile('Track Requests', 'View your request status'),
-                _buildCommandTile('Volunteers or Help', 'Find volunteers nearby'),
-                _buildCommandTile('Profile', 'Open your profile'),
-                _buildCommandTile('Logout', 'Sign out'),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    _buildCommandTile(Icons.shopping_cart, kBlueAccent,
+                        'Shopping', 'Open shopping helper'),
+                    _buildCommandTile(Icons.warning_amber, kAmberAccent,
+                        'Obstacle', 'Start obstacle detection'),
+                    _buildCommandTile(Icons.map, kTealAccent, 'Path',
+                        'Activate path detection'),
+                    _buildCommandTile(Icons.chat_bubble_outline, kPurpleAccent,
+                        'Request Help', 'Send a new help request'),
+                    _buildCommandTile(Icons.list_alt, kTealAccent,
+                        'Track Requests', 'View your request status'),
+                    _buildCommandTile(Icons.people_alt, kTealAccent,
+                        'Volunteers or Help', 'Find volunteers nearby'),
+                    _buildCommandTile(Icons.person, kBlueAccent, 'Profile',
+                        'Open your profile'),
+                    _buildCommandTile(
+                        Icons.logout, kRedAccent, 'Logout', 'Sign out'),
+                  ],
+                ),
               ],
             ),
           ),
           const SizedBox(height: 80), // Bottom padding for nav bar
         ],
       ),
+    );
+  }
+
+  Widget _buildVoiceWaveBars({required bool reversed, required bool compact}) {
+    final heights = compact
+        ? [6.0, 10.0, 14.0, 10.0, 6.0]
+        : [10.0, 18.0, 28.0, 20.0, 30.0, 16.0, 10.0];
+    final active = _isListening;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: heights
+          .map(
+            (h) => AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              margin: const EdgeInsets.symmetric(horizontal: 1.5),
+              width: 3,
+              height: active ? h : h * 0.55,
+              decoration: BoxDecoration(
+                color: kBlueAccent.withValues(alpha: active ? 0.9 : 0.4),
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
+          )
+          .toList(),
     );
   }
 
@@ -717,69 +873,94 @@ class _BlindHomePageState extends State<BlindHomePage> {
     required Color color,
     required int index,
     VoidCallback? onTapOverride,
-  })  {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: ListTile(
-        leading: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(icon, color: color, size: 28),
-        ),
-        title: Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-        ),
-        subtitle: Text(
-          description,
-          style: TextStyle(color: Colors.grey.shade600),
-        ),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+  }) {
+    return Material(
+      color: kCardFill.withValues(alpha: 0.6),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
         onTap: onTapOverride ?? () => _setSelectedIndex(index),
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: color, size: 24),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const Icon(
+                    Icons.arrow_forward_ios,
+                    size: 12,
+                    color: Colors.white38,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                description,
+                style: const TextStyle(color: Colors.white54, fontSize: 11),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildCommandTile(String command, String description) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+  Widget _buildCommandTile(
+      IconData icon, Color color, String command, String description) {
+    return Container(
+      width: 160,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade100,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              command,
-              style: TextStyle(
-                color: Colors.blue.shade700,
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
+          Icon(icon, color: color, size: 18),
+          const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              description,
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  command,
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
+                ),
+                Text(
+                  description,
+                  style: const TextStyle(fontSize: 10, color: Colors.white54),
+                ),
+              ],
             ),
           ),
         ],
@@ -812,11 +993,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.green.shade700, Colors.green.shade500],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+              gradient: kAccentGradient,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Row(
@@ -824,10 +1001,11 @@ class _BlindHomePageState extends State<BlindHomePage> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.white.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.people_alt, color: Colors.white, size: 28),
+                  child: const Icon(Icons.people_alt,
+                      color: Colors.white, size: 28),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -847,7 +1025,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
                         'Get help from verified volunteers',
                         style: TextStyle(
                           fontSize: 14,
-                          color: Colors.white.withOpacity(0.8),
+                          color: Colors.white.withValues(alpha: 0.8),
                         ),
                       ),
                     ],
@@ -863,7 +1041,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
             icon: Icons.add_circle_outline,
             title: 'Request Help',
             description: 'Send a new help request to nearby volunteers',
-            color: Colors.blue,
+            color: kBlueAccent,
             onTap: _navigateToSendHelpRequest,
           ),
           const SizedBox(height: 16),
@@ -873,7 +1051,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
             icon: Icons.track_changes,
             title: 'Track My Requests',
             description: 'View status of your help requests',
-            color: Colors.orange,
+            color: kAmberAccent,
             onTap: _navigateToTrackRequests,
           ),
           const SizedBox(height: 16),
@@ -882,18 +1060,18 @@ class _BlindHomePageState extends State<BlindHomePage> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.green.shade50,
+              color: kTealAccent.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.green.shade200),
+              border: Border.all(color: kTealAccent.withValues(alpha: 0.4)),
             ),
             child: Row(
               children: [
-                Icon(Icons.info_outline, color: Colors.green.shade700),
+                const Icon(Icons.info_outline, color: kTealAccent),
                 const SizedBox(width: 12),
-                Expanded(
+                const Expanded(
                   child: Text(
                     'When you request help, nearby volunteers will be notified and can respond to your request. You can track the status in real-time.',
-                    style: TextStyle(fontSize: 14, color: Colors.green.shade700),
+                    style: TextStyle(fontSize: 14, color: Colors.white70),
                   ),
                 ),
               ],
@@ -914,15 +1092,9 @@ class _BlindHomePageState extends State<BlindHomePage> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: kCardFill.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Material(
         color: Colors.transparent,
@@ -936,7 +1108,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
+                    color: color.withValues(alpha: 0.18),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(icon, color: color, size: 28),
@@ -951,20 +1123,22 @@ class _BlindHomePageState extends State<BlindHomePage> {
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
+                          color: Colors.white,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         description,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 13,
-                          color: Colors.grey.shade600,
+                          color: Colors.white54,
                         ),
                       ),
                     ],
                   ),
                 ),
-                Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey.shade400),
+                const Icon(Icons.arrow_forward_ios,
+                    size: 16, color: Colors.white38),
               ],
             ),
           ),

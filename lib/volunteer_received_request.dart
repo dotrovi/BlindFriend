@@ -1,6 +1,8 @@
 /// The `VolunteerReceivedRequestsScreen` class in Dart manages the display and interaction with help
 /// requests for a volunteer, including filtering, accepting, marking as in progress, and completing
 /// requests.
+library;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -139,8 +141,7 @@ class _VolunteerReceivedRequestsScreenState
         await _loadMatchingRequests();
       } else {
         setState(() {
-          _errorMessage =
-              'Volunteer profile not found. Please contact admin.';
+          _errorMessage = 'Volunteer profile not found. Please contact admin.';
           _isLoading = false;
         });
       }
@@ -162,8 +163,7 @@ class _VolunteerReceivedRequestsScreenState
       final volunteerId = auth.currentUser?.uid;
       if (volunteerId == null) throw Exception('Volunteer not logged in');
 
-      final querySnapshot =
-          await firestore.collection('help_requests').get();
+      final querySnapshot = await firestore.collection('help_requests').get();
 
       List<HelpRequest> allRequests = [];
       for (var doc in querySnapshot.docs) {
@@ -181,8 +181,7 @@ class _VolunteerReceivedRequestsScreenState
       allRequests.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
       setState(() {
-        _matchedRequests =
-            _filterMatchingRequests(allRequests, volunteerId);
+        _matchedRequests = _filterMatchingRequests(allRequests, volunteerId);
         _isLoading = false;
       });
     } catch (e) {
@@ -198,8 +197,8 @@ class _VolunteerReceivedRequestsScreenState
     return requests.where((request) {
       if (request.volunteerId == volunteerId) return true;
       if (request.status == 'pending') {
-        final matchesSpecialty = _volunteerSpecialties
-            .contains(request.requestType.toLowerCase());
+        final matchesSpecialty =
+            _volunteerSpecialties.contains(request.requestType.toLowerCase());
         if (!matchesSpecialty) return false;
         final requestLanguage =
             request.preferredLanguage?.toLowerCase() ?? 'english';
@@ -215,9 +214,7 @@ class _VolunteerReceivedRequestsScreenState
 
   List<HelpRequest> get _filteredByStatus {
     if (_filterStatus == 'all') return _matchedRequests;
-    return _matchedRequests
-        .where((r) => r.status == _filterStatus)
-        .toList();
+    return _matchedRequests.where((r) => r.status == _filterStatus).toList();
   }
 
   @override
@@ -249,8 +246,7 @@ class _VolunteerReceivedRequestsScreenState
       padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
       child: Row(
         children: [
-          const Icon(Icons.handshake_outlined,
-              color: Colors.white, size: 22),
+          const Icon(Icons.handshake_outlined, color: Colors.white, size: 22),
           const SizedBox(width: 10),
           const Expanded(
             child: Text(
@@ -264,8 +260,7 @@ class _VolunteerReceivedRequestsScreenState
           ),
           if (_volunteerSpecialties.isNotEmpty)
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(16),
@@ -280,8 +275,7 @@ class _VolunteerReceivedRequestsScreenState
                     _volunteerLanguages
                         .map((l) => _languageNames[l] ?? l)
                         .join(', '),
-                    style: const TextStyle(
-                        fontSize: 12, color: Colors.white),
+                    style: const TextStyle(fontSize: 12, color: Colors.white),
                   ),
                 ],
               ),
@@ -323,35 +317,28 @@ class _VolunteerReceivedRequestsScreenState
             final val = f['value']!;
             final label = f['label']!;
             final isSelected = _filterStatus == val;
-            final color = val == 'all'
-                ? _emerald
-                : _getStatusColor(val);
+            final color = val == 'all' ? _emerald : _getStatusColor(val);
             return Padding(
               padding: const EdgeInsets.only(right: 8),
               child: GestureDetector(
                 onTap: () => setState(() => _filterStatus = val),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 7),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                   decoration: BoxDecoration(
-                    color: isSelected
-                        ? color
-                        : color.withValues(alpha: 0.08),
+                    color: isSelected ? color : color.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: isSelected
-                          ? color
-                          : color.withValues(alpha: 0.3),
+                      color: isSelected ? color : color.withValues(alpha: 0.3),
                     ),
                   ),
                   child: Text(
                     label,
                     style: TextStyle(
                       fontSize: 12,
-                      fontWeight: isSelected
-                          ? FontWeight.w600
-                          : FontWeight.normal,
+                      fontWeight:
+                          isSelected ? FontWeight.w600 : FontWeight.normal,
                       color: isSelected ? Colors.white : color,
                     ),
                   ),
@@ -419,8 +406,7 @@ class _VolunteerReceivedRequestsScreenState
               Text(
                 _errorMessage!,
                 textAlign: TextAlign.center,
-                style:
-                    TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
               ),
               const SizedBox(height: 20),
               ElevatedButton.icon(
@@ -471,8 +457,7 @@ class _VolunteerReceivedRequestsScreenState
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                      color: _emerald.withValues(alpha: 0.2)),
+                  border: Border.all(color: _emerald.withValues(alpha: 0.2)),
                 ),
                 child: Column(
                   children: [
@@ -528,13 +513,11 @@ class _VolunteerReceivedRequestsScreenState
         Icon(icon, size: 16, color: _emerald),
         const SizedBox(width: 8),
         Text('$label: ',
-            style: const TextStyle(
-                fontSize: 13, fontWeight: FontWeight.w600)),
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
         Expanded(
           child: Text(
             value,
-            style: TextStyle(
-                fontSize: 13, color: Colors.grey.shade600),
+            style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
             overflow: TextOverflow.ellipsis,
           ),
         ),
@@ -546,8 +529,8 @@ class _VolunteerReceivedRequestsScreenState
     final statusColor = _getStatusColor(request.status);
     final isMatch = _volunteerSpecialties
             .contains(request.requestType.toLowerCase()) &&
-        _volunteerLanguages.contains(
-            request.preferredLanguage?.toLowerCase() ?? 'english') &&
+        _volunteerLanguages
+            .contains(request.preferredLanguage?.toLowerCase() ?? 'english') &&
         request.status == 'pending';
 
     return GestureDetector(
@@ -616,8 +599,7 @@ class _VolunteerReceivedRequestsScreenState
                                       Color(0xFF10B981)
                                     ],
                                   ),
-                                  borderRadius:
-                                      BorderRadius.circular(6),
+                                  borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: const Text(
                                   'Match',
@@ -634,8 +616,7 @@ class _VolunteerReceivedRequestsScreenState
                         Text(
                           request.blindUserName,
                           style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey.shade600),
+                              fontSize: 12, color: Colors.grey.shade600),
                         ),
                       ],
                     ),
@@ -646,8 +627,7 @@ class _VolunteerReceivedRequestsScreenState
               const SizedBox(height: 10),
               Text(
                 request.description,
-                style: TextStyle(
-                    fontSize: 13, color: Colors.grey.shade700),
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -678,8 +658,8 @@ class _VolunteerReceivedRequestsScreenState
                     const Spacer(),
                     Text(
                       _formatDate(request.createdAt),
-                      style: TextStyle(
-                          fontSize: 11, color: Colors.grey.shade400),
+                      style:
+                          TextStyle(fontSize: 11, color: Colors.grey.shade400),
                     ),
                   ],
                 ),
@@ -689,8 +669,7 @@ class _VolunteerReceivedRequestsScreenState
                   alignment: Alignment.centerRight,
                   child: Text(
                     _formatDate(request.createdAt),
-                    style: TextStyle(
-                        fontSize: 11, color: Colors.grey.shade400),
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
                   ),
                 ),
               ],
@@ -752,8 +731,7 @@ class _VolunteerReceivedRequestsScreenState
         return Container(
           decoration: const BoxDecoration(
             color: Colors.white,
-            borderRadius:
-                BorderRadius.vertical(top: Radius.circular(28)),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -774,10 +752,7 @@ class _VolunteerReceivedRequestsScreenState
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [
-                      statusColor,
-                      statusColor.withValues(alpha: 0.7)
-                    ],
+                    colors: [statusColor, statusColor.withValues(alpha: 0.7)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -813,8 +788,7 @@ class _VolunteerReceivedRequestsScreenState
                           Text(
                             'From: ${request.blindUserName}',
                             style: TextStyle(
-                              color:
-                                  Colors.white.withValues(alpha: 0.85),
+                              color: Colors.white.withValues(alpha: 0.85),
                               fontSize: 12,
                             ),
                           ),
@@ -835,10 +809,10 @@ class _VolunteerReceivedRequestsScreenState
                         Icons.person_rounded, 'Name', request.blindUserName),
                     _detailRow(
                         Icons.phone_rounded, 'Phone', request.blindUserPhone),
-                    _detailRow(Icons.category_rounded, 'Type',
-                        request.requestType),
                     _detailRow(
-                        Icons.location_on_rounded, 'Location', request.location),
+                        Icons.category_rounded, 'Type', request.requestType),
+                    _detailRow(Icons.location_on_rounded, 'Location',
+                        request.location),
                     _detailRow(Icons.description_rounded, 'Description',
                         request.description),
                     if (request.preferredLanguage != null)
@@ -899,8 +873,7 @@ class _VolunteerReceivedRequestsScreenState
                       child: OutlinedButton(
                         onPressed: () => Navigator.pop(context),
                         style: OutlinedButton.styleFrom(
-                          padding:
-                              const EdgeInsets.symmetric(vertical: 14),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
                           side: BorderSide(color: Colors.grey.shade300),
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12)),
@@ -937,8 +910,8 @@ class _VolunteerReceivedRequestsScreenState
             backgroundColor: color,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             elevation: 0,
           ),
         ),
@@ -958,14 +931,12 @@ class _VolunteerReceivedRequestsScreenState
             width: 80,
             child: Text(
               label,
-              style: const TextStyle(
-                  fontWeight: FontWeight.w600, fontSize: 13),
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
             ),
           ),
           Expanded(
             child: Text(value,
-                style: TextStyle(
-                    fontSize: 13, color: Colors.grey.shade700)),
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
           ),
         ],
       ),
@@ -987,10 +958,15 @@ class _VolunteerReceivedRequestsScreenState
 
       // Create notification for the blind user
       batch.set(
-          firestore.collection('notifications').doc(request.blindUserId).collection('messages').doc(),
+          firestore
+              .collection('notifications')
+              .doc(request.blindUserId)
+              .collection('messages')
+              .doc(),
           {
             'title': 'Request Accepted!',
-            'body': 'Good news! $volunteerName has accepted your ${request.requestType} request.',
+            'body':
+                'Good news! $volunteerName has accepted your ${request.requestType} request.',
             'type': 'request_accepted',
             'read': false,
             'createdAt': FieldValue.serverTimestamp(),
@@ -1020,8 +996,8 @@ class _VolunteerReceivedRequestsScreenState
           .update({'status': 'in_progress'});
       await _loadMatchingRequests();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Help marked as in progress')));
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Help marked as in progress')));
       }
     } catch (e) {
       if (mounted) {
@@ -1032,56 +1008,58 @@ class _VolunteerReceivedRequestsScreenState
   }
 
   Future<void> _completeHelp(HelpRequest request) async {
-  try {
-    await firestore.collection('help_requests').doc(request.id).update({
-      'status': 'completed',
-      'completedAt': Timestamp.now(),
-    });
-    
-    await _loadMatchingRequests();
-    
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Help completed! Good job!'),
-        backgroundColor: Colors.green,
-      ));
-      
-      // ✅ Ask if blind user wants to rate (since volunteer completed it)
-      _showRateReminderDialog(request);
-    }
-  } catch (e) {
-    if (mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error: $e')));
+    try {
+      await firestore.collection('help_requests').doc(request.id).update({
+        'status': 'completed',
+        'completedAt': Timestamp.now(),
+      });
+
+      await _loadMatchingRequests();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Help completed! Good job!'),
+          backgroundColor: Colors.green,
+        ));
+
+        // ✅ Ask if blind user wants to rate (since volunteer completed it)
+        _showRateReminderDialog(request);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
     }
   }
-}
 
-void _showRateReminderDialog(HelpRequest request) {
-  showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text('Remind Blind User?'),
-      content: Text('Would you like to remind ${request.blindUserName} to rate your help?'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text('No'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            Navigator.pop(context);
-            // You can send a notification or just note that rating is needed
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Reminder sent to ${request.blindUserName}')),
-            );
-          },
-          child: Text('Send Reminder'),
-        ),
-      ],
-    ),
-  );
-}
+  void _showRateReminderDialog(HelpRequest request) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Remind Blind User?'),
+        content: Text(
+            'Would you like to remind ${request.blindUserName} to rate your help?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('No'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              // You can send a notification or just note that rating is needed
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                    content: Text('Reminder sent to ${request.blindUserName}')),
+              );
+            },
+            child: Text('Send Reminder'),
+          ),
+        ],
+      ),
+    );
+  }
 
   Future<void> _declineRequest(HelpRequest request, String volunteerId) async {
     final reason = await _showDeclineReasonSheet();
@@ -1095,14 +1073,20 @@ void _showRateReminderDialog(HelpRequest request) {
       if (reason.isNotEmpty) {
         updateData['declineReasons.$volunteerId'] = reason;
       }
-      batch.update(firestore.collection('help_requests').doc(request.id), updateData);
+      batch.update(
+          firestore.collection('help_requests').doc(request.id), updateData);
 
       // Create notification for the blind user
       batch.set(
-          firestore.collection('notifications').doc(request.blindUserId).collection('messages').doc(),
+          firestore
+              .collection('notifications')
+              .doc(request.blindUserId)
+              .collection('messages')
+              .doc(),
           {
             'title': 'Request Update',
-            'body': 'A volunteer was unable to accept your ${request.requestType} request. We are still searching for another volunteer.',
+            'body':
+                'A volunteer was unable to accept your ${request.requestType} request. We are still searching for another volunteer.',
             'type': 'request_declined',
             'read': false,
             'createdAt': FieldValue.serverTimestamp(),
@@ -1112,7 +1096,9 @@ void _showRateReminderDialog(HelpRequest request) {
       await _loadMatchingRequests();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(reason.isEmpty ? 'Request declined' : 'Request declined: $reason'),
+            content: Text(reason.isEmpty
+                ? 'Request declined'
+                : 'Request declined: $reason'),
             backgroundColor: Colors.red.shade600));
       }
     } catch (e) {
@@ -1141,13 +1127,12 @@ void _showRateReminderDialog(HelpRequest request) {
           ];
 
           return Padding(
-            padding: EdgeInsets.only(
-                bottom: MediaQuery.of(ctx).viewInsets.bottom),
+            padding:
+                EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
             child: Container(
               decoration: const BoxDecoration(
                 color: Colors.white,
-                borderRadius:
-                    BorderRadius.vertical(top: Radius.circular(28)),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -1183,12 +1168,10 @@ void _showRateReminderDialog(HelpRequest request) {
                           children: [
                             const Text('Decline Request',
                                 style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16)),
+                                    fontWeight: FontWeight.bold, fontSize: 16)),
                             Text('Select or type an optional reason',
                                 style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey.shade500)),
+                                    fontSize: 12, color: Colors.grey.shade500)),
                           ],
                         ),
                       ],
@@ -1253,8 +1236,7 @@ void _showRateReminderDialog(HelpRequest request) {
                             fontSize: 13, color: Colors.grey.shade400),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide:
-                              BorderSide(color: Colors.grey.shade300),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -1275,8 +1257,7 @@ void _showRateReminderDialog(HelpRequest request) {
                           child: OutlinedButton(
                             onPressed: () => Navigator.pop(ctx),
                             style: OutlinedButton.styleFrom(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 14),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
                               side: BorderSide(color: Colors.grey.shade300),
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12)),
@@ -1297,8 +1278,7 @@ void _showRateReminderDialog(HelpRequest request) {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.red.shade500,
                               foregroundColor: Colors.white,
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 14),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12)),
                               elevation: 0,

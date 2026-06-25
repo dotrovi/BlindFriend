@@ -7,6 +7,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'blind_report_volunteer_page.dart';
+import 'theme/app_palette.dart';
 
 class HelpRequestModel {
   String? id;
@@ -612,7 +613,8 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
       return;
     }
 
-    if (command.contains('cancel request') && RegExp(r'\d+').hasMatch(command)) {
+    if (command.contains('cancel request') &&
+        RegExp(r'\d+').hasMatch(command)) {
       final numbers = RegExp(r'\d+').allMatches(command);
       if (numbers.isNotEmpty) {
         int requestNum = int.parse(numbers.first.group(0)!);
@@ -653,10 +655,9 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
           thenListen: false,
         );
         for (var r in assignedReqs) {
-          final name =
-              (r.volunteerName != null && r.volunteerName!.isNotEmpty)
-                  ? r.volunteerName!
-                  : 'a volunteer';
+          final name = (r.volunteerName != null && r.volunteerName!.isNotEmpty)
+              ? r.volunteerName!
+              : 'a volunteer';
           await _speak(
             'Your ${r.requestType} request is being helped by $name.',
             thenListen: false,
@@ -790,7 +791,7 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
       final allRequests = querySnapshot.docs.map((doc) {
         return HelpRequestModel.fromMap(
           doc.id,
-          doc.data() as Map<String, dynamic>,
+          doc.data(),
         );
       }).toList();
 
@@ -808,8 +809,8 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
       }
 
       active.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      cancelled.sort((a, b) =>
-          (b.cancelledAt ?? b.createdAt).compareTo(a.cancelledAt ?? a.createdAt));
+      cancelled.sort((a, b) => (b.cancelledAt ?? b.createdAt)
+          .compareTo(a.cancelledAt ?? a.createdAt));
 
       setState(() {
         _requests = active;
@@ -867,17 +868,23 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Cancel Request'),
+        backgroundColor: kCardFill,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title:
+            const Text('Cancel Request', style: TextStyle(color: Colors.white)),
         content: Text(
           'Are you sure you want to cancel your ${request.requestType} request?',
+          style: const TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
+            style: TextButton.styleFrom(foregroundColor: Colors.white60),
             child: const Text('No'),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: kRedAccent),
             child: const Text('Yes'),
           ),
         ],
@@ -922,10 +929,12 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: kNavyDeep,
       appBar: AppBar(
         title: const Text('My Help Requests'),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: kNavyMid,
         foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
           IconButton(
             icon: Icon(
@@ -981,7 +990,7 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
         onPressed: () {
           Navigator.pop(context);
         },
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: kPinkBright,
         tooltip: 'New Request',
         child: const Icon(Icons.add, color: Colors.white),
       ),
@@ -994,9 +1003,10 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(),
+            CircularProgressIndicator(color: kBlueAccent),
             SizedBox(height: 16),
-            Text('Loading your requests...'),
+            Text('Loading your requests...',
+                style: TextStyle(color: Colors.white70)),
           ],
         ),
       );
@@ -1007,11 +1017,11 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline, size: 64, color: Colors.red.shade400),
+            const Icon(Icons.error_outline, size: 64, color: kRedAccent),
             const SizedBox(height: 16),
-            Text(
+            const Text(
               'Error loading requests',
-              style: TextStyle(fontSize: 18, color: Colors.red.shade700),
+              style: TextStyle(fontSize: 18, color: kRedAccent),
             ),
             const SizedBox(height: 8),
             Padding(
@@ -1019,12 +1029,16 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
               child: Text(
                 _errorMessage!,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                style: const TextStyle(fontSize: 14, color: Colors.white60),
               ),
             ),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: _loadRequests,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kBlueAccent,
+                foregroundColor: Colors.white,
+              ),
               child: const Text('Try Again'),
             ),
           ],
@@ -1037,16 +1051,16 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.help_outline, size: 64, color: Colors.grey.shade400),
+            const Icon(Icons.help_outline, size: 64, color: Colors.white38),
             const SizedBox(height: 16),
-            Text(
+            const Text(
               'No help requests yet',
-              style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 18, color: Colors.white60),
             ),
             const SizedBox(height: 8),
-            Text(
+            const Text(
               'Tap the + button to request help',
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+              style: TextStyle(fontSize: 14, color: Colors.white38),
             ),
           ],
         ),
@@ -1075,7 +1089,7 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.grey.shade200,
+            color: Colors.white.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(8),
           ),
           child: const Text(
@@ -1083,7 +1097,7 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.bold,
-              color: Colors.grey,
+              color: Colors.white60,
             ),
           ),
         ),
@@ -1096,9 +1110,12 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
   Widget _buildCancelledCard(HelpRequestModel request) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      elevation: 1,
-      color: Colors.grey.shade50,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 0,
+      color: kCardFill.withValues(alpha: 0.5),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -1106,7 +1123,7 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
           children: [
             Row(
               children: [
-                Icon(Icons.cancel, size: 20, color: Colors.red.shade400),
+                const Icon(Icons.cancel, size: 20, color: kRedAccent),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -1114,15 +1131,15 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
-                      color: Colors.grey,
+                      color: Colors.white60,
                     ),
                   ),
                 ),
-                Text(
+                const Text(
                   'Cancelled',
                   style: TextStyle(
                     fontSize: 11,
-                    color: Colors.red.shade400,
+                    color: kRedAccent,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -1131,14 +1148,14 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
             const SizedBox(height: 8),
             Text(
               request.description,
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
+              style: const TextStyle(fontSize: 12, color: Colors.white54),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 4),
             Text(
               _formatDate(request.cancelledAt ?? request.createdAt),
-              style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+              style: const TextStyle(fontSize: 10, color: Colors.white38),
             ),
           ],
         ),
@@ -1152,30 +1169,34 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
 
     switch (request.status) {
       case 'pending':
-        statusColor = Colors.orange;
+        statusColor = kAmberAccent;
         statusIcon = Icons.pending;
         break;
       case 'accepted':
-        statusColor = Colors.blue;
+        statusColor = kBlueAccent;
         statusIcon = Icons.check_circle;
         break;
       case 'in_progress':
-        statusColor = Colors.cyan;
+        statusColor = kTealAccent;
         statusIcon = Icons.hourglass_empty;
         break;
       case 'completed':
-        statusColor = Colors.green;
+        statusColor = Colors.greenAccent.shade400;
         statusIcon = Icons.done_all;
         break;
       default:
-        statusColor = Colors.grey;
+        statusColor = Colors.white60;
         statusIcon = Icons.help;
     }
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 0,
+      color: kCardFill.withValues(alpha: 0.6),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+      ),
       child: InkWell(
         onTap: () async {
           await _speakRequestDetailsOnTap(request, number, thenListen: false);
@@ -1192,7 +1213,7 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: statusColor.withOpacity(0.1),
+                      color: statusColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(statusIcon, color: statusColor, size: 20),
@@ -1209,6 +1230,7 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 14,
+                                color: Colors.white,
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -1218,7 +1240,7 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: statusColor.withOpacity(0.1),
+                                color: statusColor.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
@@ -1234,9 +1256,9 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
                         ),
                         Text(
                           _formatDate(request.createdAt),
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 11,
-                            color: Colors.grey.shade500,
+                            color: Colors.white54,
                           ),
                         ),
                       ],
@@ -1247,20 +1269,21 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
               const SizedBox(height: 8),
               Text(
                 request.description,
-                style: const TextStyle(fontSize: 13),
+                style: const TextStyle(fontSize: 13, color: Colors.white70),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 4),
               Row(
                 children: [
-                  Icon(Icons.location_on, size: 12, color: Colors.grey.shade500),
+                  const Icon(Icons.location_on,
+                      size: 12, color: Colors.white54),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
                       request.location,
                       style:
-                          TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                          const TextStyle(fontSize: 11, color: Colors.white54),
                     ),
                   ),
                 ],
@@ -1271,30 +1294,30 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
                   child: Row(
                     children: [
                       Icon(Icons.person,
-                          size: 12, color: Colors.green.shade600),
+                          size: 12, color: Colors.greenAccent.shade400),
                       const SizedBox(width: 4),
                       Text(
                         'Volunteer: ${(request.volunteerName != null && request.volunteerName!.isNotEmpty) ? request.volunteerName : 'Assigned'}',
                         style: TextStyle(
                           fontSize: 11,
-                          color: Colors.green.shade600,
+                          color: Colors.greenAccent.shade400,
                         ),
                       ),
                     ],
                   ),
                 ),
               if (request.reported)
-                Padding(
-                  padding: const EdgeInsets.only(top: 6),
+                const Padding(
+                  padding: EdgeInsets.only(top: 6),
                   child: Row(
                     children: [
-                      Icon(Icons.flag, size: 12, color: Colors.red.shade400),
-                      const SizedBox(width: 4),
+                      Icon(Icons.flag, size: 12, color: kRedAccent),
+                      SizedBox(width: 4),
                       Text(
                         'Reported',
                         style: TextStyle(
                           fontSize: 11,
-                          color: Colors.red.shade400,
+                          color: kRedAccent,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -1327,7 +1350,7 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
                       icon: const Icon(Icons.star_outline),
                       label: const Text('Rate Your Volunteer'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.amber,
+                        backgroundColor: kAmberAccent,
                         foregroundColor: Colors.black,
                       ),
                     ),
@@ -1346,7 +1369,12 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text('${request.requestType.toUpperCase()} Request'),
+        backgroundColor: kCardFill,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          '${request.requestType.toUpperCase()} Request',
+          style: const TextStyle(color: Colors.white),
+        ),
         content: SizedBox(
           width: double.maxFinite,
           child: Column(
@@ -1413,7 +1441,7 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
                   });
                 }
               },
-              style: TextButton.styleFrom(foregroundColor: Colors.amber),
+              style: TextButton.styleFrom(foregroundColor: kAmberAccent),
               child: const Text('Rate Volunteer'),
             ),
           if (request.status == 'pending' || request.status == 'accepted')
@@ -1422,7 +1450,7 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
                 Navigator.pop(dialogContext);
                 _cancelRequest(request);
               },
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              style: TextButton.styleFrom(foregroundColor: kRedAccent),
               child: const Text('Cancel Request'),
             ),
           if ((request.status == 'in_progress' ||
@@ -1448,11 +1476,12 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
                   ),
                 ).then((_) => _refreshRequests());
               },
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              style: TextButton.styleFrom(foregroundColor: kRedAccent),
               child: const Text('Report Volunteer'),
             ),
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
+            style: TextButton.styleFrom(foregroundColor: kBlueAccent),
             child: const Text('Close'),
           ),
         ],
@@ -1468,10 +1497,19 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
           width: 90,
           child: Text(
             label,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+              color: Colors.white,
+            ),
           ),
         ),
-        Expanded(child: Text(value, style: const TextStyle(fontSize: 13))),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(fontSize: 13, color: Colors.white70),
+          ),
+        ),
       ],
     );
   }

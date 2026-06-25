@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'pending_verifications_page.dart';
 import 'admin_users_page.dart';
 import 'admin_volunteers_page.dart';
-import 'admin_statistics_page.dart';  // ✅ ADD THIS IMPORT
+import 'admin_statistics_page.dart'; // ✅ ADD THIS IMPORT
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -69,12 +69,25 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           const Divider(height: 1),
           const SizedBox(height: 8),
 
-          _navItem(icon: Icons.dashboard_outlined, label: 'Overview', pageKey: 'overview'),
-          _navItem(icon: Icons.people_outline, label: 'Volunteers', pageKey: 'volunteers'),
-          _navItem(icon: Icons.verified_user_outlined, label: 'Verification', pageKey: 'verification'),
-          _navItem(icon: Icons.person_outline, label: 'Users', pageKey: 'users'),
+          _navItem(
+              icon: Icons.dashboard_outlined,
+              label: 'Overview',
+              pageKey: 'overview'),
+          _navItem(
+              icon: Icons.people_outline,
+              label: 'Volunteers',
+              pageKey: 'volunteers'),
+          _navItem(
+              icon: Icons.verified_user_outlined,
+              label: 'Verification',
+              pageKey: 'verification'),
+          _navItem(
+              icon: Icons.person_outline, label: 'Users', pageKey: 'users'),
           // ✅ ADD THIS NEW NAV ITEM
-          _navItem(icon: Icons.analytics_outlined, label: 'Statistics', pageKey: 'statistics'),
+          _navItem(
+              icon: Icons.analytics_outlined,
+              label: 'Statistics',
+              pageKey: 'statistics'),
 
           const Spacer(),
           const Divider(height: 1),
@@ -86,11 +99,13 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Logged in as',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                    style:
+                        TextStyle(fontSize: 12, color: Colors.grey.shade500)),
                 const SizedBox(height: 2),
                 Text(
                   admin?.email ?? 'Admin',
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w500),
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 12),
@@ -101,7 +116,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       Icon(Icons.logout, size: 16, color: Colors.grey.shade600),
                       const SizedBox(width: 6),
                       Text('Logout',
-                          style: TextStyle(fontSize: 14, color: Colors.grey.shade600)),
+                          style: TextStyle(
+                              fontSize: 14, color: Colors.grey.shade600)),
                     ],
                   ),
                 ),
@@ -113,12 +129,16 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
-  Widget _navItem({required IconData icon, required String label, required String pageKey}) {
+  Widget _navItem(
+      {required IconData icon,
+      required String label,
+      required String pageKey}) {
     final isActive = _activePage == pageKey;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       child: ListTile(
-        leading: Icon(icon, size: 18,
+        leading: Icon(icon,
+            size: 18,
             color: isActive ? Colors.deepPurple : Colors.grey.shade700),
         title: Text(label,
             style: TextStyle(
@@ -182,7 +202,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     return FutureBuilder<Map<String, int>>(
       future: _fetchStats(),
       builder: (context, snapshot) {
-        final stats = snapshot.data ?? {'volunteers': 0, 'verified': 0, 'blindUsers': 0};
+        final stats =
+            snapshot.data ?? {'volunteers': 0, 'verified': 0, 'blindUsers': 0};
 
         return GridView.count(
           crossAxisCount: 2,
@@ -261,7 +282,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.1),
+              color: iconColor.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(icon, color: iconColor, size: 22),

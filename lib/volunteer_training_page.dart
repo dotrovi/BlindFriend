@@ -82,7 +82,8 @@ Vision loss can be emotionally complex. Some individuals were born without sight
 ''',
     quiz: [
       _Question(
-        question: 'How many people worldwide are affected by visual impairment?',
+        question:
+            'How many people worldwide are affected by visual impairment?',
         options: [
           'Over 500 million',
           'Over 2.2 billion',
@@ -107,7 +108,8 @@ Vision loss can be emotionally complex. Some individuals were born without sight
             'Respecting autonomy is fundamental. Always accept when someone declines help — they know their own needs.',
       ),
       _Question(
-        question: 'Which of the following is a common misconception about blindness?',
+        question:
+            'Which of the following is a common misconception about blindness?',
         options: [
           'Blind people can use smartphones',
           'All blind people see only complete darkness',
@@ -119,7 +121,8 @@ Vision loss can be emotionally complex. Some individuals were born without sight
             'Many people with visual impairment can perceive light, shadows, or colours. Total darkness is not universal.',
       ),
       _Question(
-        question: 'How should you adjust your speaking volume when assisting a blind person?',
+        question:
+            'How should you adjust your speaking volume when assisting a blind person?',
         options: [
           'Speak much louder so they can hear clearly',
           'Whisper to avoid startling them',
@@ -174,7 +177,8 @@ The golden rule is always ask before touching or guiding. Never grab someone's a
 ''',
     quiz: [
       _Question(
-        question: 'When offering to guide a blind person, what is the correct approach?',
+        question:
+            'When offering to guide a blind person, what is the correct approach?',
         options: [
           'Grab their hand and lead them',
           'Push them gently from behind',
@@ -198,7 +202,8 @@ The golden rule is always ask before touching or guiding. Never grab someone's a
             'Specific directional language is essential. Vague spatial terms have no meaning without visual context.',
       ),
       _Question(
-        question: 'What should you do when approaching a narrow passage while guiding?',
+        question:
+            'What should you do when approaching a narrow passage while guiding?',
         options: [
           'Ask the person to wait while you check',
           'Move your guiding arm behind your back so they follow single-file',
@@ -210,7 +215,8 @@ The golden rule is always ask before touching or guiding. Never grab someone's a
             'Moving your arm behind your back signals the person to move behind you and walk single-file through the narrow space.',
       ),
       _Question(
-        question: 'Is it appropriate to use words like "see" and "look" when talking to a blind person?',
+        question:
+            'Is it appropriate to use words like "see" and "look" when talking to a blind person?',
         options: [
           'No, always avoid those words as they are offensive',
           'Only if the person has some remaining vision',
@@ -222,7 +228,8 @@ The golden rule is always ask before touching or guiding. Never grab someone's a
             'These words are part of everyday language and are used naturally by blind individuals themselves. Avoiding them creates unnecessary awkwardness.',
       ),
       _Question(
-        question: 'What must you always do before walking away from someone you are assisting?',
+        question:
+            'What must you always do before walking away from someone you are assisting?',
         options: [
           'Make sure they are sitting down first',
           'Tell them you are leaving and when you will return',
@@ -299,7 +306,8 @@ Maintain professional boundaries at all times. Do not share personal contact det
             'Always use stairs in evacuations — never lifts. Narrate every step to keep the person informed and safe.',
       ),
       _Question(
-        question: 'What is your first responsibility in any emergency situation?',
+        question:
+            'What is your first responsibility in any emergency situation?',
         options: [
           'Call the emergency services immediately',
           'Remain calm and speak in a clear, steady voice',
@@ -311,7 +319,8 @@ Maintain professional boundaries at all times. Do not share personal contact det
             'Remaining calm is essential. A panicked volunteer creates confusion. Calm, clear communication is your most valuable tool.',
       ),
       _Question(
-        question: 'If someone appears disoriented, what should your first words be?',
+        question:
+            'If someone appears disoriented, what should your first words be?',
         options: [
           '"Where are you trying to go?"',
           '"You are safe. I am here with you."',
@@ -323,7 +332,8 @@ Maintain professional boundaries at all times. Do not share personal contact det
             'Reassurance comes first. Disorientation can be frightening — establishing safety and presence immediately helps the person calm down.',
       ),
       _Question(
-        question: 'As a volunteer, what should you do if a situation feels personally unsafe?',
+        question:
+            'As a volunteer, what should you do if a situation feels personally unsafe?',
         options: [
           'Push through it — the blind person needs you',
           'Call for help rather than acting alone',
@@ -354,7 +364,8 @@ Maintain professional boundaries at all times. Do not share personal contact det
           'Report it in the app',
         ],
         correctIndex: 1,
-        explanation: 'Autonomy and respect are fundamental. Always accept when help is declined.',
+        explanation:
+            'Autonomy and respect are fundamental. Always accept when help is declined.',
       ),
       _Question(
         question: 'You are guiding someone down stairs. What is correct?',
@@ -369,7 +380,8 @@ Maintain professional boundaries at all times. Do not share personal contact det
             'Walk one step ahead using the sighted guide technique. Always narrate and offer the handrail.',
       ),
       _Question(
-        question: 'What should you always do before walking away from someone you are assisting?',
+        question:
+            'What should you always do before walking away from someone you are assisting?',
         options: [
           'Make sure they are seated',
           'Tell them you are leaving',
@@ -377,7 +389,8 @@ Maintain professional boundaries at all times. Do not share personal contact det
           'Nothing — they will sense it',
         ],
         correctIndex: 1,
-        explanation: 'Always announce when you are stepping away. Never leave silently.',
+        explanation:
+            'Always announce when you are stepping away. Never leave silently.',
       ),
       _Question(
         question: 'In a fire evacuation, you should:',
@@ -388,10 +401,12 @@ Maintain professional boundaries at all times. Do not share personal contact det
           'Wait until the alarm stops',
         ],
         correctIndex: 2,
-        explanation: 'Always use stairs and narrate the entire route during evacuation.',
+        explanation:
+            'Always use stairs and narrate the entire route during evacuation.',
       ),
       _Question(
-        question: 'Which phrase is best when a blind person becomes disoriented?',
+        question:
+            'Which phrase is best when a blind person becomes disoriented?',
         options: [
           '"Where are you going?"',
           '"You are safe. I am here with you."',
@@ -399,7 +414,8 @@ Maintain professional boundaries at all times. Do not share personal contact det
           '"I will find someone to help."',
         ],
         correctIndex: 1,
-        explanation: 'Immediate reassurance is the priority. Establish safety and presence first.',
+        explanation:
+            'Immediate reassurance is the priority. Establish safety and presence first.',
       ),
     ],
   ),
@@ -448,8 +464,7 @@ class _VolunteerTrainingPageState extends State<VolunteerTrainingPage> {
             data['trainingProgress'] as Map<String, dynamic>? ?? {};
         setState(() {
           _completedChapters = {
-            for (final c in _chapters)
-              c.id: progress[c.id] == true,
+            for (final c in _chapters) c.id: progress[c.id] == true,
           };
           _isLoading = false;
         });
@@ -471,14 +486,10 @@ class _VolunteerTrainingPageState extends State<VolunteerTrainingPage> {
 
     final allDone = _chapters.every((c) => _completedChapters[c.id] == true);
 
-    await FirebaseFirestore.instance
-        .collection('volunteers')
-        .doc(_uid)
-        .update({
+    await FirebaseFirestore.instance.collection('volunteers').doc(_uid).update({
       'trainingProgress.$chapterId': true,
       if (allDone) 'trainingCompleted': true,
-      if (allDone)
-        'trainingCompletedAt': FieldValue.serverTimestamp(),
+      if (allDone) 'trainingCompletedAt': FieldValue.serverTimestamp(),
     });
 
     if (allDone && mounted) {
@@ -495,8 +506,7 @@ class _VolunteerTrainingPageState extends State<VolunteerTrainingPage> {
     return _completedChapters[_chapters[index - 1].id] == true;
   }
 
-  int get _completedCount =>
-      _completedChapters.values.where((v) => v).length;
+  int get _completedCount => _completedChapters.values.where((v) => v).length;
 
   bool get _allCompleted => _completedCount == _chapters.length;
 
@@ -510,7 +520,8 @@ class _VolunteerTrainingPageState extends State<VolunteerTrainingPage> {
       context,
       MaterialPageRoute(
         builder: (_) => _CertificatePage(
-          volunteerName: FirebaseAuth.instance.currentUser?.displayName ?? 'Volunteer',
+          volunteerName:
+              FirebaseAuth.instance.currentUser?.displayName ?? 'Volunteer',
         ),
       ),
     );
@@ -580,7 +591,7 @@ class _VolunteerTrainingPageState extends State<VolunteerTrainingPage> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: _emerald.withOpacity(0.3),
+            color: _emerald.withValues(alpha: 0.3),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
@@ -594,7 +605,7 @@ class _VolunteerTrainingPageState extends State<VolunteerTrainingPage> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
@@ -619,7 +630,7 @@ class _VolunteerTrainingPageState extends State<VolunteerTrainingPage> {
                     Text(
                       '$_completedCount of ${_chapters.length} chapters complete',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.8),
+                        color: Colors.white.withValues(alpha: 0.8),
                         fontSize: 13,
                       ),
                     ),
@@ -642,7 +653,7 @@ class _VolunteerTrainingPageState extends State<VolunteerTrainingPage> {
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 10,
-              backgroundColor: Colors.white.withOpacity(0.3),
+              backgroundColor: Colors.white.withValues(alpha: 0.3),
               valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
             ),
           ),
@@ -728,16 +739,16 @@ class _VolunteerTrainingPageState extends State<VolunteerTrainingPage> {
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: isCompleted
-                ? _emerald.withOpacity(0.5)
+                ? _emerald.withValues(alpha: 0.5)
                 : isUnlocked
-                    ? chapter.color.withOpacity(0.3)
+                    ? chapter.color.withValues(alpha: 0.3)
                     : Colors.grey.shade200,
             width: 1.5,
           ),
           boxShadow: isUnlocked
               ? [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 10,
                     offset: const Offset(0, 3),
                   ),
@@ -752,9 +763,9 @@ class _VolunteerTrainingPageState extends State<VolunteerTrainingPage> {
               height: 52,
               decoration: BoxDecoration(
                 color: isCompleted
-                    ? _emerald.withOpacity(0.1)
+                    ? _emerald.withValues(alpha: 0.1)
                     : isUnlocked
-                        ? chapter.color.withOpacity(0.1)
+                        ? chapter.color.withValues(alpha: 0.1)
                         : Colors.grey.shade200,
                 borderRadius: BorderRadius.circular(14),
               ),
@@ -786,9 +797,8 @@ class _VolunteerTrainingPageState extends State<VolunteerTrainingPage> {
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
-                          color: isUnlocked
-                              ? chapter.color
-                              : Colors.grey.shade400,
+                          color:
+                              isUnlocked ? chapter.color : Colors.grey.shade400,
                         ),
                       ),
                       if (isCompleted) ...[
@@ -797,7 +807,7 @@ class _VolunteerTrainingPageState extends State<VolunteerTrainingPage> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: _emerald.withOpacity(0.1),
+                            color: _emerald.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: const Text(
@@ -834,9 +844,7 @@ class _VolunteerTrainingPageState extends State<VolunteerTrainingPage> {
             ),
 
             Icon(
-              isUnlocked
-                  ? Icons.arrow_forward_ios_rounded
-                  : Icons.lock_rounded,
+              isUnlocked ? Icons.arrow_forward_ios_rounded : Icons.lock_rounded,
               size: 16,
               color: Colors.grey.shade400,
             ),
@@ -945,7 +953,8 @@ class _ArticleSection extends StatelessWidget {
   final _Chapter chapter;
   final VoidCallback onNext;
 
-  const _ArticleSection({super.key, required this.chapter, required this.onNext});
+  const _ArticleSection(
+      {super.key, required this.chapter, required this.onNext});
 
   @override
   Widget build(BuildContext context) {
@@ -958,9 +967,9 @@ class _ArticleSection extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: chapter.color.withOpacity(0.1),
+              color: chapter.color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: chapter.color.withOpacity(0.3)),
+              border: Border.all(color: chapter.color.withValues(alpha: 0.3)),
             ),
             child: Row(
               children: [
@@ -1088,9 +1097,9 @@ class _VideoSection extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: chapter.color.withOpacity(0.1),
+              color: chapter.color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: chapter.color.withOpacity(0.3)),
+              border: Border.all(color: chapter.color.withValues(alpha: 0.3)),
             ),
             child: Row(
               children: [
@@ -1180,8 +1189,7 @@ class _QuizSectionState extends State<_QuizSection> {
   int _correctCount = 0;
   bool _quizCompleted = false;
 
-  _Question get _question =>
-      widget.chapter.quiz[_currentQuestion];
+  _Question get _question => widget.chapter.quiz[_currentQuestion];
 
   void _selectAnswer(int index) {
     if (_answered) return;
@@ -1261,8 +1269,7 @@ class _QuizSectionState extends State<_QuizSection> {
               value: progress,
               minHeight: 6,
               backgroundColor: Colors.grey.shade200,
-              valueColor:
-                  AlwaysStoppedAnimation<Color>(widget.chapter.color),
+              valueColor: AlwaysStoppedAnimation<Color>(widget.chapter.color),
             ),
           ),
           const SizedBox(height: 24),
@@ -1275,7 +1282,7 @@ class _QuizSectionState extends State<_QuizSection> {
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 10,
                   offset: const Offset(0, 3),
                 ),
@@ -1401,7 +1408,7 @@ class _QuizSectionState extends State<_QuizSection> {
       }
     } else if (_selectedAnswer == index) {
       borderColor = widget.chapter.color;
-      bgColor = widget.chapter.color.withOpacity(0.05);
+      bgColor = widget.chapter.color.withValues(alpha: 0.05);
     }
 
     return GestureDetector(
@@ -1416,7 +1423,7 @@ class _QuizSectionState extends State<_QuizSection> {
           border: Border.all(color: borderColor, width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.03),
+              color: Colors.black.withValues(alpha: 0.03),
               blurRadius: 6,
               offset: const Offset(0, 2),
             ),
@@ -1482,7 +1489,7 @@ class _QuizSectionState extends State<_QuizSection> {
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.06),
+                  color: Colors.black.withValues(alpha: 0.06),
                   blurRadius: 16,
                   offset: const Offset(0, 4),
                 ),
@@ -1547,9 +1554,7 @@ class _QuizSectionState extends State<_QuizSection> {
                         size: 20,
                       ),
                       label: Text(
-                        widget.isFinalChapter
-                            ? 'Get Certificate'
-                            : 'Continue',
+                        widget.isFinalChapter ? 'Get Certificate' : 'Continue',
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF059669),
@@ -1690,7 +1695,7 @@ class _CertificatePage extends StatelessWidget {
         border: Border.all(color: const Color(0xFFF59E0B), width: 3),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFF59E0B).withOpacity(0.2),
+            color: const Color(0xFFF59E0B).withValues(alpha: 0.2),
             blurRadius: 20,
             offset: const Offset(0, 6),
           ),
@@ -1854,13 +1859,11 @@ class _CertificatePage extends StatelessWidget {
 
       final Uint8List bytes = await pdf.save();
 
-    
-        // For mobile (Android & iOS)
-        await Printing.layoutPdf(
-          onLayout: (PdfPageFormat format) async => bytes,
-          name: 'BlindFriend_Certificate_$name.pdf',
-        );
-     
+      // For mobile (Android & iOS)
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => bytes,
+        name: 'BlindFriend_Certificate_$name.pdf',
+      );
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

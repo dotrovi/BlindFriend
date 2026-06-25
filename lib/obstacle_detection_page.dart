@@ -7,7 +7,9 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:google_mlkit_object_detection/google_mlkit_object_detection.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
-
+import 'package:speech_to_text/speech_to_text.dart';
+import 'services/platform_support.dart';
+import 'theme/app_palette.dart';
 
 // left wall & human detection
 
@@ -21,6 +23,13 @@ class ObstacleDetectionPage extends StatefulWidget {
 class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
     with WidgetsBindingObserver {
   final FlutterTts _tts = FlutterTts();
+  final SpeechToText _stt = SpeechToText();
+
+  bool _sttAvailable = false;
+  bool _isListening = false;
+
+  static const String _voiceInstruction =
+      'Tap the button and say start detection to start scanning.';
 
   CameraController? _controller;
   ObjectDetector? _detector;
@@ -64,6 +73,7 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initTts();
+    _initVoice();
   }
 
   Future<void> _initTts() async {
@@ -77,11 +87,60 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
     await _tts.setPitch(1.0);
   }
 
+  Future<void> _initVoice() async {
+    final micStatus = await Permission.microphone.request();
+    if (!mounted) return;
+
+    if (micStatus.isGranted) {
+      _sttAvailable = await _stt.initialize(
+        onStatus: (status) {
+          if (!mounted) return;
+          if (status == 'listening') {
+            setState(() => _isListening = true);
+          } else if (status == 'done' || status == 'notListening') {
+            setState(() => _isListening = false);
+          }
+        },
+        onError: (error) {
+          debugPrint('STT error: ${error.errorMsg}');
+          if (mounted) setState(() => _isListening = false);
+        },
+      );
+    }
+
+    if (mounted) _speak(_voiceInstruction);
+  }
+
+  Future<void> _pressMic() async {
+    if (!_sttAvailable || _isListening) return;
+    setState(() => _isListening = true);
+    await _stt.listen(
+      onResult: (result) {
+        if (!mounted || !result.finalResult) return;
+        _handleVoiceCommand(result.recognizedWords.toLowerCase());
+      },
+      listenFor: const Duration(seconds: 6),
+      pauseFor: const Duration(seconds: 3),
+      localeId: 'en_US',
+    );
+  }
+
+  void _handleVoiceCommand(String command) {
+    if (command.contains('start detection') ||
+        command.contains('start') ||
+        command.contains('detection')) {
+      _startDetection();
+    } else {
+      _speak('I did not catch that. $_voiceInstruction');
+    }
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _disposeCamera();
     _detector?.close();
+    _stt.stop();
     _tts.stop();
     super.dispose();
   }
@@ -94,13 +153,11 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
         state == AppLifecycleState.paused) {
       _disposeCamera();
     } else if (state == AppLifecycleState.resumed && _controller == null) {
-      _initCamera()
-          .then((_) {
-            if (mounted) setState(() {});
-          })
-          .catchError((Object e) {
-            debugPrint('Camera resume error: $e');
-          });
+      _initCamera().then((_) {
+        if (mounted) setState(() {});
+      }).catchError((Object e) {
+        debugPrint('Camera resume error: $e');
+      });
     }
   }
 
@@ -162,6 +219,40 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
 
   Future<void> _startDetection() async {
     if (_isStarting || _isDetecting) return;
+
+    if (!obstacleDetectionSupported) {
+      _speak(
+        'Obstacle detection needs a camera and is not available on this device.',
+      );
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            backgroundColor: kCardFill,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text(
+              'Camera not available',
+              style: TextStyle(color: Colors.white),
+            ),
+            content: const Text(
+              'Obstacle detection needs a camera and only works on Android '
+              'or iOS. It is not available on this device.',
+              style: TextStyle(color: Colors.white70),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK', style: TextStyle(color: kBlueAccent)),
+              ),
+            ],
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() => _isStarting = true);
 
     final status = await Permission.camera.request();
@@ -260,8 +351,7 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
     try {
       final inputImage = _inputImageFromCameraImage(image);
       if (inputImage == null) {
-        _lastFrameError =
-            'Camera frame could not be converted '
+        _lastFrameError = 'Camera frame could not be converted '
             '(format ${image.format.raw}, planes ${image.planes.length}).';
       } else {
         _framesConverted++;
@@ -464,8 +554,8 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
 
   String? _labelFor(DetectedObject object) {
     if (object.labels.isEmpty) return null;
-    final best = object.labels
-        .reduce((a, b) => a.confidence >= b.confidence ? a : b);
+    final best =
+        object.labels.reduce((a, b) => a.confidence >= b.confidence ? a : b);
     if (best.confidence < 0.5) return null;
 
     var text = best.text;
@@ -539,14 +629,14 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: kNavyDeep,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: kNavyMid,
         elevation: 0,
         automaticallyImplyLeading: false,
         title: const Text(
           'Obstacle Detection',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
       ),
@@ -554,6 +644,104 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
+            if (!obstacleDetectionSupported)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: kAmberAccent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border:
+                      Border.all(color: kAmberAccent.withValues(alpha: 0.4)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline, color: kAmberAccent, size: 20),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Obstacle detection needs a camera and only works on '
+                        'Android or iOS. It isn\'t available on this device.',
+                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            // Voice Command Card
+            GestureDetector(
+              onTap: _pressMic,
+              child: Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: kCardFill.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: (_isListening ? Colors.greenAccent : kPinkBright)
+                        .withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: _isListening
+                            ? const LinearGradient(
+                                colors: [Colors.green, Colors.lightGreen],
+                              )
+                            : kAccentGradient,
+                        boxShadow: [
+                          BoxShadow(
+                            color: (_isListening ? Colors.green : kPinkBright)
+                                .withValues(alpha: 0.5),
+                            blurRadius: 18,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        _isListening ? Icons.mic : Icons.mic_none,
+                        color: Colors.white,
+                        size: 30,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _isListening ? 'Listening...' : 'Voice Command',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Tap the button and say "start detection" to '
+                            'start scanning.',
+                            style: TextStyle(
+                              color: Colors.white60,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
             _buildDetectionCard(),
             if (_isDetecting && _currentAlert != null)
               _buildCurrentAlert(_currentAlert!),
@@ -571,11 +759,9 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: kCardFill.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8),
-        ],
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Column(
         children: [
@@ -583,13 +769,17 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
           const SizedBox(height: 12),
           const Text(
             'Real-time Detection',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
           ),
           const SizedBox(height: 6),
-          Text(
+          const Text(
             'Get instant voice alerts about obstacles in your path',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+            style: TextStyle(fontSize: 14, color: Colors.white60),
           ),
           const SizedBox(height: 20),
           _buildToggleButton(),
@@ -610,7 +800,7 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
                 Text(
                   'Detection Active',
                   style: TextStyle(
-                    color: Colors.green.shade700,
+                    color: Colors.greenAccent.shade400,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -621,7 +811,7 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
               _usingCustomModel
                   ? 'Using custom obstacle model'
                   : 'Using built-in detector',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              style: const TextStyle(fontSize: 12, color: Colors.white60),
             ),
             _buildDiagnostics(),
           ],
@@ -639,21 +829,25 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
       margin: const EdgeInsets.only(top: 10),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: err != null ? Colors.red.shade50 : Colors.grey.shade100,
+        color: err != null
+            ? kRedAccent.withValues(alpha: 0.1)
+            : Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: err != null ? Colors.red.shade200 : Colors.grey.shade300,
+          color: err != null
+              ? kRedAccent.withValues(alpha: 0.4)
+              : Colors.white.withValues(alpha: 0.1),
         ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             'Diagnostics',
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.bold,
-              color: Colors.grey.shade700,
+              color: Colors.white70,
             ),
           ),
           const SizedBox(height: 4),
@@ -661,15 +855,15 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
             'Frames received: $_framesReceived\n'
             'Frames converted: $_framesConverted\n'
             'Objects (last frame): $_lastObjectCount',
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+            style: const TextStyle(fontSize: 11, color: Colors.white70),
           ),
           if (err != null) ...[
             const SizedBox(height: 6),
             Text(
               'Error: $err',
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 11,
-                color: Colors.red.shade700,
+                color: Colors.redAccent,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -687,13 +881,13 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
     if (!showPreview) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 8),
-        child: Icon(Icons.photo_camera, size: 46, color: Colors.red),
+        child: Icon(Icons.photo_camera, size: 46, color: kRedAccent),
       );
     }
 
     final accent = _currentAlert == null
-        ? Colors.grey.shade300
-        : (_currentAlert!.urgent ? Colors.red : Colors.orange);
+        ? Colors.white24
+        : (_currentAlert!.urgent ? kRedAccent : kAmberAccent);
 
     return Container(
       decoration: BoxDecoration(
@@ -761,7 +955,7 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
                           ? 'Tap to stop monitoring'
                           : 'Tap to start monitoring',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.white.withValues(alpha: 0.9),
                         fontSize: 12,
                       ),
                     ),
@@ -776,16 +970,15 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
   }
 
   Widget _buildCurrentAlert(_Detection alert) {
-    final accent = alert.urgent ? Colors.red : Colors.orange.shade800;
-    final bg = alert.urgent ? Colors.red.shade50 : Colors.orange.shade50;
+    final accent = alert.urgent ? kRedAccent : kAmberAccent;
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(top: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: bg,
+        color: accent.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: accent.withOpacity(0.5)),
+        border: Border.all(color: accent.withValues(alpha: 0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -807,7 +1000,7 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
           const SizedBox(height: 8),
           Text(
             alert.displayAlert,
-            style: TextStyle(fontSize: 14, color: accent),
+            style: const TextStyle(fontSize: 14, color: Colors.white),
           ),
           const SizedBox(height: 12),
           ElevatedButton.icon(
@@ -841,18 +1034,20 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
       margin: const EdgeInsets.only(top: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: kCardFill.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8),
-        ],
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
             'How It Works',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
           ),
           const SizedBox(height: 12),
           for (final step in steps)
@@ -865,7 +1060,7 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
                     '•  ',
                     style: TextStyle(
                       fontSize: 14,
-                      color: Colors.grey.shade700,
+                      color: Colors.white.withValues(alpha: 0.7),
                     ),
                   ),
                   Expanded(
@@ -873,7 +1068,7 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
                       step,
                       style: TextStyle(
                         fontSize: 14,
-                        color: Colors.grey.shade700,
+                        color: Colors.white.withValues(alpha: 0.7),
                       ),
                     ),
                   ),
@@ -891,34 +1086,35 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
       margin: const EdgeInsets.only(top: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: kCardFill.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8),
-        ],
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
             'Recent Detections',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
           ),
           const SizedBox(height: 12),
-          for (final detection in _recent.take(6))
-            _buildRecentRow(detection),
+          for (final detection in _recent.take(6)) _buildRecentRow(detection),
         ],
       ),
     );
   }
 
   Widget _buildRecentRow(_Detection detection) {
-    final accent = detection.urgent ? Colors.red : Colors.orange.shade800;
+    final accent = detection.urgent ? kRedAccent : kAmberAccent;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: accent.withOpacity(0.4)),
+        border: Border.all(color: accent.withValues(alpha: 0.4)),
       ),
       child: Material(
         color: Colors.transparent,
@@ -938,14 +1134,15 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
+                          color: Colors.white,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         'Proximity: ${detection.proximity}',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 12,
-                          color: Colors.grey.shade600,
+                          color: Colors.white60,
                         ),
                       ),
                     ],
@@ -985,8 +1182,7 @@ class _Detection {
     required this.time,
   });
 
-  String get displayAlert =>
-      '${urgent ? 'Warning! ' : ''}'
+  String get displayAlert => '${urgent ? 'Warning! ' : ''}'
       '${_ObstacleDetectionPageState._cap(subject)} $direction, $proximity.';
 
   String get spokenAlert => displayAlert;
