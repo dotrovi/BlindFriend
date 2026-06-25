@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'theme/app_palette.dart';
 
 class BlindRateVolunteerPage extends StatefulWidget {
   final String helpRequestId;
@@ -241,10 +242,12 @@ class _BlindRateVolunteerPageState extends State<BlindRateVolunteerPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: kNavyDeep,
       appBar: AppBar(
         title: const Text('Rate Volunteer'),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: kNavyMid,
         foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
           IconButton(
             icon: Icon(
@@ -255,18 +258,22 @@ class _BlindRateVolunteerPageState extends State<BlindRateVolunteerPage> {
           ),
         ],
       ),
-      body: SingleChildScrollView( // ✅ Added SingleChildScrollView
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
               'How was your experience with ${widget.volunteerName}?',
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
-            
+
             // Star Rating
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -274,7 +281,7 @@ class _BlindRateVolunteerPageState extends State<BlindRateVolunteerPage> {
                 return IconButton(
                   icon: Icon(
                     index < _rating ? Icons.star : Icons.star_border,
-                    color: Colors.amber,
+                    color: kAmberAccent,
                     size: 48,
                   ),
                   onPressed: () {
@@ -283,24 +290,38 @@ class _BlindRateVolunteerPageState extends State<BlindRateVolunteerPage> {
                 );
               }),
             ),
-            
+
             const SizedBox(height: 24),
-            
-            // ✅ Comment Field (moved here, inside build method)
+
             TextField(
               controller: _commentController,
               maxLines: 3,
+              style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
                 hintText: 'Optional: Leave a comment about your experience...',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                hintStyle: const TextStyle(color: Colors.white38),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide:
+                      BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide:
+                      BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+                ),
+                focusedBorder: const OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(14)),
+                  borderSide: BorderSide(color: kPinkBright),
+                ),
                 filled: true,
-                fillColor: Colors.grey.shade50,
+                fillColor: Colors.white.withValues(alpha: 0.05),
                 contentPadding: const EdgeInsets.all(16),
               ),
             ),
-            
+
             const SizedBox(height: 32),
-            
+
             // Submit Button
             SizedBox(
               width: double.infinity,
@@ -308,13 +329,16 @@ class _BlindRateVolunteerPageState extends State<BlindRateVolunteerPage> {
               child: ElevatedButton(
                 onPressed: _isSubmitting ? null : _submitRating,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple,
+                  backgroundColor: kPinkBright,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30)),
                 ),
                 child: _isSubmitting
                     ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text('Submit Rating', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    : const Text('Submit Rating',
+                        style:
+                            TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               ),
             ),
           ],

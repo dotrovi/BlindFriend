@@ -5,6 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:speech_to_text/speech_to_text.dart';
+import 'services/platform_support.dart';
+import 'theme/app_palette.dart';
 
 // Tactile paving guidance.
 //
@@ -57,6 +60,13 @@ enum _Surface { dots, bars, smooth }
 class _TactilePathPageState extends State<TactilePathPage>
     with WidgetsBindingObserver {
   final FlutterTts _tts = FlutterTts();
+  final SpeechToText _stt = SpeechToText();
+
+  bool _sttAvailable = false;
+  bool _isListening = false;
+
+  static const String _voiceInstruction =
+      'Tap the button and say start guidance to start scanning.';
 
   CameraController? _controller;
   List<CameraDescription> _cameras = [];
@@ -68,21 +78,22 @@ class _TactilePathPageState extends State<TactilePathPage>
 
   // ---- Tunable calibration constants (tuned for faded yellow/orange strips) -
   // Yellow in YUV: bright luma, low blue-difference (U), elevated red-diff (V).
-  static const int _yMin = 70;   // strip must be reasonably lit
-  static const int _uMax = 122;  // below neutral 128 (yellow has little blue)
-  static const int _vMin = 132;  // above neutral 128 (warm hue)
-  static const int _vMax = 205;  // reject strong red (above this is not yellow)
+  static const int _yMin = 70; // strip must be reasonably lit
+  static const int _uMax = 122; // below neutral 128 (yellow has little blue)
+  static const int _vMin = 132; // above neutral 128 (warm hue)
+  static const int _vMax = 205; // reject strong red (above this is not yellow)
 
   // Band of the frame we analyse, in upright/normalised coordinates.
-  static const double _bandTop = 0.55;   // near-field starts past mid-frame
+  static const double _bandTop = 0.55; // near-field starts past mid-frame
   static const double _bandBottom = 0.97;
-  static const double _bandLeft = 0.12;  // ignore far edges (grass/kerb)
+  static const double _bandLeft = 0.12; // ignore far edges (grass/kerb)
   static const double _bandRight = 0.88;
   static const int _columns = 9;
-  static const int _sampleStep = 5;       // sample every Nth pixel (perf)
+  static const int _sampleStep = 5; // sample every Nth pixel (perf)
 
-  static const double _binActive = 0.22;  // column counts as "strip" above this
-  static const double _lostFloor = 0.05;  // below this the strip is effectively gone
+  static const double _binActive = 0.22; // column counts as "strip" above this
+  static const double _lostFloor =
+      0.05; // below this the strip is effectively gone
   static const double _obscuredFloor = 0.16; // good lock sits well above this
 
   // ---- Texture (dots vs bars) thresholds ----------------------------------
@@ -128,6 +139,7 @@ class _TactilePathPageState extends State<TactilePathPage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initTts();
+    _initVoice();
   }
 
   Future<void> _initTts() async {
@@ -141,10 +153,59 @@ class _TactilePathPageState extends State<TactilePathPage>
     await _tts.setPitch(1.0);
   }
 
+  Future<void> _initVoice() async {
+    final micStatus = await Permission.microphone.request();
+    if (!mounted) return;
+
+    if (micStatus.isGranted) {
+      _sttAvailable = await _stt.initialize(
+        onStatus: (status) {
+          if (!mounted) return;
+          if (status == 'listening') {
+            setState(() => _isListening = true);
+          } else if (status == 'done' || status == 'notListening') {
+            setState(() => _isListening = false);
+          }
+        },
+        onError: (error) {
+          debugPrint('STT error: ${error.errorMsg}');
+          if (mounted) setState(() => _isListening = false);
+        },
+      );
+    }
+
+    if (mounted) _speak(_voiceInstruction);
+  }
+
+  Future<void> _pressMic() async {
+    if (!_sttAvailable || _isListening) return;
+    setState(() => _isListening = true);
+    await _stt.listen(
+      onResult: (result) {
+        if (!mounted || !result.finalResult) return;
+        _handleVoiceCommand(result.recognizedWords.toLowerCase());
+      },
+      listenFor: const Duration(seconds: 6),
+      pauseFor: const Duration(seconds: 3),
+      localeId: 'en_US',
+    );
+  }
+
+  void _handleVoiceCommand(String command) {
+    if (command.contains('start guidance') ||
+        command.contains('start') ||
+        command.contains('guidance')) {
+      _startDetection();
+    } else {
+      _speak('I did not catch that. $_voiceInstruction');
+    }
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _disposeCamera();
+    _stt.stop();
     _tts.stop();
     super.dispose();
   }
@@ -156,13 +217,11 @@ class _TactilePathPageState extends State<TactilePathPage>
         state == AppLifecycleState.paused) {
       _disposeCamera();
     } else if (state == AppLifecycleState.resumed && _controller == null) {
-      _initCamera()
-          .then((_) {
-            if (mounted) setState(() {});
-          })
-          .catchError((Object e) {
-            debugPrint('Camera resume error: $e');
-          });
+      _initCamera().then((_) {
+        if (mounted) setState(() {});
+      }).catchError((Object e) {
+        debugPrint('Camera resume error: $e');
+      });
     }
   }
 
@@ -179,6 +238,40 @@ class _TactilePathPageState extends State<TactilePathPage>
 
   Future<void> _startDetection() async {
     if (_isStarting || _isDetecting) return;
+
+    if (!tactilePathSupported) {
+      _speak(
+        'Path guidance needs a camera and is not available on this device.',
+      );
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            backgroundColor: kCardFill,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text(
+              'Camera not available',
+              style: TextStyle(color: Colors.white),
+            ),
+            content: const Text(
+              'Path guidance needs a camera and only works on Android or '
+              'iOS. It is not available on this device.',
+              style: TextStyle(color: Colors.white70),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK', style: TextStyle(color: kBlueAccent)),
+              ),
+            ],
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() => _isStarting = true);
 
     final status = await Permission.camera.request();
@@ -277,8 +370,7 @@ class _TactilePathPageState extends State<TactilePathPage>
     try {
       final reading = _scanFrame(image);
       if (reading == null) {
-        _lastError =
-            'Frame not readable (format ${image.format.raw}, '
+        _lastError = 'Frame not readable (format ${image.format.raw}, '
             'planes ${image.planes.length}).';
       } else {
         _framesAnalysed++;
@@ -502,7 +594,8 @@ class _TactilePathPageState extends State<TactilePathPage>
     // Warning surface (dots): truncated-dome paving flags a hazard — a road
     // crossing, the top of stairs, or a platform edge. Highest priority after
     // an outright lost path.
-    if (_recent((r) => r.surface == _Surface.dots && r.coverage >= _obscuredFloor) >=
+    if (_recent((r) =>
+            r.surface == _Surface.dots && r.coverage >= _obscuredFloor) >=
         _persistFrames) {
       return _Guidance.warning;
     }
@@ -549,7 +642,8 @@ class _TactilePathPageState extends State<TactilePathPage>
   void _maybeRepeat() {
     // Keep urgent states (warning/branch/lost) repeating until resolved.
     if (!_isUrgent(_guidance)) return;
-    if (DateTime.now().difference(_lastSpokenAt) >= const Duration(seconds: 3)) {
+    if (DateTime.now().difference(_lastSpokenAt) >=
+        const Duration(seconds: 3)) {
       _announce(_guidance, force: true);
     }
   }
@@ -600,14 +694,14 @@ class _TactilePathPageState extends State<TactilePathPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: kNavyDeep,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: kNavyMid,
         elevation: 0,
         automaticallyImplyLeading: false,
         title: const Text(
           'Path Guidance',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
       ),
@@ -615,6 +709,104 @@ class _TactilePathPageState extends State<TactilePathPage>
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
+            if (!tactilePathSupported)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: kAmberAccent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border:
+                      Border.all(color: kAmberAccent.withValues(alpha: 0.4)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline, color: kAmberAccent, size: 20),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Path guidance needs a camera and only works on '
+                        'Android or iOS. It isn\'t available on this device.',
+                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            // Voice Command Card
+            GestureDetector(
+              onTap: _pressMic,
+              child: Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: kCardFill.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: (_isListening ? Colors.greenAccent : kPinkBright)
+                        .withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: _isListening
+                            ? const LinearGradient(
+                                colors: [Colors.green, Colors.lightGreen],
+                              )
+                            : kAccentGradient,
+                        boxShadow: [
+                          BoxShadow(
+                            color: (_isListening ? Colors.green : kPinkBright)
+                                .withValues(alpha: 0.5),
+                            blurRadius: 18,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        _isListening ? Icons.mic : Icons.mic_none,
+                        color: Colors.white,
+                        size: 30,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _isListening ? 'Listening...' : 'Voice Command',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Tap the button and say "start guidance" to '
+                            'start scanning.',
+                            style: TextStyle(
+                              color: Colors.white60,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
             _buildCard(),
             if (_isDetecting) _buildCurrentGuidance(),
             if (!_isDetecting) _buildHowItWorks(),
@@ -630,11 +822,9 @@ class _TactilePathPageState extends State<TactilePathPage>
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: kCardFill.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8),
-        ],
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Column(
         children: [
@@ -642,13 +832,17 @@ class _TactilePathPageState extends State<TactilePathPage>
           const SizedBox(height: 12),
           const Text(
             'Tactile Path Guidance',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
           ),
           const SizedBox(height: 6),
-          Text(
+          const Text(
             'Follow directional bars, and stop at warning dots',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+            style: TextStyle(fontSize: 14, color: Colors.white60),
           ),
           const SizedBox(height: 20),
           _buildToggleButton(),
@@ -668,21 +862,25 @@ class _TactilePathPageState extends State<TactilePathPage>
       margin: const EdgeInsets.only(top: 10),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: err != null ? Colors.red.shade50 : Colors.grey.shade100,
+        color: err != null
+            ? kRedAccent.withValues(alpha: 0.1)
+            : Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: err != null ? Colors.red.shade200 : Colors.grey.shade300,
+          color: err != null
+              ? kRedAccent.withValues(alpha: 0.4)
+              : Colors.white.withValues(alpha: 0.1),
         ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             'Diagnostics',
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.bold,
-              color: Colors.grey.shade700,
+              color: Colors.white70,
             ),
           ),
           const SizedBox(height: 4),
@@ -693,15 +891,15 @@ class _TactilePathPageState extends State<TactilePathPage>
             'Clusters: $_lastClusters\n'
             'Surface: $_lastSurface  '
             '(anisotropy ${_lastAniso.toStringAsFixed(2)})',
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+            style: const TextStyle(fontSize: 11, color: Colors.white70),
           ),
           if (err != null) ...[
             const SizedBox(height: 6),
             Text(
               'Error: $err',
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 11,
-                color: Colors.red.shade700,
+                color: Colors.redAccent,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -788,7 +986,7 @@ class _TactilePathPageState extends State<TactilePathPage>
                     Text(
                       active ? 'Tap to stop' : 'Tap to start walking',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.white.withValues(alpha: 0.9),
                         fontSize: 12,
                       ),
                     ),
@@ -809,9 +1007,9 @@ class _TactilePathPageState extends State<TactilePathPage>
       margin: const EdgeInsets.only(top: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: accent.withOpacity(0.08),
+        color: accent.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: accent.withOpacity(0.5)),
+        border: Border.all(color: accent.withValues(alpha: 0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -869,18 +1067,20 @@ class _TactilePathPageState extends State<TactilePathPage>
       margin: const EdgeInsets.only(top: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: kCardFill.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8),
-        ],
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
             'How It Works',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
           ),
           const SizedBox(height: 12),
           for (final step in steps)
@@ -889,13 +1089,12 @@ class _TactilePathPageState extends State<TactilePathPage>
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('•  ',
-                      style: TextStyle(
-                          fontSize: 14, color: Colors.grey.shade700)),
+                  const Text('•  ',
+                      style: TextStyle(fontSize: 14, color: Colors.white70)),
                   Expanded(
                     child: Text(step,
-                        style: TextStyle(
-                            fontSize: 14, color: Colors.grey.shade700)),
+                        style: const TextStyle(
+                            fontSize: 14, color: Colors.white70)),
                   ),
                 ],
               ),
@@ -908,22 +1107,22 @@ class _TactilePathPageState extends State<TactilePathPage>
   static Color _accentFor(_Guidance g) {
     switch (g) {
       case _Guidance.ahead:
-        return Colors.green;
+        return Colors.greenAccent.shade400;
       case _Guidance.easeLeft:
       case _Guidance.easeRight:
-        return Colors.orange.shade800;
+        return kAmberAccent;
       case _Guidance.turn:
-        return Colors.blue.shade700;
+        return kBlueAccent;
       case _Guidance.obscured:
-        return Colors.amber.shade800;
+        return kAmberAccent;
       case _Guidance.branch:
-        return Colors.deepPurple;
+        return kPurpleAccent;
       case _Guidance.warning:
-        return Colors.red;
+        return kRedAccent;
       case _Guidance.lost:
-        return Colors.red;
+        return kRedAccent;
       case _Guidance.scanning:
-        return Colors.grey;
+        return Colors.white60;
     }
   }
 
@@ -953,12 +1152,12 @@ class _TactilePathPageState extends State<TactilePathPage>
 
 // A single frame's reading of the tactile strip across the analysed band.
 class _PathReading {
-  final double coverage;     // fraction of sampled band that is strip
-  final double centroid;     // 0 (left) .. 1 (right) of analysed columns
-  final int clusterCount;    // separated runs of strip columns (branch = 2+)
-  final _Surface surface;    // dots (warning) / bars (direction) / smooth
-  final bool barsVertical;   // for bars: ridges run with travel (go straight)
-  final double anisotropy;   // |Gx-Gy|/(Gx+Gy); diagnostics + classification
+  final double coverage; // fraction of sampled band that is strip
+  final double centroid; // 0 (left) .. 1 (right) of analysed columns
+  final int clusterCount; // separated runs of strip columns (branch = 2+)
+  final _Surface surface; // dots (warning) / bars (direction) / smooth
+  final bool barsVertical; // for bars: ridges run with travel (go straight)
+  final double anisotropy; // |Gx-Gy|/(Gx+Gy); diagnostics + classification
 
   _PathReading({
     required this.coverage,
@@ -1008,8 +1207,7 @@ class _PathReading {
 
     // Texture classification from gradient anisotropy.
     final totalGrad = avgGx + avgGy;
-    final anisotropy =
-        totalGrad <= 0 ? 0.0 : (avgGx - avgGy).abs() / totalGrad;
+    final anisotropy = totalGrad <= 0 ? 0.0 : (avgGx - avgGy).abs() / totalGrad;
 
     _Surface surface;
     bool barsVertical = false;

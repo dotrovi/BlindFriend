@@ -33,14 +33,17 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [Colors.deepPurple.shade700, Colors.deepPurple.shade500],
+                        colors: [
+                          Colors.deepPurple.shade700,
+                          Colors.deepPurple.shade500
+                        ],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.deepPurple.withOpacity(0.1),
+                          color: Colors.deepPurple.withValues(alpha: 0.1),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -51,10 +54,11 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
+                            color: Colors.white.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(Icons.people, color: Colors.white, size: 28),
+                          child: const Icon(Icons.people,
+                              color: Colors.white, size: 28),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
@@ -63,12 +67,17 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                             children: [
                               const Text(
                                 'Users Management',
-                                style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: Colors.white),
+                                style: TextStyle(
+                                    fontSize: 26,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white),
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 'View and manage blind users',
-                                style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.8)),
+                                style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.white.withValues(alpha: 0.8)),
                               ),
                             ],
                           ),
@@ -87,21 +96,24 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                       border: Border.all(color: Colors.grey.shade200),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.02),
+                          color: Colors.black.withValues(alpha: 0.02),
                           blurRadius: 4,
                           offset: const Offset(0, 1),
                         ),
                       ],
                     ),
                     child: TextField(
-                      onChanged: (value) => setState(() => _searchQuery = value.toLowerCase()),
+                      onChanged: (value) =>
+                          setState(() => _searchQuery = value.toLowerCase()),
                       decoration: InputDecoration(
                         hintText: 'Search users by name or email...',
-                        prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                        prefixIcon:
+                            const Icon(Icons.search, color: Colors.grey),
                         suffixIcon: _searchQuery.isNotEmpty
                             ? IconButton(
                                 icon: const Icon(Icons.close),
-                                onPressed: () => setState(() => _searchQuery = ''),
+                                onPressed: () =>
+                                    setState(() => _searchQuery = ''),
                               )
                             : null,
                         filled: true,
@@ -116,9 +128,11 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: Colors.deepPurple, width: 2),
+                          borderSide: const BorderSide(
+                              color: Colors.deepPurple, width: 2),
                         ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 14),
                       ),
                     ),
                   ),
@@ -144,7 +158,9 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                         _sortChip('Join Date', 'createdAt'),
                         const Spacer(),
                         IconButton(
-                          icon: Icon(_sortAscending ? Icons.arrow_upward : Icons.arrow_downward),
+                          icon: Icon(_sortAscending
+                              ? Icons.arrow_upward
+                              : Icons.arrow_downward),
                           tooltip: _sortAscending ? 'Ascending' : 'Descending',
                           onPressed: () {
                             setState(() {
@@ -161,7 +177,10 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
 
                   // Users table
                   FutureBuilder<QuerySnapshot>(
-                    future: firestore.collection('users').where('userType', isEqualTo: 'blind').get(),
+                    future: firestore
+                        .collection('users')
+                        .where('userType', isEqualTo: 'blind')
+                        .get(),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const Center(child: CircularProgressIndicator());
@@ -175,32 +194,39 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                       }
 
                       final docs = snapshot.data?.docs ?? [];
-                      
+
                       // Filter users based on search query
                       var filteredDocs = docs.where((doc) {
                         final data = doc.data() as Map<String, dynamic>;
-                        final name = (data['name'] ?? '').toString().toLowerCase();
-                        final email = (data['email'] ?? '').toString().toLowerCase();
-                        return name.contains(_searchQuery) || email.contains(_searchQuery);
+                        final name =
+                            (data['name'] ?? '').toString().toLowerCase();
+                        final email =
+                            (data['email'] ?? '').toString().toLowerCase();
+                        return name.contains(_searchQuery) ||
+                            email.contains(_searchQuery);
                       }).toList();
 
                       // Apply sorting
                       filteredDocs.sort((a, b) {
                         final dataA = a.data() as Map<String, dynamic>;
                         final dataB = b.data() as Map<String, dynamic>;
-                        
+
                         int comparison = 0;
-                        
+
                         if (_sortBy == 'name') {
-                          final nameA = (dataA['name'] ?? '').toString().toLowerCase();
-                          final nameB = (dataB['name'] ?? '').toString().toLowerCase();
+                          final nameA =
+                              (dataA['name'] ?? '').toString().toLowerCase();
+                          final nameB =
+                              (dataB['name'] ?? '').toString().toLowerCase();
                           comparison = nameA.compareTo(nameB);
                         } else if (_sortBy == 'createdAt') {
-                          final dateA = _getDateTimeFromTimestamp(dataA['createdAt']);
-                          final dateB = _getDateTimeFromTimestamp(dataB['createdAt']);
+                          final dateA =
+                              _getDateTimeFromTimestamp(dataA['createdAt']);
+                          final dateB =
+                              _getDateTimeFromTimestamp(dataB['createdAt']);
                           comparison = dateA.compareTo(dateB);
                         }
-                        
+
                         return _sortAscending ? comparison : -comparison;
                       });
 
@@ -221,13 +247,17 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                                     padding: const EdgeInsets.all(16),
                                     decoration: BoxDecoration(
                                       gradient: LinearGradient(
-                                        colors: [Colors.grey.shade50, Colors.grey.shade100],
+                                        colors: [
+                                          Colors.grey.shade50,
+                                          Colors.grey.shade100
+                                        ],
                                       ),
                                       borderRadius: const BorderRadius.vertical(
                                         top: Radius.circular(12),
                                       ),
                                       border: Border(
-                                        bottom: BorderSide(color: Colors.grey.shade200),
+                                        bottom: BorderSide(
+                                            color: Colors.grey.shade200),
                                       ),
                                     ),
                                     child: Row(
@@ -278,7 +308,8 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                                         ),
                                         if (_searchQuery.isNotEmpty)
                                           Padding(
-                                            padding: const EdgeInsets.only(top: 8),
+                                            padding:
+                                                const EdgeInsets.only(top: 8),
                                             child: Text(
                                               'Try adjusting your search',
                                               style: TextStyle(
@@ -304,7 +335,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                           border: Border.all(color: Colors.grey.shade200),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.02),
+                              color: Colors.black.withValues(alpha: 0.02),
                               blurRadius: 4,
                               offset: const Offset(0, 1),
                             ),
@@ -317,10 +348,16 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(
-                                  colors: [Colors.grey.shade50, Colors.grey.shade100],
+                                  colors: [
+                                    Colors.grey.shade50,
+                                    Colors.grey.shade100
+                                  ],
                                 ),
-                                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                                border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+                                borderRadius: const BorderRadius.vertical(
+                                    top: Radius.circular(12)),
+                                border: Border(
+                                    bottom: BorderSide(
+                                        color: Colors.grey.shade200)),
                               ),
                               child: Row(
                                 children: [
@@ -343,7 +380,9 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                                           const SizedBox(width: 4),
                                           if (_sortBy == 'name')
                                             Icon(
-                                              _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
+                                              _sortAscending
+                                                  ? Icons.arrow_upward
+                                                  : Icons.arrow_downward,
                                               size: 14,
                                               color: Colors.grey.shade600,
                                             ),
@@ -364,7 +403,8 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                                             _sortAscending = !_sortAscending;
                                           } else {
                                             _sortBy = 'createdAt';
-                                            _sortAscending = false; // Most recent first
+                                            _sortAscending =
+                                                false; // Most recent first
                                           }
                                         });
                                       },
@@ -374,7 +414,9 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                                           const SizedBox(width: 4),
                                           if (_sortBy == 'createdAt')
                                             Icon(
-                                              _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
+                                              _sortAscending
+                                                  ? Icons.arrow_upward
+                                                  : Icons.arrow_downward,
                                               size: 14,
                                               color: Colors.grey.shade600,
                                             ),
@@ -393,9 +435,11 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                               final isEven = index % 2 == 0;
 
                               return Container(
-                                color: isEven ? Colors.white : Colors.grey.shade50,
+                                color:
+                                    isEven ? Colors.white : Colors.grey.shade50,
                                 child: InkWell(
-                                  onTap: () => _showUserDetails(context, doc.id, data),
+                                  onTap: () =>
+                                      _showUserDetails(context, doc.id, data),
                                   child: Padding(
                                     padding: const EdgeInsets.all(16),
                                     child: Row(
@@ -408,7 +452,8 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                                         ),
                                         Expanded(
                                           flex: 2,
-                                          child: _dataCell(data['email'] ?? 'N/A'),
+                                          child:
+                                              _dataCell(data['email'] ?? 'N/A'),
                                         ),
                                         Expanded(
                                           flex: 1,
@@ -421,7 +466,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                                   ),
                                 ),
                               );
-                            }).toList(),
+                            }),
                           ],
                         ),
                       );
@@ -494,7 +539,8 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
     }
   }
 
-  void _showUserDetails(BuildContext context, String userId, Map<String, dynamic> data) {
+  void _showUserDetails(
+      BuildContext context, String userId, Map<String, dynamic> data) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -514,7 +560,8 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 _buildDetailCard('Personal Information', [
-                  _detailRow('Name:', '${data['name'] ?? 'N/A'} ${data['lastName'] ?? ''}'),
+                  _detailRow('Name:',
+                      '${data['name'] ?? 'N/A'} ${data['lastName'] ?? ''}'),
                   _detailRow('Email:', data['email'] ?? 'N/A'),
                   _detailRow('User Type:', data['userType'] ?? 'N/A'),
                 ]),
@@ -551,7 +598,8 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: Colors.grey.shade100,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(8)),
               border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
             ),
             child: Text(

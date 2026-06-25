@@ -6,6 +6,7 @@ import 'package:speech_to_text/speech_to_text.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'volunteer_details_page.dart';
 import 'services/firebase_service.dart';
+import 'theme/app_palette.dart';
 
 final FirebaseService _firebaseService = FirebaseService();
 
@@ -413,7 +414,7 @@ class _RegisterPageState extends State<RegisterPage> {
     final screenHeight = MediaQuery.of(context).size.height;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: kNavyDeep,
       body: SingleChildScrollView(
         child: Column(
           children: [
@@ -425,15 +426,13 @@ class _RegisterPageState extends State<RegisterPage> {
                 duration: const Duration(milliseconds: 300),
                 height: screenHeight,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: _isListening
-                        ? [const Color(0xFF27AE60), const Color(0xFF2ECC71)]
-                        : _isSpeaking
-                            ? [const Color(0xFF6C3483), const Color(0xFF9B59B6)]
-                            : [const Color(0xFF4A90E2), const Color(0xFF9B59B6)],
-                  ),
+                  gradient: _isListening
+                      ? const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Colors.green, Colors.lightGreen],
+                        )
+                      : kSkyGradient,
                 ),
                 child: SafeArea(
                   child: Column(
@@ -449,14 +448,24 @@ class _RegisterPageState extends State<RegisterPage> {
                       ),
 
                       // Title
-                      const Padding(
-                        padding: EdgeInsets.only(top: 16, bottom: 6),
-                        child: Text(
-                          'BlindFriend',
-                          style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16, bottom: 6),
+                        child: RichText(
+                          text: const TextSpan(
+                            style: TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            children: [
+                              TextSpan(
+                                text: 'Blind',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                              TextSpan(
+                                text: 'Friend',
+                                style: TextStyle(color: kPinkBright),
+                              ),
+                            ],
                           ),
                         ),
                       ),
@@ -545,7 +554,10 @@ class _RegisterPageState extends State<RegisterPage> {
                       child: Text(
                         'Register manually',
                         style: TextStyle(
-                            fontSize: 22, fontWeight: FontWeight.bold),
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -553,7 +565,7 @@ class _RegisterPageState extends State<RegisterPage> {
                       child: Text(
                         'Fill in your details to create an account.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 14, color: Colors.grey),
+                        style: TextStyle(fontSize: 14, color: Colors.white60),
                       ),
                     ),
                     const SizedBox(height: 32),
@@ -561,82 +573,28 @@ class _RegisterPageState extends State<RegisterPage> {
                     // User type
                     const Text('I am a:',
                         style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w500)),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white,
+                        )),
                     const SizedBox(height: 12),
                     Row(
                       children: [
                         Expanded(
-                          child: GestureDetector(
+                          child: _buildRoleOption(
+                            label: 'Blind User',
+                            selected: _selectedUserType == 'blind',
                             onTap: () =>
                                 setState(() => _selectedUserType = 'blind'),
-                            child: Container(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 16),
-                              decoration: BoxDecoration(
-                                border: Border.all(
-                                  color: _selectedUserType == 'blind'
-                                      ? Colors.blue
-                                      : Colors.grey.shade300,
-                                  width: 2,
-                                ),
-                                borderRadius: BorderRadius.circular(8),
-                                color: _selectedUserType == 'blind'
-                                    ? Colors.blue.shade50
-                                    : Colors.white,
-                              ),
-                              child: Center(
-                                child: Text(
-                                  'Blind User',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: _selectedUserType == 'blind'
-                                        ? FontWeight.w600
-                                        : FontWeight.normal,
-                                    color: _selectedUserType == 'blind'
-                                        ? Colors.blue
-                                        : Colors.black87,
-                                  ),
-                                ),
-                              ),
-                            ),
                           ),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
-                          child: GestureDetector(
-                            onTap: () =>
-                                setState(() => _selectedUserType = 'volunteer'),
-                            child: Container(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 16),
-                              decoration: BoxDecoration(
-                                border: Border.all(
-                                  color: _selectedUserType == 'volunteer'
-                                      ? Colors.blue
-                                      : Colors.grey.shade300,
-                                  width: 2,
-                                ),
-                                borderRadius: BorderRadius.circular(8),
-                                color: _selectedUserType == 'volunteer'
-                                    ? Colors.blue.shade50
-                                    : Colors.white,
-                              ),
-                              child: Center(
-                                child: Text(
-                                  'Volunteer',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight:
-                                        _selectedUserType == 'volunteer'
-                                            ? FontWeight.w600
-                                            : FontWeight.normal,
-                                    color: _selectedUserType == 'volunteer'
-                                        ? Colors.blue
-                                        : Colors.black87,
-                                  ),
-                                ),
-                              ),
-                            ),
+                          child: _buildRoleOption(
+                            label: 'Volunteer',
+                            selected: _selectedUserType == 'volunteer',
+                            onTap: () => setState(
+                                () => _selectedUserType = 'volunteer'),
                           ),
                         ),
                       ],
@@ -646,17 +604,14 @@ class _RegisterPageState extends State<RegisterPage> {
                     // Name
                     const Text('Name',
                         style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w500)),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white,
+                        )),
                     const SizedBox(height: 8),
-                    TextFormField(
+                    _buildDarkField(
                       controller: _nameController,
-                      decoration: InputDecoration(
-                        hintText: 'Enter your name',
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8)),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 14),
-                      ),
+                      hint: 'Enter your name',
                       validator: (value) => (value == null || value.isEmpty)
                           ? 'Please enter your name'
                           : null,
@@ -666,18 +621,15 @@ class _RegisterPageState extends State<RegisterPage> {
                     // Email
                     const Text('Email',
                         style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w500)),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white,
+                        )),
                     const SizedBox(height: 8),
-                    TextFormField(
+                    _buildDarkField(
                       controller: _emailController,
+                      hint: 'Enter your email',
                       keyboardType: TextInputType.emailAddress,
-                      decoration: InputDecoration(
-                        hintText: 'Enter your email',
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8)),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 14),
-                      ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return 'Please enter your email';
@@ -693,18 +645,15 @@ class _RegisterPageState extends State<RegisterPage> {
                     // Password
                     const Text('Password',
                         style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w500)),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white,
+                        )),
                     const SizedBox(height: 8),
-                    TextFormField(
+                    _buildDarkField(
                       controller: _passwordController,
+                      hint: 'Enter your password',
                       obscureText: true,
-                      decoration: InputDecoration(
-                        hintText: 'Enter your password',
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8)),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 14),
-                      ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return 'Please enter your password';
@@ -720,18 +669,15 @@ class _RegisterPageState extends State<RegisterPage> {
                     // Confirm Password
                     const Text('Confirm Password',
                         style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w500)),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white,
+                        )),
                     const SizedBox(height: 8),
-                    TextFormField(
+                    _buildDarkField(
                       controller: _confirmPasswordController,
+                      hint: 'Confirm your password',
                       obscureText: true,
-                      decoration: InputDecoration(
-                        hintText: 'Confirm your password',
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8)),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 14),
-                      ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return 'Please confirm your password';
@@ -757,14 +703,12 @@ class _RegisterPageState extends State<RegisterPage> {
                         },
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
-                          backgroundColor: _selectedUserType == 'volunteer'
-                              ? Colors.green
-                              : Colors.blue,
+                          backgroundColor: kPinkBright,
                           foregroundColor: Colors.white,
                           textStyle: const TextStyle(
                               fontSize: 18, fontWeight: FontWeight.w600),
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8)),
+                              borderRadius: BorderRadius.circular(30)),
                         ),
                         child: const Text('Register'),
                       ),
@@ -779,7 +723,7 @@ class _RegisterPageState extends State<RegisterPage> {
                         },
                         child: const Text(
                           'Already have an account? Login',
-                          style: TextStyle(color: Colors.blue),
+                          style: TextStyle(color: kBlueAccent),
                         ),
                       ),
                     ),
@@ -790,6 +734,75 @@ class _RegisterPageState extends State<RegisterPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildRoleOption({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          gradient: selected ? kAccentGradient : null,
+          color: selected ? null : Colors.white.withValues(alpha: 0.04),
+          border: selected
+              ? null
+              : Border.all(color: Colors.white.withValues(alpha: 0.2)),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+              color: selected ? Colors.white : Colors.white70,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDarkField({
+    required TextEditingController controller,
+    required String hint,
+    TextInputType? keyboardType,
+    bool obscureText = false,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: keyboardType,
+      obscureText: obscureText,
+      style: const TextStyle(color: Colors.white),
+      validator: validator,
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(color: Colors.white38),
+        filled: true,
+        fillColor: Colors.white.withValues(alpha: 0.05),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+        ),
+        focusedBorder: const OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(14)),
+          borderSide: BorderSide(color: kPinkBright),
+        ),
+        errorStyle: const TextStyle(color: Colors.orangeAccent),
       ),
     );
   }

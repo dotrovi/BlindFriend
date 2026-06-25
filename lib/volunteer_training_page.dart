@@ -298,7 +298,8 @@ class _VolunteerTrainingPageState extends State<VolunteerTrainingPage> {
       context,
       MaterialPageRoute(
         builder: (_) => _CertificatePage(
-          volunteerName: FirebaseAuth.instance.currentUser?.displayName ?? 'Volunteer',
+          volunteerName:
+              FirebaseAuth.instance.currentUser?.displayName ?? 'Volunteer',
         ),
       ),
     );
@@ -556,7 +557,8 @@ class _ArticleSection extends StatelessWidget {
   final _Chapter chapter;
   final VoidCallback onNext;
 
-  const _ArticleSection({super.key, required this.chapter, required this.onNext});
+  const _ArticleSection(
+      {super.key, required this.chapter, required this.onNext});
 
   @override
   Widget build(BuildContext context) {

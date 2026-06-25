@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'services/accessibility_settings.dart';
+import 'theme/app_palette.dart';
 
 class AccessibilitySettingsPage extends StatefulWidget {
   const AccessibilitySettingsPage({super.key});
@@ -10,8 +11,7 @@ class AccessibilitySettingsPage extends StatefulWidget {
       _AccessibilitySettingsPageState();
 }
 
-class _AccessibilitySettingsPageState
-    extends State<AccessibilitySettingsPage> {
+class _AccessibilitySettingsPageState extends State<AccessibilitySettingsPage> {
   final AccessibilitySettings _settings = AccessibilitySettings.instance;
   final FlutterTts _tts = FlutterTts();
 
@@ -44,7 +44,8 @@ class _AccessibilitySettingsPageState
 
   Future<void> _toggleHighContrast(bool enabled) async {
     await _settings.setHighContrast(enabled);
-    await _speak(enabled ? 'High contrast enabled.' : 'High contrast disabled.');
+    await _speak(
+        enabled ? 'High contrast enabled.' : 'High contrast disabled.');
   }
 
   Future<void> _resetToDefault() async {
@@ -55,17 +56,17 @@ class _AccessibilitySettingsPageState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F5),
+      backgroundColor: kNavyDeep,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: kNavyMid,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           'Accessibility Settings',
-          style: TextStyle(color: Colors.black),
+          style: TextStyle(color: Colors.white),
         ),
       ),
       body: SingleChildScrollView(
@@ -90,7 +91,7 @@ class _AccessibilitySettingsPageState
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF0F2F5),
+                      color: Colors.white.withValues(alpha: 0.05),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
@@ -99,6 +100,7 @@ class _AccessibilitySettingsPageState
                       style: TextStyle(
                         fontSize: 18 * _settings.fontScale,
                         fontWeight: FontWeight.w600,
+                        color: Colors.white,
                       ),
                     ),
                   ),
@@ -112,12 +114,17 @@ class _AccessibilitySettingsPageState
                 contentPadding: EdgeInsets.zero,
                 title: const Text(
                   'High Contrast Mode',
-                  style: TextStyle(fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
                 ),
                 subtitle: const Text(
                   'Increases contrast between text, icons, and backgrounds '
                   'throughout the app to make content easier to see.',
+                  style: TextStyle(color: Colors.white60),
                 ),
+                activeThumbColor: kPinkBright,
                 value: _settings.highContrastEnabled,
                 onChanged: _toggleHighContrast,
               ),
@@ -126,7 +133,10 @@ class _AccessibilitySettingsPageState
             Center(
               child: TextButton(
                 onPressed: _resetToDefault,
-                child: const Text('Reset to Default'),
+                child: const Text(
+                  'Reset to Default',
+                  style: TextStyle(color: kBlueAccent),
+                ),
               ),
             ),
           ],
@@ -140,22 +150,20 @@ class _AccessibilitySettingsPageState
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: kCardFill.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+              color: Colors.white,
+            ),
           ),
           const SizedBox(height: 16),
           child,
@@ -172,16 +180,19 @@ class _AccessibilitySettingsPageState
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: selected ? Colors.blue : Colors.blue.shade50,
+          gradient: selected ? kAccentGradient : null,
+          color: selected ? null : Colors.white.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: selected ? Colors.blue : Colors.blue.shade100,
+            color: selected
+                ? Colors.transparent
+                : Colors.white.withValues(alpha: 0.15),
           ),
         ),
         child: Text(
           option.label,
           style: TextStyle(
-            color: selected ? Colors.white : Colors.blue.shade700,
+            color: selected ? Colors.white : Colors.white70,
             fontWeight: FontWeight.w600,
           ),
         ),

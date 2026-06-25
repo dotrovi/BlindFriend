@@ -203,8 +203,8 @@ class _VolunteerReceivedRequestsScreenState
     return requests.where((request) {
       if (request.volunteerId == volunteerId) return true;
       if (request.status == 'pending') {
-        final matchesSpecialty = _volunteerSpecialties
-            .contains(request.requestType.toLowerCase());
+        final matchesSpecialty =
+            _volunteerSpecialties.contains(request.requestType.toLowerCase());
         if (!matchesSpecialty) return false;
         final requestLanguage =
             request.preferredLanguage?.toLowerCase() ?? 'english';
@@ -220,9 +220,7 @@ class _VolunteerReceivedRequestsScreenState
 
   List<HelpRequest> get _filteredByStatus {
     if (_filterStatus == 'all') return _matchedRequests;
-    return _matchedRequests
-        .where((r) => r.status == _filterStatus)
-        .toList();
+    return _matchedRequests.where((r) => r.status == _filterStatus).toList();
   }
 
   @override
@@ -969,10 +967,15 @@ class _VolunteerReceivedRequestsScreenState
         'acceptedAt': Timestamp.now(),
       });
       batch.set(
-          firestore.collection('notifications').doc(request.blindUserId).collection('messages').doc(),
+          firestore
+              .collection('notifications')
+              .doc(request.blindUserId)
+              .collection('messages')
+              .doc(),
           {
             'title': 'Request Accepted!',
-            'body': 'Good news! $volunteerName has accepted your ${request.requestType} request.',
+            'body':
+                'Good news! $volunteerName has accepted your ${request.requestType} request.',
             'type': 'request_accepted',
             'read': false,
             'createdAt': FieldValue.serverTimestamp(),
@@ -996,8 +999,8 @@ class _VolunteerReceivedRequestsScreenState
       await firestore.collection('help_requests').doc(request.id).update({'status': 'in_progress'});
       await _loadMatchingRequests();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Help marked as in progress')));
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Help marked as in progress')));
       }
     } catch (e) {
       if (mounted) {
@@ -1069,10 +1072,15 @@ class _VolunteerReceivedRequestsScreenState
       }
       batch.update(firestore.collection('help_requests').doc(request.id), updateData);
       batch.set(
-          firestore.collection('notifications').doc(request.blindUserId).collection('messages').doc(),
+          firestore
+              .collection('notifications')
+              .doc(request.blindUserId)
+              .collection('messages')
+              .doc(),
           {
             'title': 'Request Update',
-            'body': 'A volunteer was unable to accept your ${request.requestType} request. We are still searching for another volunteer.',
+            'body':
+                'A volunteer was unable to accept your ${request.requestType} request. We are still searching for another volunteer.',
             'type': 'request_declined',
             'read': false,
             'createdAt': FieldValue.serverTimestamp(),
@@ -1081,7 +1089,9 @@ class _VolunteerReceivedRequestsScreenState
       await _loadMatchingRequests();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(reason.isEmpty ? 'Request declined' : 'Request declined: $reason'),
+            content: Text(reason.isEmpty
+                ? 'Request declined'
+                : 'Request declined: $reason'),
             backgroundColor: Colors.red.shade600));
       }
     } catch (e) {

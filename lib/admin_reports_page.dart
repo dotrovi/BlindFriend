@@ -131,9 +131,8 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                   title: Text(
                     status[0].toUpperCase() + status.substring(1),
                     style: TextStyle(
-                      fontWeight: isCurrentStatus
-                          ? FontWeight.bold
-                          : FontWeight.normal,
+                      fontWeight:
+                          isCurrentStatus ? FontWeight.bold : FontWeight.normal,
                       color: isCurrentStatus
                           ? _statusColor(status)
                           : Colors.black87,
@@ -218,8 +217,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                 filter[0].toUpperCase() + filter.substring(1),
                 style: TextStyle(
                   color: isSelected ? Colors.white : Colors.grey.shade700,
-                  fontWeight:
-                      isSelected ? FontWeight.bold : FontWeight.normal,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                   fontSize: 13,
                 ),
               ),
@@ -274,8 +272,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                   _selectedFilter == 'all'
                       ? 'No reports submitted yet.'
                       : 'No $_selectedFilter reports.',
-                  style:
-                      TextStyle(fontSize: 15, color: Colors.grey.shade500),
+                  style: TextStyle(fontSize: 15, color: Colors.grey.shade500),
                 ),
               ],
             ),
@@ -319,7 +316,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 6,
             offset: const Offset(0, 3),
           ),
@@ -350,8 +347,8 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                 GestureDetector(
                   onTap: () => _showStatusPicker(docId, status),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: _statusBgColor(status),
                       borderRadius: BorderRadius.circular(20),
@@ -390,14 +387,13 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                 const SizedBox(width: 6),
                 Text(
                   'Reason: ',
-                  style:
-                      TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: _reportTypeColor(reportType).withOpacity(0.08),
+                    color: _reportTypeColor(reportType).withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
@@ -417,13 +413,11 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
             // ── Request type ──
             Row(
               children: [
-                Icon(Icons.help_outline,
-                    size: 16, color: Colors.grey.shade500),
+                Icon(Icons.help_outline, size: 16, color: Colors.grey.shade500),
                 const SizedBox(width: 6),
                 Text(
                   'Request type: $requestType',
-                  style: TextStyle(
-                      fontSize: 13, color: Colors.grey.shade700),
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
                 ),
               ],
             ),
@@ -455,13 +449,11 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
             // ── Date ──
             Row(
               children: [
-                Icon(Icons.access_time,
-                    size: 14, color: Colors.grey.shade400),
+                Icon(Icons.access_time, size: 14, color: Colors.grey.shade400),
                 const SizedBox(width: 4),
                 Text(
                   formattedDate,
-                  style: TextStyle(
-                      fontSize: 12, color: Colors.grey.shade400),
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
                 ),
               ],
             ),

@@ -63,14 +63,27 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
   final _phoneController = TextEditingController();
 
   final List<String> _languages = [
-    'English', 'Spanish', 'Mandarin', 'French', 'German', 'Korean',
+    'English',
+    'Spanish',
+    'Mandarin',
+    'French',
+    'German',
+    'Korean',
   ];
   final List<String> _allSpecialties = [
-    'Shopping', 'Navigation', 'Reading', 'Tech Support',
-    'Emergency Assistance', 'Medical Support', 'Transportation',
+    'Shopping',
+    'Navigation',
+    'Reading',
+    'Tech Support',
+    'Emergency Assistance',
+    'Medical Support',
+    'Transportation',
   ];
   final List<String> _availabilityOptions = [
-    'Weekdays', 'Weekends', 'Anytime', 'Emergency Only',
+    'Weekdays',
+    'Weekends',
+    'Anytime',
+    'Emergency Only',
   ];
 
   bool _isLoading = true;
@@ -92,7 +105,8 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage>
   double _averageRating = 0.0;
   int _totalRatings = 0;
   List<FeedbackItem> _feedbacks = [];
-  int _selectedTabIndex = 0;
+  int _selectedTabIndex =
+      0; // 0 = rating summary, 1 = all feedback, 2 = by rating
 
   late TabController _tabController;
 
