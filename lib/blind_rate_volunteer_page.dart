@@ -118,8 +118,8 @@ class _BlindRateVolunteerPageState extends State<BlindRateVolunteerPage> {
           _processVoiceCommand(result.recognizedWords.toLowerCase());
         }
       },
-      listenFor: const Duration(seconds: 10),
-      pauseFor: const Duration(seconds: 2),
+      listenFor: const Duration(seconds: 30),
+      pauseFor: const Duration(seconds: 10),
       localeId: 'en_US',
     );
   }
@@ -152,6 +152,11 @@ class _BlindRateVolunteerPageState extends State<BlindRateVolunteerPage> {
         await _submitRating();
         return;
       }
+    } else if (command.contains('back') && command.contains('home')) {
+      await _speak('Returning to home page.');
+      _isProcessingVoice = false;
+      if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
+      return;
     } else if (command.contains('cancel') || command.contains('back')) {
       await _speak('Cancelling. Going back.');
       _isProcessingVoice = false;

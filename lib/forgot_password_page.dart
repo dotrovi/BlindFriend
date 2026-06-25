@@ -71,7 +71,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
     await _speak(
       'This is the forgot password page. '
-      'Press the button in the middle of the screen to say your email address. '
+      'Please press the button to say your email. '
       'We will send you a password reset link. '
       'Say Back to return to the login page.',
     );
@@ -131,7 +131,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
         Future(() => _handleAnswer(result.recognizedWords.trim()));
       },
       listenFor: const Duration(seconds: 30),
-      pauseFor: const Duration(seconds: 5),
+      pauseFor: const Duration(seconds: 10),
       localeId: 'en_US',
     );
   }

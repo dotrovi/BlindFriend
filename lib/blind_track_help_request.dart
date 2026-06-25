@@ -7,6 +7,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'blind_report_volunteer_page.dart';
+import 'blind_send_help_request.dart';
 import 'theme/app_palette.dart';
 
 class HelpRequestModel {
@@ -185,17 +186,17 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
     if (activeCount == 0 && _cancelledRequests.isEmpty) {
       await _speak(
         'Track requests page. You have no help requests. '
-        'Say help for options, or say back to return.',
+        'Tap the voice button and say help to hear what you can say.',
       );
     } else {
       await _speak(
         'Track requests page. You have $activeCount active requests. '
-        'Say a command, or say help for the list.',
+        'Tap the voice button and say a command, or say help to hear options.',
       );
     }
   }
 
-  Future<void> _speak(String text, {bool thenListen = true}) async {
+  Future<void> _speak(String text, {bool thenListen = false}) async {
     print('🔊 Speaking: $text');
     final myGen = ++_speakGeneration;
     if (_stt.isListening) await _stt.cancel();
@@ -245,8 +246,8 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
           _processVoiceCommand(result.recognizedWords.toLowerCase());
         }
       },
-      listenFor: const Duration(seconds: 15),
-      pauseFor: const Duration(seconds: 2),
+      listenFor: const Duration(seconds: 30),
+      pauseFor: const Duration(seconds: 10),
       localeId: 'en_US',
     );
   }
@@ -261,7 +262,7 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
   Future<void> _speakRequestDetailsOnTap(
     HelpRequestModel request,
     int number, {
-    bool thenListen = true,
+    bool thenListen = false,
   }) async {
     String details = 'Request $number: ${request.requestType}. '
         '${_statusInWords(request.status)}.';
@@ -310,6 +311,15 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
       return;
     }
 
+    if (command.contains('back') && command.contains('home')) {
+      _suspendAutoListen = true;
+      _shouldListen = false;
+      await _speak('Returning to home page.', thenListen: false);
+      _isProcessingVoice = false;
+      if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
+      return;
+    }
+
     if (command.contains('back') ||
         command.contains('exit') ||
         command.contains('return')) {
@@ -344,25 +354,16 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
         command.contains('count') ||
         command.contains('total')) {
       _isProcessingVoice = false;
-      await _speak(
-        'You have ${_requests.length} active requests '
-        'and ${_cancelledRequests.length} cancelled requests.',
-      );
-      return;
-    }
-
-    if (command.contains('active requests') ||
-        command.contains('show active')) {
-      await _speak('You have ${_requests.length} active requests.',
-          thenListen: false);
-      for (int i = 0; i < _requests.length && i < 5; i++) {
+      if (_requests.isEmpty && _cancelledRequests.isEmpty) {
+        await _speak('You have no help requests.');
+      } else {
+        final breakdown = _getStatusSummary();
         await _speak(
-          '${i + 1}. ${_requests[i].requestType} - ${_requests[i].status}',
-          thenListen: false,
+          'You have ${_requests.length} active requests'
+          '${breakdown.isNotEmpty ? ': $breakdown' : ''}. '
+          'And ${_cancelledRequests.length} cancelled requests.',
         );
       }
-      _isProcessingVoice = false;
-      await _speak('Say a command, or say help.');
       return;
     }
 
@@ -407,18 +408,6 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
       return;
     }
 
-    if (command.contains('summary') || command.contains('overview')) {
-      _isProcessingVoice = false;
-      if (_requests.isEmpty && _cancelledRequests.isEmpty) {
-        await _speak('You have no help requests.');
-      } else {
-        await _speak(
-          'You have ${_requests.length} active requests. ${_getStatusSummary()}',
-        );
-      }
-      return;
-    }
-
     if (command.contains('read all') || command.contains('list all')) {
       if (_requests.isEmpty) {
         _isProcessingVoice = false;
@@ -438,28 +427,6 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
       }
       _isProcessingVoice = false;
       await _speak('That is all. Say a command, or say help.');
-      return;
-    }
-
-    if (command.contains('most recent') ||
-        command.contains('first request') ||
-        command.contains('latest')) {
-      _isProcessingVoice = false;
-      if (_requests.isEmpty) {
-        await _speak('You have no active help requests.');
-      } else {
-        await _speakRequestDetailsOnTap(_requests[0], 1);
-      }
-      return;
-    }
-
-    if (command.contains('oldest')) {
-      _isProcessingVoice = false;
-      if (_requests.isEmpty) {
-        await _speak('You have no active help requests.');
-      } else {
-        await _speakRequestDetailsOnTap(_requests.last, _requests.length);
-      }
       return;
     }
 
@@ -673,19 +640,18 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
       _isProcessingVoice = false;
       await _speak(
         'Available commands. '
-        'Say Count for totals. '
-        'Say Active Requests to list them. '
-        'Say Read Request 1 for full details. '
-        'Say Read All for everything. '
-        'Say Most Recent for the latest. '
-        'Say Pending for pending requests. '
+        'Say How Many for your totals. '
+        'Say Read All to hear every active request. '
+        'Say Read Request 1 for full details on one request, using its number. '
+        'Say Cancelled Requests to hear cancelled ones. '
+        'Say Pending, In Progress, or Completed to filter by status. '
         'Say Volunteer to hear who is helping you. '
-        'Say Cancel Request 1 to cancel. '
-        'Say Rate Request 1 to rate. '
+        'Say Cancel Request 1 to cancel a request. '
+        'Say Rate Request 1 to rate a completed request. '
         'Say Report to report a volunteer. '
-        'Say My Reports to hear filed reports. '
+        'Say My Reports to hear reports you filed. '
         'Say Refresh to reload. '
-        'Or say Back to return.',
+        'Say Back to home page to return home, or Back to go back one step.',
       );
       return;
     }
@@ -937,62 +903,147 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
         elevation: 0,
         actions: [
           IconButton(
-            icon: Icon(
-              _isListening ? Icons.mic : Icons.mic_none,
-              color: Colors.white,
-            ),
-            onPressed: _onMicTap,
-          ),
-          IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _refreshRequests,
           ),
         ],
       ),
-      body: Stack(
+      body: Column(
         children: [
-          RefreshIndicator(onRefresh: _refreshRequests, child: _buildContent()),
-          if (_isListening)
-            Positioned(
-              bottom: 30,
-              left: 0,
-              right: 0,
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 20),
-                padding:
-                    const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-                decoration: BoxDecoration(
-                  color: Colors.black87,
-                  borderRadius: BorderRadius.circular(30),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: _buildVoiceCommandCard(),
+          ),
+          Expanded(
+            child: Stack(
+              children: [
+                RefreshIndicator(
+                  onRefresh: _refreshRequests,
+                  child: _buildContent(),
                 ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.mic, color: Colors.red, size: 20),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'Listening...',
-                        style: TextStyle(color: Colors.white),
+                if (_isListening)
+                  Positioned(
+                    bottom: 30,
+                    left: 0,
+                    right: 0,
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 20),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 12, horizontal: 20),
+                      decoration: BoxDecoration(
+                        color: Colors.black87,
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.mic, color: Colors.red, size: 20),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Text(
+                              'Listening...',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () => _stt.cancel(),
+                            child: const Icon(Icons.close,
+                                color: Colors.white, size: 20),
+                          ),
+                        ],
                       ),
                     ),
-                    GestureDetector(
-                      onTap: () => _stt.cancel(),
-                      child: const Icon(Icons.close,
-                          color: Colors.white, size: 20),
-                    ),
-                  ],
-                ),
-              ),
+                  ),
+              ],
             ),
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.pop(context);
+        onPressed: () async {
+          _suspendAutoListen = true;
+          _shouldListen = false;
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const BlindSendHelpRequestScreen(),
+            ),
+          );
+          _suspendAutoListen = false;
+          _shouldListen = true;
+          await _loadRequests();
         },
         backgroundColor: kPinkBright,
         tooltip: 'New Request',
         child: const Icon(Icons.add, color: Colors.white),
+      ),
+    );
+  }
+
+  Widget _buildVoiceCommandCard() {
+    return GestureDetector(
+      onTap: _onMicTap,
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: kCardFill.withValues(alpha: 0.6),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: (_isListening ? Colors.greenAccent : kPinkBright)
+                .withValues(alpha: 0.4),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: _isListening
+                    ? const LinearGradient(
+                        colors: [Colors.green, Colors.lightGreen],
+                      )
+                    : kAccentGradient,
+                boxShadow: [
+                  BoxShadow(
+                    color: (_isListening ? Colors.green : kPinkBright)
+                        .withValues(alpha: 0.5),
+                    blurRadius: 18,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: Icon(
+                _isListening ? Icons.mic : Icons.mic_none,
+                color: Colors.white,
+                size: 30,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _isListening ? 'Listening...' : 'Voice Command',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Tap and say a command, or say help to hear options.',
+                    style: TextStyle(color: Colors.white60, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

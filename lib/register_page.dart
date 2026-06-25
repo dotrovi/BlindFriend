@@ -132,8 +132,8 @@ class _RegisterPageState extends State<RegisterPage> {
     _reaskScheduled = false;
     setState(() => _isListening = true);
     final pauseFor = _currentStep == 'email'
-        ? const Duration(seconds: 5)
-        : const Duration(seconds: 3);
+        ? const Duration(seconds: 12)
+        : const Duration(seconds: 10);
     await _stt.listen(
       onResult: (result) {
         if (!mounted) return;
@@ -141,7 +141,7 @@ class _RegisterPageState extends State<RegisterPage> {
         if (!result.finalResult) return;
         Future(() => _handleAnswer(result.recognizedWords.trim()));
       },
-      listenFor: const Duration(seconds: 30),
+      listenFor: const Duration(seconds: 45),
       pauseFor: pauseFor,
       localeId: 'en_US',
     );

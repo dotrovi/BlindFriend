@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 import 'services/accessibility_settings.dart';
 import 'theme/app_palette.dart';
 
@@ -14,22 +16,98 @@ class AccessibilitySettingsPage extends StatefulWidget {
 class _AccessibilitySettingsPageState extends State<AccessibilitySettingsPage> {
   final AccessibilitySettings _settings = AccessibilitySettings.instance;
   final FlutterTts _tts = FlutterTts();
+  final SpeechToText _stt = SpeechToText();
+
+  bool _sttAvailable = false;
+  bool _isListening = false;
+
+  static const String _voiceInstruction =
+      'Say small, medium, large, or extra large to change font size. '
+      'Say enable contrast or disable contrast for high contrast mode. '
+      'Say reset to restore defaults, or back to home page to return.';
 
   @override
   void initState() {
     super.initState();
     _settings.addListener(_onSettingsChanged);
+    _initVoice();
   }
 
   @override
   void dispose() {
     _settings.removeListener(_onSettingsChanged);
+    _stt.stop();
     _tts.stop();
     super.dispose();
   }
 
   void _onSettingsChanged() {
     if (mounted) setState(() {});
+  }
+
+  Future<void> _initVoice() async {
+    final micStatus = await Permission.microphone.request();
+    if (!mounted) return;
+
+    if (micStatus.isGranted) {
+      _sttAvailable = await _stt.initialize(
+        onStatus: (status) {
+          if (!mounted) return;
+          if (status == 'listening') {
+            setState(() => _isListening = true);
+          } else if (status == 'done' || status == 'notListening') {
+            setState(() => _isListening = false);
+          }
+        },
+        onError: (error) {
+          debugPrint('STT error: ${error.errorMsg}');
+          if (mounted) setState(() => _isListening = false);
+        },
+      );
+    }
+
+    if (mounted) {
+      await _speak('This is accessibility settings. $_voiceInstruction');
+    }
+  }
+
+  Future<void> _pressMic() async {
+    if (!_sttAvailable || _isListening) return;
+    setState(() => _isListening = true);
+    await _stt.listen(
+      onResult: (result) {
+        if (!mounted || !result.finalResult) return;
+        _handleVoiceCommand(result.recognizedWords.toLowerCase());
+      },
+      listenFor: const Duration(seconds: 30),
+      pauseFor: const Duration(seconds: 10),
+      localeId: 'en_US',
+    );
+  }
+
+  void _handleVoiceCommand(String command) {
+    if (command.contains('back') && command.contains('home')) {
+      _speak('Returning to home page.');
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    } else if (command.contains('extra large')) {
+      _selectFontSize(FontSizeOption.extraLarge);
+    } else if (command.contains('large')) {
+      _selectFontSize(FontSizeOption.large);
+    } else if (command.contains('medium')) {
+      _selectFontSize(FontSizeOption.medium);
+    } else if (command.contains('small')) {
+      _selectFontSize(FontSizeOption.small);
+    } else if (command.contains('disable contrast') ||
+        command.contains('turn off contrast') ||
+        command.contains('contrast off')) {
+      _toggleHighContrast(false);
+    } else if (command.contains('contrast')) {
+      _toggleHighContrast(true);
+    } else if (command.contains('reset')) {
+      _resetToDefault();
+    } else {
+      _speak('I did not catch that. $_voiceInstruction');
+    }
   }
 
   Future<void> _speak(String text) async {
@@ -74,6 +152,76 @@ class _AccessibilitySettingsPageState extends State<AccessibilitySettingsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Voice Command Card
+            GestureDetector(
+              onTap: _pressMic,
+              child: Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: kCardFill.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: (_isListening ? Colors.greenAccent : kPinkBright)
+                        .withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: _isListening
+                            ? const LinearGradient(
+                                colors: [Colors.green, Colors.lightGreen],
+                              )
+                            : kAccentGradient,
+                        boxShadow: [
+                          BoxShadow(
+                            color: (_isListening ? Colors.green : kPinkBright)
+                                .withValues(alpha: 0.5),
+                            blurRadius: 18,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        _isListening ? Icons.mic : Icons.mic_none,
+                        color: Colors.white,
+                        size: 30,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _isListening ? 'Listening...' : 'Voice Command',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _voiceInstruction,
+                            style: const TextStyle(
+                              color: Colors.white60,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
             _buildSectionCard(
               title: 'Font Size',
               child: Column(

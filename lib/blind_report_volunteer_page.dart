@@ -180,8 +180,8 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
           _processCommand(result.recognizedWords.toLowerCase().trim());
         }
       },
-      listenFor: const Duration(seconds: 15),
-      pauseFor: const Duration(seconds: 3),
+      listenFor: const Duration(seconds: 30),
+      pauseFor: const Duration(seconds: 10),
       localeId: 'en_US',
     );
   }
@@ -218,6 +218,16 @@ class _BlindReportVolunteerPageState extends State<BlindReportVolunteerPage> {
     if (command.isEmpty) {
       _isProcessingVoice = false;
       await _repromptCurrentStep();
+      return;
+    }
+
+    // Back to home page (returns to the home tab regardless of nesting depth)
+    if (command.contains('back') && command.contains('home')) {
+      _suspendAutoListen = true;
+      _shouldListen = false;
+      await _speak('Returning to home page.', thenListen: false);
+      _isProcessingVoice = false;
+      if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
       return;
     }
 

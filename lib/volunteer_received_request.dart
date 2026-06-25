@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'volunteer_profile_page.dart';
 
 // ── Shared palette ─────────────────────────────────────────────────
 const Color _kNavyDeep = Color(0xFF120A2E);
@@ -453,6 +454,16 @@ class _VolunteerReceivedRequestsScreenState
                 'No requests found',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
               ),
+              if (_volunteerSpecialties.isEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'You have not set any specialties yet, so no requests can '
+                  'match you. Set your specialties and language in your '
+                  'profile to start receiving matching requests.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.6)),
+                ),
+              ],
               const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.all(14),
@@ -472,16 +483,36 @@ class _VolunteerReceivedRequestsScreenState
                 ),
               ),
               const SizedBox(height: 20),
-              ElevatedButton.icon(
-                onPressed: _refreshRequests,
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Refresh'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _kPinkBright,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              if (_volunteerSpecialties.isEmpty)
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const VolunteerProfilePage(),
+                      ),
+                    );
+                    if (mounted) _refreshRequests();
+                  },
+                  icon: const Icon(Icons.person_outline_rounded),
+                  label: const Text('Set Up Your Profile'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _kPinkBright,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                )
+              else
+                ElevatedButton.icon(
+                  onPressed: _refreshRequests,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Refresh'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _kPinkBright,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
                 ),
-              ),
             ],
           ),
         ],

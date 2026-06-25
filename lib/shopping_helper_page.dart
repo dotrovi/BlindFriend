@@ -7,7 +7,9 @@ import 'services/platform_support.dart';
 import 'theme/app_palette.dart';
 
 class ShoppingHelperPage extends StatefulWidget {
-  const ShoppingHelperPage({super.key});
+  final VoidCallback? onBackToHome;
+
+  const ShoppingHelperPage({super.key, this.onBackToHome});
 
   @override
   State<ShoppingHelperPage> createState() => _ShoppingHelperPageState();
@@ -21,7 +23,8 @@ class _ShoppingHelperPageState extends State<ShoppingHelperPage> {
   bool _isListening = false;
 
   static const String _voiceInstruction =
-      'Tap the button and say start scan to start scanning.';
+      'Tap the button and say start scan to start scanning, '
+      'or say back to home page to return.';
 
   @override
   void initState() {
@@ -76,14 +79,17 @@ class _ShoppingHelperPageState extends State<ShoppingHelperPage> {
         if (!mounted || !result.finalResult) return;
         _handleVoiceCommand(result.recognizedWords.toLowerCase());
       },
-      listenFor: const Duration(seconds: 6),
-      pauseFor: const Duration(seconds: 3),
+      listenFor: const Duration(seconds: 30),
+      pauseFor: const Duration(seconds: 10),
       localeId: 'en_US',
     );
   }
 
   void _handleVoiceCommand(String command) {
-    if (command.contains('start scan') ||
+    if (command.contains('back') && command.contains('home')) {
+      _speak('Returning to home page.');
+      widget.onBackToHome?.call();
+    } else if (command.contains('start scan') ||
         command.contains('scan') ||
         command.contains('start')) {
       _openScanner();

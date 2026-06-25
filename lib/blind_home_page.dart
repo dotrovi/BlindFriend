@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_blindfriend/shopping_helper_page.dart';
@@ -10,6 +11,7 @@ import 'login_page.dart';
 import 'user_profile_page.dart';
 import 'blind_send_help_request.dart'; // Add this import
 import 'blind_track_help_request.dart'; // Add this import
+import 'blind_notifications_page.dart';
 import 'obstacle_detection_page.dart';
 import 'tactile_path_page.dart';
 import 'accessibility_settings_page.dart';
@@ -34,15 +36,45 @@ class _BlindHomePageState extends State<BlindHomePage> {
   bool _sttAvailable = false;
   bool _shouldListen = true;
   int _speakGeneration = 0;
-  DateTime? _pressStartTime;
 
   // Track if voice is currently processing to prevent duplicates
   bool _isProcessingVoice = false;
+
+  StreamSubscription? _unreadNotificationsSub;
+  int _unreadNotifications = 0;
 
   @override
   void initState() {
     super.initState();
     _initVoice();
+    _listenForUnreadNotifications();
+  }
+
+  void _listenForUnreadNotifications() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    _unreadNotificationsSub = FirebaseFirestore.instance
+        .collection('notifications')
+        .doc(uid)
+        .collection('messages')
+        .where('read', isEqualTo: false)
+        .snapshots()
+        .listen((snapshot) {
+      if (!mounted) return;
+      setState(() => _unreadNotifications = snapshot.docs.length);
+    });
+  }
+
+  void _navigateToNotifications() async {
+    _shouldListen = false;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const BlindNotificationsPage()),
+    );
+    _shouldListen = true;
+    if (mounted) {
+      await _speak('Back on home page. Tap the voice button to speak.');
+    }
   }
 
   Future<void> _initVoice() async {
@@ -82,7 +114,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
       await _speak(
         'Welcome to BlindFriend, ${widget.userName}. '
         'Tap the voice button and say: Shopping, Obstacle, Path, Request Help, Track Requests, Volunteers, '
-        'Profile, Settings, or Logout. For emergency, press and hold the voice button.',
+        'Profile, Settings, Notifications, or Logout.',
       );
     }
   }
@@ -113,60 +145,10 @@ class _BlindHomePageState extends State<BlindHomePage> {
     if (mounted) setState(() => _isSpeaking = false);
   }
 
-  void _onTapDown(TapDownDetails details) {
-    _pressStartTime = DateTime.now();
-  }
-
-  void _onTapUp(TapUpDetails details) {
-    final pressDuration = DateTime.now().difference(
-      _pressStartTime ?? DateTime.now(),
-    );
-    if (pressDuration >= const Duration(seconds: 3)) {
-      // Long press - Emergency
-      _handleEmergency();
-    } else {
-      // Short tap - Voice command
-      if (!_isProcessingVoice && _sttAvailable && !_isSpeaking) {
-        _startListening();
-      }
+  void _onVoiceButtonTap() {
+    if (!_isProcessingVoice && _sttAvailable && !_isSpeaking) {
+      _startListening();
     }
-    _pressStartTime = null;
-  }
-
-  Future<void> _handleEmergency() async {
-    if (_isProcessingVoice) return;
-    _isProcessingVoice = true;
-
-    await _speak(
-      'Emergency! Calling emergency services. Please stay calm. Help is on the way.',
-    );
-
-    // In production, you would integrate with device's emergency call feature
-    if (mounted) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Emergency'),
-          content: const Text(
-            'Emergency services have been notified. Stay where you are.',
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                _isProcessingVoice = false;
-              },
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
-    }
-    _isProcessingVoice = false;
   }
 
   Future<void> _startListening() async {
@@ -189,8 +171,8 @@ class _BlindHomePageState extends State<BlindHomePage> {
           }
         }
       },
-      listenFor: const Duration(seconds: 10),
-      pauseFor: const Duration(seconds: 2),
+      listenFor: const Duration(seconds: 30),
+      pauseFor: const Duration(seconds: 10),
       localeId: 'en_US',
     );
   }
@@ -199,7 +181,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
     if (_isProcessingVoice) return;
     _isProcessingVoice = true;
 
-    if (command.contains('Shopping') || command.contains('scan')) {
+    if (command.contains('shopping') || command.contains('scan')) {
       await _speak('Opening shopping helper. Barcode scanner activated.');
       _setSelectedIndex(1);
     } else if (command.contains('obstacle')) {
@@ -239,6 +221,9 @@ class _BlindHomePageState extends State<BlindHomePage> {
         command.contains('font')) {
       _speak('Opening accessibility settings.');
       await _navigateToAccessibilitySettings();
+    } else if (command.contains('notification')) {
+      await _speak('Opening your notifications.');
+      _navigateToNotifications();
     } else if (command.contains('logout') || command.contains('sign out')) {
       _shouldListen = false;
       await _speak('Logging out. Goodbye, ${widget.userName}.');
@@ -261,6 +246,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
         'Volunteers to find help nearby. '
         'Profile to view your account. '
         'Settings to adjust font size and contrast. '
+        'Notifications to check your updates. '
         'Or Logout to sign out.',
       );
     } else {
@@ -357,6 +343,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
   void dispose() {
     _shouldListen = false;
     _stt.stop();
+    _unreadNotificationsSub?.cancel();
     super.dispose();
   }
 
@@ -580,8 +567,8 @@ class _BlindHomePageState extends State<BlindHomePage> {
         children: [
           // Voice Command Card
           GestureDetector(
-            onTapDown: _onTapDown,
-            onTapUp: _onTapUp,
+            behavior: HitTestBehavior.opaque,
+            onTap: _onVoiceButtonTap,
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.all(20),
@@ -642,7 +629,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
                         ),
                         const SizedBox(height: 4),
                         const Text(
-                          'Press and hold for 3 seconds\nfor Emergency',
+                          'Tap and say a command',
                           style: TextStyle(color: Colors.white60, fontSize: 12),
                         ),
                       ],
@@ -703,82 +690,114 @@ class _BlindHomePageState extends State<BlindHomePage> {
           ),
           const SizedBox(height: 16),
 
-          // Emergency Section
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: kRedAccent.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: kRedAccent.withValues(alpha: 0.4)),
-            ),
-            child: Stack(
-              children: [
-                Positioned(
-                  right: -10,
-                  top: 0,
-                  bottom: 0,
-                  child: Icon(
-                    Icons.shield_outlined,
-                    size: 70,
-                    color: kRedAccent.withValues(alpha: 0.12),
+          // Notifications Section
+          GestureDetector(
+            onTap: _navigateToNotifications,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: kBlueAccent.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: kBlueAccent.withValues(alpha: 0.4)),
+              ),
+              child: Stack(
+                children: [
+                  Positioned(
+                    right: -10,
+                    top: 0,
+                    bottom: 0,
+                    child: Icon(
+                      Icons.notifications_outlined,
+                      size: 70,
+                      color: kBlueAccent.withValues(alpha: 0.12),
+                    ),
                   ),
-                ),
-                SizedBox(
-                  width: double.infinity,
-                  child: Column(
+                  Row(
                     children: [
-                      Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: kRedAccent.withValues(alpha: 0.18),
-                          boxShadow: [
-                            BoxShadow(
-                              color: kRedAccent.withValues(alpha: 0.4),
-                              blurRadius: 16,
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Container(
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: kBlueAccent.withValues(alpha: 0.18),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: kBlueAccent.withValues(alpha: 0.4),
+                                  blurRadius: 16,
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.notifications,
+                              size: 28,
+                              color: kBlueAccent,
+                            ),
+                          ),
+                          if (_unreadNotifications > 0)
+                            Positioned(
+                              right: -2,
+                              top: -2,
+                              child: Container(
+                                padding: const EdgeInsets.all(5),
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: kPinkBright,
+                                ),
+                                constraints: const BoxConstraints(
+                                  minWidth: 20,
+                                  minHeight: 20,
+                                ),
+                                child: Text(
+                                  '$_unreadNotifications',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Notifications',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _unreadNotifications > 0
+                                  ? '$_unreadNotifications new update${_unreadNotifications == 1 ? '' : 's'} on your requests'
+                                  : 'No new updates right now',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.white60,
+                              ),
                             ),
                           ],
                         ),
-                        child: const Icon(
-                          Icons.emergency,
-                          size: 28,
-                          color: kRedAccent,
-                        ),
                       ),
-                      const SizedBox(height: 10),
-                      const Text(
-                        'Emergency Contact',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'Press and hold the voice command button for 3 seconds',
-                        style: TextStyle(fontSize: 12, color: Colors.white60),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 12),
-                      ElevatedButton.icon(
-                        onPressed: _handleEmergency,
-                        icon: const Icon(Icons.call),
-                        label: const Text('Call Emergency Services'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: kRedAccent,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30),
-                          ),
-                        ),
+                      const Icon(
+                        Icons.chevron_right,
+                        color: Colors.white38,
                       ),
                     ],
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
 
@@ -970,17 +989,17 @@ class _BlindHomePageState extends State<BlindHomePage> {
 
   // ===================== SHOPPING HELPER PAGE =====================
   Widget _buildShoppingHelper() {
-    return const ShoppingHelperPage();
+    return ShoppingHelperPage(onBackToHome: () => _setSelectedIndex(0));
   }
 
   // ===================== OBSTACLE DETECTION PAGE =====================
   Widget _buildObstacleDetection() {
-    return const ObstacleDetectionPage();
+    return ObstacleDetectionPage(onBackToHome: () => _setSelectedIndex(0));
   }
 
   // ===================== PATH DETECTION PAGE =====================
   Widget _buildPathDetection() {
-    return const TactilePathPage();
+    return TactilePathPage(onBackToHome: () => _setSelectedIndex(0));
   }
 
   // ===================== FIND VOLUNTEERS PAGE (UPDATED) =====================

@@ -36,7 +36,8 @@ class _BlindSendHelpRequestScreenState
   bool _shouldListen = true;
   int _speakGeneration = 0;
   bool _isProcessingVoice = false;
-  String _currentVoiceStep = 'main'; // main, description, location
+  // Guided voice flow: type -> language -> location -> description -> confirm
+  String _currentVoiceStep = 'type';
 
   final Map<String, IconData> _requestTypes = {
     'shopping': Icons.shopping_cart,
@@ -94,12 +95,44 @@ class _BlindSendHelpRequestScreenState
 
     if (mounted) {
       await _speak(
-        'Help request page. You can say: Select Shopping, Select Navigation, '
-        'Select Reading, Select Tech Support, Select Emergency Assistance, Select Medical Support, '
-        'Select Transportation, Set Language English, Set Language Spanish,  Set Language Mandarin,  Set Language French,  Set Language German,  Set Language Korean'
-        'Description, Location and Submit',
+        'This is the request help page. Tap the voice button and I will guide you '
+        'through choosing the type of help you need, your preferred language, and your location. '
+        'Say back to home page at any time to return home.',
       );
     }
+  }
+
+  Future<void> _askCurrentStep() async {
+    switch (_currentVoiceStep) {
+      case 'type':
+        await _speak(
+          'What type of help do you need? You can say shopping, navigation, '
+          'reading, tech support, emergency assistance, medical support, or transportation.',
+        );
+        break;
+      case 'language':
+        await _speak(
+          'What language do you prefer? You can say English, Spanish, '
+          'Mandarin, French, German, or Korean.',
+        );
+        break;
+      case 'location':
+        await _speak(
+          'What is your location? For example, Giant Supermarket, KLCC.',
+        );
+        break;
+      case 'description':
+        await _speak('Please describe what you need help with.');
+        break;
+      case 'confirm':
+        await _speak(
+          'Request type $_selectedRequestType. Language ${_languages[_selectedLanguage]}. '
+          'Location ${_locationController.text}. Description ${_descriptionController.text}. '
+          'Say submit to send your request, or say cancel to start over.',
+        );
+        break;
+    }
+    await _startListening();
   }
 
   Future<void> _speak(String text) async {
@@ -138,8 +171,8 @@ class _BlindSendHelpRequestScreenState
           _processVoiceCommand(result.recognizedWords.toLowerCase());
         }
       },
-      listenFor: const Duration(seconds: 10),
-      pauseFor: const Duration(seconds: 2),
+      listenFor: const Duration(seconds: 30),
+      pauseFor: const Duration(seconds: 10),
       localeId: 'en_US',
     );
   }
@@ -148,73 +181,28 @@ class _BlindSendHelpRequestScreenState
     if (_isProcessingVoice) return;
     _isProcessingVoice = true;
 
-    // Check for request type selection
-    if (command.contains('select') || command.contains('choose')) {
-      for (var type in _requestTypes.keys) {
-        if (command.contains(type)) {
-          setState(() {
-            _selectedRequestType = type;
-          });
-          await _speak('Selected $type');
-          _isProcessingVoice = false;
-          return;
-        }
-      }
-    }
-
-    // Check for language selection
-    if (command.contains('language') || command.contains('set language')) {
-      for (var lang in _languages.keys) {
-        if (command.contains(lang)) {
-          setState(() {
-            _selectedLanguage = lang;
-          });
-          await _speak('Language set to ${_languages[lang]}');
-          _isProcessingVoice = false;
-          return;
-        }
-      }
-    }
-
-    // Description command
-    if (command.contains('description')) {
-      _currentVoiceStep = 'description';
-      await _speak(
-          'Please say your description. For example: I need help finding the cereal aisle.');
-      _shouldListen = true;
+    if (command.contains('back') && command.contains('home')) {
+      await _speak('Returning to home page.');
       _isProcessingVoice = false;
+      if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
       return;
     }
 
-    // Location command
-    if (command.contains('location') || command.contains('address')) {
-      _currentVoiceStep = 'location';
-      await _speak(
-          'Please say your location. For example: Giant Supermarket, KLCC.');
-      _shouldListen = true;
+    if (command.contains('cancel')) {
+      await _speak('Cancelling request. Going back.');
       _isProcessingVoice = false;
+      if (mounted) Navigator.pop(context);
       return;
     }
 
-    // Handle description input
-    if (_currentVoiceStep == 'description' && command.length > 5) {
-      _descriptionController.text = command;
-      await _speak('Description set to: $command');
-      _currentVoiceStep = 'main';
+    if (command.contains('help') ||
+        command.contains('repeat') ||
+        command.contains('commands')) {
       _isProcessingVoice = false;
+      await _askCurrentStep();
       return;
     }
 
-    // Handle location input
-    if (_currentVoiceStep == 'location' && command.length > 5) {
-      _locationController.text = command;
-      await _speak('Location set to: $command');
-      _currentVoiceStep = 'main';
-      _isProcessingVoice = false;
-      return;
-    }
-
-    // Submit command
     if (command.contains('submit') || command.contains('send')) {
       await _speak('Submitting your help request.');
       _isProcessingVoice = false;
@@ -222,23 +210,80 @@ class _BlindSendHelpRequestScreenState
       return;
     }
 
-    // Cancel command
-    if (command.contains('cancel') || command.contains('back')) {
-      await _speak('Cancelling request. Going back.');
-      _isProcessingVoice = false;
-      Navigator.pop(context);
-      return;
-    }
+    switch (_currentVoiceStep) {
+      case 'type':
+        for (var type in _requestTypes.keys) {
+          if (command.contains(type)) {
+            setState(() => _selectedRequestType = type);
+            await _speak('Selected $type.');
+            _currentVoiceStep = 'language';
+            _isProcessingVoice = false;
+            await _askCurrentStep();
+            return;
+          }
+        }
+        await _speak(
+          'I did not catch that. What type of help do you need? Say shopping, '
+          'navigation, reading, tech support, emergency assistance, medical support, or transportation.',
+        );
+        _isProcessingVoice = false;
+        await _startListening();
+        return;
 
-    // Help command
-    if (command.contains('help') || command.contains('commands')) {
-      await _speak(
-        'You can say: Select a request type like Shopping, Navigation, or Reading. '
-        'Set Language English or Spanish. Say Description to enter your request details. '
-        'Say Location to enter your location. Say Submit to send. Say Cancel to go back.',
-      );
-      _isProcessingVoice = false;
-      return;
+      case 'language':
+        for (var lang in _languages.keys) {
+          if (command.contains(lang)) {
+            setState(() => _selectedLanguage = lang);
+            await _speak('Language set to ${_languages[lang]}.');
+            _currentVoiceStep = 'location';
+            _isProcessingVoice = false;
+            await _askCurrentStep();
+            return;
+          }
+        }
+        await _speak(
+          'I did not catch that. Please say your preferred language: '
+          'English, Spanish, Mandarin, French, German, or Korean.',
+        );
+        _isProcessingVoice = false;
+        await _startListening();
+        return;
+
+      case 'location':
+        if (command.trim().length > 2) {
+          _locationController.text = command;
+          await _speak('Location set to $command.');
+          _currentVoiceStep = 'description';
+          _isProcessingVoice = false;
+          await _askCurrentStep();
+          return;
+        }
+        await _speak('Please say your location.');
+        _isProcessingVoice = false;
+        await _startListening();
+        return;
+
+      case 'description':
+        if (command.trim().length > 2) {
+          _descriptionController.text = command;
+          await _speak('Got it.');
+          _currentVoiceStep = 'confirm';
+          _isProcessingVoice = false;
+          await _askCurrentStep();
+          return;
+        }
+        await _speak('Please describe what you need help with.');
+        _isProcessingVoice = false;
+        await _startListening();
+        return;
+
+      case 'confirm':
+        await _speak(
+          'Say submit to send your request, or say cancel to start over.',
+        );
+        _isProcessingVoice = false;
+        await _startListening();
+        return;
     }
 
     await _speak('Command not recognized. Say Help for available commands.');
@@ -247,7 +292,7 @@ class _BlindSendHelpRequestScreenState
 
   void _onMicTap() {
     if (!_isProcessingVoice && _sttAvailable && !_isSpeaking) {
-      _startListening();
+      _askCurrentStep();
     }
   }
 
@@ -340,16 +385,6 @@ class _BlindSendHelpRequestScreenState
         backgroundColor: kNavyMid,
         foregroundColor: Colors.white,
         elevation: 0,
-        actions: [
-          // Voice mic button
-          IconButton(
-            icon: Icon(
-              _isListening ? Icons.mic : Icons.mic_none,
-              color: Colors.white,
-            ),
-            onPressed: _onMicTap,
-          ),
-        ],
       ),
       body: Stack(
         children: [
@@ -358,6 +393,81 @@ class _BlindSendHelpRequestScreenState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Voice Command Card
+                GestureDetector(
+                  onTap: _onMicTap,
+                  child: Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: kCardFill.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color:
+                            (_isListening ? Colors.greenAccent : kPinkBright)
+                                .withValues(alpha: 0.4),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 64,
+                          height: 64,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: _isListening
+                                ? const LinearGradient(
+                                    colors: [Colors.green, Colors.lightGreen],
+                                  )
+                                : kAccentGradient,
+                            boxShadow: [
+                              BoxShadow(
+                                color:
+                                    (_isListening ? Colors.green : kPinkBright)
+                                        .withValues(alpha: 0.5),
+                                blurRadius: 18,
+                                spreadRadius: 2,
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            _isListening ? Icons.mic : Icons.mic_none,
+                            color: Colors.white,
+                            size: 30,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _isListening
+                                    ? 'Listening...'
+                                    : 'Voice Command',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              const Text(
+                                'Tap and I will guide you through the type of '
+                                'help, language, and location.',
+                                style: TextStyle(
+                                  color: Colors.white60,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
                 // Header
                 Container(
                   padding: const EdgeInsets.all(20),
@@ -481,21 +591,10 @@ class _BlindSendHelpRequestScreenState
                         runSpacing: 8,
                         children: _languages.entries.map((entry) {
                           final isSelected = _selectedLanguage == entry.key;
-                          return FilterChip(
-                            selected: isSelected,
-                            label: Text(entry.value),
-                            labelStyle: TextStyle(
-                              color: isSelected ? Colors.white : Colors.white70,
-                            ),
-                            onSelected: (selected) {
-                              setState(() => _selectedLanguage = entry.key);
-                            },
-                            backgroundColor: Colors.white.withValues(alpha: 0.05),
-                            selectedColor: kPinkBright.withValues(alpha: 0.3),
-                            checkmarkColor: Colors.white,
-                            side: BorderSide(
-                                color: Colors.white.withValues(alpha: 0.15)),
-                            showCheckmark: true,
+                          return _buildLanguageChip(
+                            entry.value,
+                            isSelected,
+                            () => setState(() => _selectedLanguage = entry.key),
                           );
                         }).toList(),
                       ),
@@ -599,6 +698,43 @@ class _BlindSendHelpRequestScreenState
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildLanguageChip(
+    String label,
+    bool isSelected,
+    VoidCallback onTap,
+  ) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          gradient: isSelected ? kAccentGradient : null,
+          color: isSelected ? null : Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(20),
+          border: isSelected
+              ? null
+              : Border.all(color: Colors.white.withValues(alpha: 0.15)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (isSelected) ...[
+              const Icon(Icons.check, color: Colors.white, size: 16),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? Colors.white : Colors.white70,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

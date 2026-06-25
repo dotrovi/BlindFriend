@@ -14,7 +14,9 @@ import 'theme/app_palette.dart';
 // left wall & human detection
 
 class ObstacleDetectionPage extends StatefulWidget {
-  const ObstacleDetectionPage({super.key});
+  final VoidCallback? onBackToHome;
+
+  const ObstacleDetectionPage({super.key, this.onBackToHome});
 
   @override
   State<ObstacleDetectionPage> createState() => _ObstacleDetectionPageState();
@@ -29,7 +31,8 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
   bool _isListening = false;
 
   static const String _voiceInstruction =
-      'Tap the button and say start detection to start scanning.';
+      'Tap the button and say start detection to start scanning, '
+      'or say back to home page to return.';
 
   CameraController? _controller;
   ObjectDetector? _detector;
@@ -119,14 +122,17 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
         if (!mounted || !result.finalResult) return;
         _handleVoiceCommand(result.recognizedWords.toLowerCase());
       },
-      listenFor: const Duration(seconds: 6),
-      pauseFor: const Duration(seconds: 3),
+      listenFor: const Duration(seconds: 30),
+      pauseFor: const Duration(seconds: 10),
       localeId: 'en_US',
     );
   }
 
   void _handleVoiceCommand(String command) {
-    if (command.contains('start detection') ||
+    if (command.contains('back') && command.contains('home')) {
+      _speak('Returning to home page.');
+      widget.onBackToHome?.call();
+    } else if (command.contains('start detection') ||
         command.contains('start') ||
         command.contains('detection')) {
       _startDetection();

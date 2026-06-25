@@ -1,4 +1,3 @@
-import 'dart:html' as html;
 import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -6,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // ── Shared palette ─────────────────────────────────────────────────
 const Color _kNavyDeep = Color(0xFF120A2E);
@@ -634,7 +634,7 @@ class _VideoSection extends StatefulWidget {
 class _VideoSectionState extends State<_VideoSection> {
   void _openInYouTube() {
     final url = 'https://www.youtube.com/watch?v=${widget.youtubeVideoId}';
-    html.window.open(url, '_blank');
+    launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
   }
 
   @override

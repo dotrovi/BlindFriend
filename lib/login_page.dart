@@ -35,7 +35,6 @@ class BlindFriendApp extends StatelessWidget {
   }
 }
 
-
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -187,8 +186,8 @@ class _LoginPageState extends State<LoginPage> {
     _reaskScheduled = false;
     setState(() => _isListening = true);
     final pauseFor = _currentStep == 'email'
-        ? const Duration(seconds: 5)
-        : const Duration(seconds: 3);
+        ? const Duration(seconds: 12)
+        : const Duration(seconds: 8);
     await _stt.listen(
       onResult: (result) {
         if (!mounted) return;
@@ -196,7 +195,7 @@ class _LoginPageState extends State<LoginPage> {
         if (!result.finalResult) return;
         Future(() => _handleAnswer(result.recognizedWords.trim()));
       },
-      listenFor: const Duration(seconds: 30),
+      listenFor: const Duration(seconds: 45),
       pauseFor: pauseFor,
       localeId: 'en_US',
     );
@@ -540,39 +539,39 @@ class _LoginPageState extends State<LoginPage> {
             child: SafeArea(
               child: SingleChildScrollView(
                 child: Column(
-                children: [
-                  const SizedBox(height: 28),
-                  _buildAppIcon(),
-                  const SizedBox(height: 18),
-                  RichText(
-                    text: const TextSpan(
-                      style: TextStyle(
-                        fontSize: 34,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.2,
+                  children: [
+                    const SizedBox(height: 28),
+                    _buildAppIcon(),
+                    const SizedBox(height: 18),
+                    RichText(
+                      text: const TextSpan(
+                        style: TextStyle(
+                          fontSize: 34,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.2,
+                        ),
+                        children: [
+                          TextSpan(
+                            text: 'Blind',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                          TextSpan(
+                            text: 'Friend',
+                            style: TextStyle(color: kPinkBright),
+                          ),
+                        ],
                       ),
-                      children: [
-                        TextSpan(
-                          text: 'Blind',
-                          style: TextStyle(color: Colors.white),
-                        ),
-                        TextSpan(
-                          text: 'Friend',
-                          style: TextStyle(color: kPinkBright),
-                        ),
-                      ],
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'The World Should Not Be Dark Anymore',
-                    style: TextStyle(color: Colors.white70, fontSize: 14),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildDivider(icon: Icons.favorite, width: 90),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 20),
-                    child: GestureDetector(
+                    const SizedBox(height: 6),
+                    const Text(
+                      'The World Should Not Be Dark Anymore',
+                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildDivider(icon: Icons.favorite, width: 90),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 20),
+                      child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
                         onTap: _pressToSpeak,
                         child: Column(
@@ -625,24 +624,24 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
                     ),
-                  ),
-                  _buildPillButton(
-                    label: 'Continue Manually',
-                    icon: Icons.arrow_forward,
-                    filled: false,
-                    onTap: _scrollToForm,
-                  ),
-                  const SizedBox(height: 14),
-                  GestureDetector(
-                    onTap: _scrollToForm,
-                    child: const Icon(
-                      Icons.keyboard_arrow_up,
-                      color: Colors.white54,
-                      size: 26,
+                    _buildPillButton(
+                      label: 'Continue Manually',
+                      icon: Icons.arrow_forward,
+                      filled: false,
+                      onTap: _scrollToForm,
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                ],
+                    const SizedBox(height: 14),
+                    GestureDetector(
+                      onTap: _scrollToForm,
+                      child: const Icon(
+                        Icons.keyboard_arrow_up,
+                        color: Colors.white54,
+                        size: 26,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                ),
               ),
             ),
           ),

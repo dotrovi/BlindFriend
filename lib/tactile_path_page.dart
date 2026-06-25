@@ -36,7 +36,9 @@ import 'theme/app_palette.dart';
 // frame, from causing false "path lost" or false "warning" alerts.
 
 class TactilePathPage extends StatefulWidget {
-  const TactilePathPage({super.key});
+  final VoidCallback? onBackToHome;
+
+  const TactilePathPage({super.key, this.onBackToHome});
 
   @override
   State<TactilePathPage> createState() => _TactilePathPageState();
@@ -66,7 +68,8 @@ class _TactilePathPageState extends State<TactilePathPage>
   bool _isListening = false;
 
   static const String _voiceInstruction =
-      'Tap the button and say start guidance to start scanning.';
+      'Tap the button and say start guidance to start scanning, '
+      'or say back to home page to return.';
 
   CameraController? _controller;
   List<CameraDescription> _cameras = [];
@@ -185,14 +188,17 @@ class _TactilePathPageState extends State<TactilePathPage>
         if (!mounted || !result.finalResult) return;
         _handleVoiceCommand(result.recognizedWords.toLowerCase());
       },
-      listenFor: const Duration(seconds: 6),
-      pauseFor: const Duration(seconds: 3),
+      listenFor: const Duration(seconds: 30),
+      pauseFor: const Duration(seconds: 10),
       localeId: 'en_US',
     );
   }
 
   void _handleVoiceCommand(String command) {
-    if (command.contains('start guidance') ||
+    if (command.contains('back') && command.contains('home')) {
+      _speak('Returning to home page.');
+      widget.onBackToHome?.call();
+    } else if (command.contains('start guidance') ||
         command.contains('start') ||
         command.contains('guidance')) {
       _startDetection();
