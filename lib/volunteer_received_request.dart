@@ -1,6 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // ── Shared palette ─────────────────────────────────────────────────
 const Color _kNavyDeep = Color(0xFF120A2E);
@@ -34,6 +37,10 @@ class HelpRequest {
   String? notes;
   String? preferredLanguage;
   Map<String, String> declineReasons;
+  double? latitude;
+  double? longitude;
+
+  bool get hasLocation => latitude != null && longitude != null;
 
   HelpRequest({
     this.id,
@@ -53,6 +60,8 @@ class HelpRequest {
     this.notes,
     this.preferredLanguage,
     this.declineReasons = const {},
+    this.latitude,
+    this.longitude,
   });
 
   factory HelpRequest.fromMap(String id, Map<String, dynamic> map) {
@@ -79,6 +88,8 @@ class HelpRequest {
       notes: map['notes'],
       preferredLanguage: map['preferredLanguage'],
       declineReasons: parsedReasons,
+      latitude: (map['latitude'] as num?)?.toDouble(),
+      longitude: (map['longitude'] as num?)?.toDouble(),
     );
   }
 }
@@ -786,10 +797,22 @@ class _VolunteerReceivedRequestsScreenState
                     if (request.preferredLanguage != null)
                       _detailRow(Icons.language_rounded, 'Language',
                           _languageNames[request.preferredLanguage] ?? request.preferredLanguage!),
+                    if (request.hasLocation) ...[
+                      const SizedBox(height: 8),
+                      _buildLocationPreview(request),
+                    ],
                     const SizedBox(height: 8),
                     const Divider(color: Colors.white12),
                     const SizedBox(height: 8),
                     // Actions
+                    if (request.status == 'accepted' ||
+                        request.status == 'in_progress')
+                      _actionButton(
+                        label: "Can't find them? Call ${request.blindUserName}",
+                        icon: Icons.call_rounded,
+                        color: Colors.orange.shade400,
+                        onTap: () => _callBlindUser(request),
+                      ),
                     if (request.status == 'pending') ...[
                       _actionButton(
                         label: 'Accept Request',
@@ -851,6 +874,85 @@ class _VolunteerReceivedRequestsScreenState
           ),
         );
       },
+    );
+  }
+
+  Future<void> _callBlindUser(HelpRequest request) async {
+    final uri = Uri(scheme: 'tel', path: request.blindUserPhone);
+    if (!await launchUrl(uri)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not start a call to ${request.blindUserPhone}')),
+        );
+      }
+    }
+  }
+
+  Widget _buildLocationPreview(HelpRequest request) {
+    final point = LatLng(request.latitude!, request.longitude!);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: SizedBox(
+        height: 160,
+        width: double.infinity,
+        child: Stack(
+          children: [
+            FlutterMap(
+              options: MapOptions(
+                initialCenter: point,
+                initialZoom: 16.0,
+                interactionOptions: const InteractionOptions(
+                  flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag,
+                ),
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'com.example.flutter_blindfriend',
+                ),
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: point,
+                      width: 40,
+                      height: 40,
+                      child: const Icon(
+                        Icons.location_on_rounded,
+                        color: _kPinkBright,
+                        size: 40,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            Positioned(
+              right: 8,
+              bottom: 8,
+              child: Material(
+                color: _kNavyDeep.withOpacity(0.85),
+                borderRadius: BorderRadius.circular(8),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () => launchUrl(Uri.parse(
+                      'https://www.openstreetmap.org/?mlat=${point.latitude}&mlon=${point.longitude}#map=18/${point.latitude}/${point.longitude}')),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.open_in_new_rounded, size: 14, color: Colors.white),
+                        SizedBox(width: 4),
+                        Text('Open in Maps', style: TextStyle(fontSize: 12, color: Colors.white)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

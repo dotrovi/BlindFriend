@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'theme/app_palette.dart';
@@ -28,6 +31,9 @@ class _BlindSendHelpRequestScreenState
   final _locationController = TextEditingController();
   bool _isSubmitting = false;
   String? _errorMessage;
+  bool _isDetectingLocation = true;
+  double? _capturedLatitude;
+  double? _capturedLongitude;
 
   // Voice command state
   bool _isListening = false;
@@ -36,7 +42,8 @@ class _BlindSendHelpRequestScreenState
   bool _shouldListen = true;
   int _speakGeneration = 0;
   bool _isProcessingVoice = false;
-  // Guided voice flow: type -> language -> location -> description -> confirm
+  // Guided voice flow: type -> language -> description -> confirm
+  // (location is detected automatically via GPS, not asked in the flow)
   String _currentVoiceStep = 'type';
 
   final Map<String, IconData> _requestTypes = {
@@ -61,6 +68,7 @@ class _BlindSendHelpRequestScreenState
   @override
   void initState() {
     super.initState();
+    _detectLocation();
     _initVoice();
   }
 
@@ -95,8 +103,9 @@ class _BlindSendHelpRequestScreenState
 
     if (mounted) {
       await _speak(
-        'This is the request help page. Tap the voice button and I will guide you '
-        'through choosing the type of help you need, your preferred language, and your location. '
+        'This is the request help page. Your location is detected automatically. '
+        'Tap the voice button and I will guide you through choosing the type of help '
+        'you need and your preferred language. '
         'Say back to home page at any time to return home.',
       );
     }
@@ -114,11 +123,6 @@ class _BlindSendHelpRequestScreenState
         await _speak(
           'What language do you prefer? You can say English, Spanish, '
           'Mandarin, French, German, or Korean.',
-        );
-        break;
-      case 'location':
-        await _speak(
-          'What is your location? For example, Giant Supermarket, KLCC.',
         );
         break;
       case 'description':
@@ -235,7 +239,7 @@ class _BlindSendHelpRequestScreenState
           if (command.contains(lang)) {
             setState(() => _selectedLanguage = lang);
             await _speak('Language set to ${_languages[lang]}.');
-            _currentVoiceStep = 'location';
+            _currentVoiceStep = 'description';
             _isProcessingVoice = false;
             await _askCurrentStep();
             return;
@@ -245,20 +249,6 @@ class _BlindSendHelpRequestScreenState
           'I did not catch that. Please say your preferred language: '
           'English, Spanish, Mandarin, French, German, or Korean.',
         );
-        _isProcessingVoice = false;
-        await _startListening();
-        return;
-
-      case 'location':
-        if (command.trim().length > 2) {
-          _locationController.text = command;
-          await _speak('Location set to $command.');
-          _currentVoiceStep = 'description';
-          _isProcessingVoice = false;
-          await _askCurrentStep();
-          return;
-        }
-        await _speak('Please say your location.');
         _isProcessingVoice = false;
         await _startListening();
         return;
@@ -296,6 +286,64 @@ class _BlindSendHelpRequestScreenState
     }
   }
 
+  // Best-effort: a missing/denied location should never block the request.
+  Future<Position?> _getCurrentPosition() async {
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return null;
+      }
+      if (!await Geolocator.isLocationServiceEnabled()) return null;
+      return await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+    } catch (e) {
+      debugPrint('Location capture failed: $e');
+      return null;
+    }
+  }
+
+  Future<void> _detectLocation() async {
+    final position = await _getCurrentPosition();
+    if (!mounted) return;
+
+    if (position == null) {
+      setState(() => _isDetectingLocation = false);
+      return;
+    }
+
+    _capturedLatitude = position.latitude;
+    _capturedLongitude = position.longitude;
+    final address = await _reverseGeocode(position.latitude, position.longitude);
+    if (!mounted) return;
+
+    setState(() {
+      _locationController.text = address ??
+          '${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)}';
+      _isDetectingLocation = false;
+    });
+  }
+
+  Future<String?> _reverseGeocode(double lat, double lng) async {
+    try {
+      final uri = Uri.parse(
+          'https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lng&zoom=18');
+      final response = await http
+          .get(uri, headers: {'User-Agent': 'com.example.flutter_blindfriend'})
+          .timeout(const Duration(seconds: 8));
+      if (response.statusCode != 200) return null;
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return data['display_name'] as String?;
+    } catch (e) {
+      debugPrint('Reverse geocoding failed: $e');
+      return null;
+    }
+  }
+
   Future<void> _submitHelpRequest() async {
     setState(() => _errorMessage = null);
 
@@ -306,8 +354,9 @@ class _BlindSendHelpRequestScreenState
     }
 
     if (_locationController.text.trim().isEmpty) {
-      setState(() => _errorMessage = 'Please provide your location');
-      await _speak('Please provide your location');
+      setState(() =>
+          _errorMessage = 'We could not detect your location. Please type it.');
+      await _speak('We could not detect your location. Please type it.');
       return;
     }
 
@@ -325,6 +374,12 @@ class _BlindSendHelpRequestScreenState
           '${userData['name'] ?? ''} ${userData['lastName'] ?? ''}'.trim();
       final userPhone = userData['phone'] ?? 'N/A';
 
+      if (_capturedLatitude == null || _capturedLongitude == null) {
+        final position = await _getCurrentPosition();
+        _capturedLatitude = position?.latitude;
+        _capturedLongitude = position?.longitude;
+      }
+
       final helpRequestData = {
         'blindUserId': user.uid,
         'blindUserName': userName.isEmpty ? 'User' : userName,
@@ -334,6 +389,8 @@ class _BlindSendHelpRequestScreenState
         'requestType': _selectedRequestType.toLowerCase(),
         'description': _descriptionController.text.trim(),
         'location': _locationController.text.trim(),
+        'latitude': _capturedLatitude,
+        'longitude': _capturedLongitude,
         'preferredLanguage': _selectedLanguage.toLowerCase(),
         'status': 'pending',
         'createdAt': FieldValue.serverTimestamp(),
@@ -624,11 +681,34 @@ class _BlindSendHelpRequestScreenState
                 ),
                 const SizedBox(height: 16),
 
-                const Text('Your Location',
-                    style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white)),
+                Row(
+                  children: [
+                    const Text('Your Location',
+                        style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white)),
+                    const SizedBox(width: 8),
+                    if (_isDetectingLocation)
+                      const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: kPinkBright,
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _isDetectingLocation
+                      ? 'Detecting your location...'
+                      : (_capturedLatitude != null
+                          ? 'Detected automatically. Edit if this is wrong.'
+                          : 'Could not detect automatically. Please type it.'),
+                  style: const TextStyle(color: Colors.white38, fontSize: 12),
+                ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: _locationController,
@@ -637,6 +717,14 @@ class _BlindSendHelpRequestScreenState
                     hintText: 'e.g., Giant Supermarket, KLCC',
                     hintStyle: const TextStyle(color: Colors.white38),
                     prefixIcon: const Icon(Icons.location_on, color: Colors.white54),
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.my_location, color: Colors.white54),
+                      tooltip: 'Re-detect location',
+                      onPressed: () {
+                        setState(() => _isDetectingLocation = true);
+                        _detectLocation();
+                      },
+                    ),
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12)),
                     filled: true,
