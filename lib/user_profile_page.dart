@@ -104,20 +104,30 @@ class _UserProfilePageState extends State<UserProfilePage> {
         _speechCompleter!.complete();
       }
     });
-    
+    _tts.setErrorHandler((msg) {
+      debugPrint('TTS error: $msg');
+      if (_speechCompleter != null && !_speechCompleter!.isCompleted) {
+        _speechCompleter!.complete();
+      }
+    });
+
     await _tts.speak(text);
 
     try {
-      await _speechCompleter!.future.timeout(const Duration(seconds: 30));
+      await _speechCompleter!.future.timeout(const Duration(seconds: 10));
     } catch (_) {}
 
     if (mounted) setState(() => _isSpeaking = false);
   }
 
   Future<void> _startListening({String? prompt}) async {
-    if (!_sttInitialized || _isSpeaking) return;
+    if (!_sttInitialized) return;
+    if (_isSpeaking) {
+      await _tts.stop();
+      if (mounted) setState(() => _isSpeaking = false);
+    }
     if (_stt.isListening) await _stt.cancel();
-    
+
     if (prompt != null) {
       await _speak(prompt);
     }
@@ -192,6 +202,64 @@ class _UserProfilePageState extends State<UserProfilePage> {
     await _speak(message);
   }
 
+  void _showManualPhoneEditDialog() {
+    final controller = TextEditingController(text: phone);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: kCardFill,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Edit Phone Number', style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.phone,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            hintText: 'Enter phone number',
+            hintStyle: const TextStyle(color: Colors.white38),
+            filled: true,
+            fillColor: Colors.white.withValues(alpha: 0.05),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+            ),
+            focusedBorder: const OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(10)),
+              borderSide: BorderSide(color: kBlueAccent),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: TextButton.styleFrom(foregroundColor: Colors.white60),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final newPhone = controller.text.trim();
+              Navigator.pop(ctx);
+              if (newPhone.isNotEmpty) {
+                _savePhoneNumber(newPhone);
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kBlueAccent,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _savePhoneNumber(String newPhone) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -245,6 +313,21 @@ class _UserProfilePageState extends State<UserProfilePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kNavyDeep,
+      appBar: AppBar(
+        backgroundColor: kNavyMid,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () {
+            _stt.cancel();
+            _tts.stop();
+            Navigator.pop(context);
+          },
+        ),
+        title: const Text('Profile',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        centerTitle: true,
+      ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator(color: kBlueAccent))
           : SafeArea(
@@ -304,8 +387,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                           _stt.stop();
                           setState(() => _isListening = false);
                         } else {
-                          _tts.stop();
-                          _startListening(prompt: 'Listening for command.');
+                          _startListening();
                         }
                       },
                       child: AnimatedContainer(
@@ -369,16 +451,27 @@ class _UserProfilePageState extends State<UserProfilePage> {
                           Divider(color: Colors.white.withOpacity(0.1)),
                           _InfoRow(icon: Icons.email, label: 'Email', value: email),
                           Divider(color: Colors.white.withOpacity(0.1)),
-                          InkWell(
-                            onTap: () {
-                              setState(() => _editingPhone = true);
-                              _startListening(prompt: 'Please say your new phone number digit by digit.');
-                            },
-                            child: _InfoRow(
-                              icon: Icons.phone, 
-                              label: 'Phone (Tap to change via voice)', 
-                              value: phone.isNotEmpty ? phone : 'Not set'
-                            ),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: InkWell(
+                                  onTap: () {
+                                    setState(() => _editingPhone = true);
+                                    _startListening(prompt: 'Please say your new phone number digit by digit.');
+                                  },
+                                  child: _InfoRow(
+                                    icon: Icons.phone,
+                                    label: 'Phone (tap to edit by voice)',
+                                    value: phone.isNotEmpty ? phone : 'Not set',
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.edit, color: Colors.white60, size: 20),
+                                tooltip: 'Edit manually',
+                                onPressed: _showManualPhoneEditDialog,
+                              ),
+                            ],
                           ),
                         ],
                       ),

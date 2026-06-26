@@ -195,6 +195,14 @@ class _BlindNotificationsPageState extends State<BlindNotificationsPage> {
       appBar: AppBar(
         backgroundColor: kNavyMid,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () {
+            _stt.stop();
+            _tts.stop();
+            Navigator.pop(context);
+          },
+        ),
         title: const Text(
           'Notifications',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
