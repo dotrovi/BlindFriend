@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'theme/app_palette.dart';
 
 class AdminVolunteersPage extends StatefulWidget {
   const AdminVolunteersPage({super.key});
@@ -109,7 +110,7 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
             'locationAddress': _getLocationAddress(data),
           });
         } catch (e) {
-          print('Error processing volunteer ${doc.id}: $e');
+          debugPrint('Error processing volunteer ${doc.id}: $e');
           final data = doc.data();
 
           final specialties = data['specialties'];
@@ -172,7 +173,7 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: const Color(0xFFF8F9FA),
+      color: kNavyDeep,
       child: Column(
         children: [
           _buildHeader(),
@@ -199,13 +200,9 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.amber.shade700, Colors.amber.shade500],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: const BorderRadius.only(
+      decoration: const BoxDecoration(
+        gradient: kAccentGradient,
+        borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(12),
           bottomRight: Radius.circular(12),
         ),
@@ -255,36 +252,37 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: kCardFill.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: TextField(
         onChanged: (value) =>
             setState(() => _searchQuery = value.toLowerCase()),
+        style: const TextStyle(color: Colors.white, fontSize: 13),
         decoration: InputDecoration(
           hintText: 'Search volunteers...',
-          hintStyle: const TextStyle(fontSize: 13),
-          prefixIcon: const Icon(Icons.search, color: Colors.grey, size: 18),
+          hintStyle: const TextStyle(fontSize: 13, color: Colors.white38),
+          prefixIcon: const Icon(Icons.search, color: Colors.white54, size: 18),
           suffixIcon: _searchQuery.isNotEmpty
               ? IconButton(
-                  icon: const Icon(Icons.close, size: 16),
+                  icon: const Icon(Icons.close, size: 16, color: Colors.white54),
                   onPressed: () => setState(() => _searchQuery = ''),
                 )
               : null,
           filled: true,
-          fillColor: Colors.grey.shade50,
+          fillColor: Colors.white.withValues(alpha: 0.05),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(6),
-            borderSide: BorderSide(color: Colors.grey.shade300),
+            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(6),
-            borderSide: BorderSide(color: Colors.grey.shade300),
+            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(6),
-            borderSide: const BorderSide(color: Colors.amber, width: 1.5),
+            borderSide: const BorderSide(color: kPinkBright, width: 1.5),
           ),
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -294,12 +292,33 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
     );
   }
 
+  // Shared dark dropdown decoration so the five filter dropdowns stay consistent.
+  InputDecoration _dropdownDecoration(String label) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(color: kPinkBright, fontSize: 10),
+      border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(4),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.15))),
+      enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(4),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.15))),
+      focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(4),
+          borderSide: const BorderSide(color: kPinkBright, width: 1.5)),
+      filled: true,
+      fillColor: Colors.white.withValues(alpha: 0.05),
+      isDense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+    );
+  }
+
   Widget _buildFilters() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: kCardFill.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       padding: const EdgeInsets.all(10),
       child: Column(
@@ -318,67 +337,43 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                   child: DropdownButtonFormField<String>(
                     initialValue: _selectedLanguage,
                     isExpanded: true,
-                    decoration: InputDecoration(
-                      labelText: 'Language',
-                      labelStyle:
-                          const TextStyle(color: Colors.amber, fontSize: 10),
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(4),
-                          borderSide: BorderSide(color: Colors.grey.shade300)),
-                      enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(4),
-                          borderSide: BorderSide(color: Colors.grey.shade300)),
-                      focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(4),
-                          borderSide: const BorderSide(
-                              color: Colors.amber, width: 1.5)),
-                      filled: true,
-                      fillColor: Colors.grey.shade50,
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 8),
-                    ),
+                    dropdownColor: kNavyMid,
+                    style: const TextStyle(fontSize: 11, color: Colors.white),
+                    decoration: _dropdownDecoration('Language'),
                     items: const [
                       DropdownMenuItem(
                           value: 'all',
                           child: Text('All',
-                              style: TextStyle(fontSize: 11),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1)),
                       DropdownMenuItem(
                           value: 'english',
                           child: Text('English',
-                              style: TextStyle(fontSize: 11),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1)),
                       DropdownMenuItem(
                           value: 'spanish',
                           child: Text('Spanish',
-                              style: TextStyle(fontSize: 11),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1)),
                       DropdownMenuItem(
                           value: 'mandarin',
                           child: Text('Mandarin',
-                              style: TextStyle(fontSize: 11),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1)),
                       DropdownMenuItem(
                           value: 'french',
                           child: Text('French',
-                              style: TextStyle(fontSize: 11),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1)),
                       DropdownMenuItem(
                           value: 'german',
                           child: Text('German',
-                              style: TextStyle(fontSize: 11),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1)),
                       DropdownMenuItem(
                           value: 'korean',
                           child: Text('Korean',
-                              style: TextStyle(fontSize: 11),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1)),
                     ],
@@ -393,73 +388,48 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                   child: DropdownButtonFormField<String>(
                     initialValue: _selectedSpecialty,
                     isExpanded: true,
-                    decoration: InputDecoration(
-                      labelText: 'Specialty',
-                      labelStyle:
-                          const TextStyle(color: Colors.amber, fontSize: 10),
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(4),
-                          borderSide: BorderSide(color: Colors.grey.shade300)),
-                      enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(4),
-                          borderSide: BorderSide(color: Colors.grey.shade300)),
-                      focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(4),
-                          borderSide: const BorderSide(
-                              color: Colors.amber, width: 1.5)),
-                      filled: true,
-                      fillColor: Colors.grey.shade50,
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 8),
-                    ),
+                    dropdownColor: kNavyMid,
+                    style: const TextStyle(fontSize: 11, color: Colors.white),
+                    decoration: _dropdownDecoration('Specialty'),
                     items: const [
                       DropdownMenuItem(
                           value: 'all',
                           child: Text('All',
-                              style: TextStyle(fontSize: 11),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1)),
                       DropdownMenuItem(
                           value: 'shopping',
                           child: Text('Shopping',
-                              style: TextStyle(fontSize: 11),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1)),
                       DropdownMenuItem(
                           value: 'navigation',
                           child: Text('Navigation',
-                              style: TextStyle(fontSize: 11),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1)),
                       DropdownMenuItem(
                           value: 'reading',
                           child: Text('Reading',
-                              style: TextStyle(fontSize: 11),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1)),
                       DropdownMenuItem(
                           value: 'tech support',
                           child: Text('Tech Support',
-                              style: TextStyle(fontSize: 11),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1)),
                       DropdownMenuItem(
                           value: 'emergency assistance',
                           child: Text('Emergency',
-                              style: TextStyle(fontSize: 11),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1)),
                       DropdownMenuItem(
                           value: 'medical support',
                           child: Text('Medical',
-                              style: TextStyle(fontSize: 11),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1)),
                       DropdownMenuItem(
                           value: 'transportation',
                           child: Text('Transport',
-                              style: TextStyle(fontSize: 11),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1)),
                     ],
@@ -474,55 +444,33 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                   child: DropdownButtonFormField<String>(
                     initialValue: _selectedAvailability,
                     isExpanded: true,
-                    decoration: InputDecoration(
-                      labelText: 'Availability',
-                      labelStyle:
-                          const TextStyle(color: Colors.amber, fontSize: 10),
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(4),
-                          borderSide: BorderSide(color: Colors.grey.shade300)),
-                      enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(4),
-                          borderSide: BorderSide(color: Colors.grey.shade300)),
-                      focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(4),
-                          borderSide: const BorderSide(
-                              color: Colors.amber, width: 1.5)),
-                      filled: true,
-                      fillColor: Colors.grey.shade50,
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 8),
-                    ),
+                    dropdownColor: kNavyMid,
+                    style: const TextStyle(fontSize: 11, color: Colors.white),
+                    decoration: _dropdownDecoration('Availability'),
                     items: const [
                       DropdownMenuItem(
                           value: 'all',
                           child: Text('All',
-                              style: TextStyle(fontSize: 11),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1)),
                       DropdownMenuItem(
                           value: 'weekends',
                           child: Text('Weekends',
-                              style: TextStyle(fontSize: 11),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1)),
                       DropdownMenuItem(
                           value: 'weekdays',
                           child: Text('Weekdays',
-                              style: TextStyle(fontSize: 11),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1)),
                       DropdownMenuItem(
                           value: 'anytime',
                           child: Text('Anytime',
-                              style: TextStyle(fontSize: 11),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1)),
                       DropdownMenuItem(
                           value: 'emergency only',
                           child: Text('Emergency',
-                              style: TextStyle(fontSize: 11),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1)),
                     ],
@@ -537,49 +485,28 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                   child: DropdownButtonFormField<String>(
                     initialValue: _filterStatus,
                     isExpanded: true,
-                    decoration: InputDecoration(
-                      labelText: 'Status',
-                      labelStyle:
-                          const TextStyle(color: Colors.amber, fontSize: 10),
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(4),
-                          borderSide: BorderSide(color: Colors.grey.shade300)),
-                      enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(4),
-                          borderSide: BorderSide(color: Colors.grey.shade300)),
-                      focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(4),
-                          borderSide: const BorderSide(
-                              color: Colors.amber, width: 1.5)),
-                      filled: true,
-                      fillColor: Colors.grey.shade50,
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 8),
-                    ),
+                    dropdownColor: kNavyMid,
+                    style: const TextStyle(fontSize: 11, color: Colors.white),
+                    decoration: _dropdownDecoration('Status'),
                     items: const [
                       DropdownMenuItem(
                           value: 'all',
                           child: Text('All',
-                              style: TextStyle(fontSize: 11),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1)),
                       DropdownMenuItem(
                           value: 'pending',
                           child: Text('Pending',
-                              style: TextStyle(fontSize: 11),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1)),
                       DropdownMenuItem(
                           value: 'approved',
                           child: Text('Approved',
-                              style: TextStyle(fontSize: 11),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1)),
                       DropdownMenuItem(
                           value: 'rejected',
                           child: Text('Rejected',
-                              style: TextStyle(fontSize: 11),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1)),
                     ],
@@ -594,38 +521,19 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                   child: DropdownButtonFormField<String>(
                     initialValue: _selectedLocation,
                     isExpanded: true,
-                    decoration: InputDecoration(
-                      labelText: 'Location',
-                      labelStyle:
-                          const TextStyle(color: Colors.amber, fontSize: 10),
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(4),
-                          borderSide: BorderSide(color: Colors.grey.shade300)),
-                      enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(4),
-                          borderSide: BorderSide(color: Colors.grey.shade300)),
-                      focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(4),
-                          borderSide: const BorderSide(
-                              color: Colors.amber, width: 1.5)),
-                      filled: true,
-                      fillColor: Colors.grey.shade50,
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 8),
-                    ),
+                    dropdownColor: kNavyMid,
+                    style: const TextStyle(fontSize: 11, color: Colors.white),
+                    decoration: _dropdownDecoration('Location'),
                     items: [
                       const DropdownMenuItem(
                           value: 'all',
                           child: Text('All',
-                              style: TextStyle(fontSize: 11),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1)),
                       ..._getUniqueLocations().map((location) =>
                           DropdownMenuItem(
                               value: location,
                               child: Text(location,
-                                  style: const TextStyle(fontSize: 11),
                                   overflow: TextOverflow.ellipsis,
                                   maxLines: 1))),
                     ],
@@ -655,7 +563,7 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                 label:
                     const Text('Clear Filters', style: TextStyle(fontSize: 11)),
                 style: TextButton.styleFrom(
-                  foregroundColor: Colors.blue.shade700,
+                  foregroundColor: kBlueAccent,
                   padding: EdgeInsets.zero,
                   minimumSize: const Size(0, 30),
                 ),
@@ -673,9 +581,10 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(),
+            CircularProgressIndicator(color: kPinkBright),
             SizedBox(height: 12),
-            Text('Loading volunteers...', style: TextStyle(fontSize: 14)),
+            Text('Loading volunteers...',
+                style: TextStyle(fontSize: 14, color: Colors.white70)),
           ],
         ),
       );
@@ -686,13 +595,17 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline, size: 40, color: Colors.red.shade400),
+            const Icon(Icons.error_outline, size: 40, color: kRedAccent),
             const SizedBox(height: 12),
             Text('Error: $_errorMessage',
-                style: TextStyle(fontSize: 14, color: Colors.red.shade700)),
+                style: const TextStyle(fontSize: 14, color: kRedAccent)),
             const SizedBox(height: 12),
             ElevatedButton(
               onPressed: _loadVolunteers,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kPinkBright,
+                foregroundColor: Colors.white,
+              ),
               child: const Text('Retry'),
             ),
           ],
@@ -703,9 +616,9 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
     if (_volunteers.isEmpty) {
       return Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: kCardFill.withValues(alpha: 0.6),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.grey.shade200),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
         ),
         child: Column(
           children: [
@@ -716,15 +629,16 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.people_outline,
-                      size: 40, color: Colors.grey.shade400),
+                      size: 40, color: Colors.white.withValues(alpha: 0.3)),
                   const SizedBox(height: 12),
                   const Text('No volunteers found',
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white)),
                   const SizedBox(height: 4),
-                  Text('Volunteer registrations will appear here',
-                      style:
-                          TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                  const Text('Volunteer registrations will appear here',
+                      style: TextStyle(fontSize: 12, color: Colors.white60)),
                 ],
               ),
             ),
@@ -816,9 +730,9 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
     if (filteredVolunteers.isEmpty) {
       return Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: kCardFill.withValues(alpha: 0.6),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.grey.shade200),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
         ),
         child: Column(
           children: [
@@ -828,15 +742,17 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.search_off, size: 40, color: Colors.grey.shade400),
+                  Icon(Icons.search_off,
+                      size: 40, color: Colors.white.withValues(alpha: 0.3)),
                   const SizedBox(height: 12),
                   const Text('No matching volunteers',
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white)),
                   const SizedBox(height: 4),
-                  Text('Try adjusting your search or filters',
-                      style:
-                          TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                  const Text('Try adjusting your search or filters',
+                      style: TextStyle(fontSize: 12, color: Colors.white60)),
                 ],
               ),
             ),
@@ -847,9 +763,9 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: kCardFill.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Column(
         children: [
@@ -860,7 +776,7 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
             final isEven = index % 2 == 0;
 
             return Container(
-              color: isEven ? Colors.white : Colors.grey.shade50,
+              color: isEven ? Colors.transparent : Colors.white.withValues(alpha: 0.03),
               child: InkWell(
                 onTap: () =>
                     _showVolunteerDetails(context, data['docId'], data),
@@ -877,12 +793,14 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                             Text(
                               data['name'] ?? 'Unknown',
                               style: const TextStyle(
-                                  fontWeight: FontWeight.w500, fontSize: 12),
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 12,
+                                  color: Colors.white),
                             ),
                             Text(
                               data['language'] ?? '',
-                              style: TextStyle(
-                                  fontSize: 9, color: Colors.grey.shade500),
+                              style: const TextStyle(
+                                  fontSize: 9, color: Colors.white38),
                             ),
                           ],
                         ),
@@ -894,13 +812,13 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                           children: [
                             Text(
                               data['email'] ?? 'N/A',
-                              style: const TextStyle(fontSize: 11),
+                              style: const TextStyle(fontSize: 11, color: Colors.white70),
                               overflow: TextOverflow.ellipsis,
                             ),
                             Text(
                               data['phoneNumber'] ?? 'N/A',
-                              style: TextStyle(
-                                  fontSize: 10, color: Colors.grey.shade600),
+                              style: const TextStyle(
+                                  fontSize: 10, color: Colors.white38),
                             ),
                           ],
                         ),
@@ -909,7 +827,7 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                         flex: 2,
                         child: Text(
                           data['locationAddress'] ?? 'N/A',
-                          style: const TextStyle(fontSize: 11),
+                          style: const TextStyle(fontSize: 11, color: Colors.white70),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -930,7 +848,7 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                         flex: 1,
                         child: Text(
                           _formatDate(data['submittedAt']),
-                          style: const TextStyle(fontSize: 10),
+                          style: const TextStyle(fontSize: 10, color: Colors.white70),
                         ),
                       ),
                     ],
@@ -948,11 +866,9 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.grey.shade50, Colors.grey.shade100],
-        ),
+        color: Colors.white.withValues(alpha: 0.03),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.08))),
       ),
       child: Row(
         children: [
@@ -979,7 +895,7 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                             ? Icons.arrow_upward
                             : Icons.arrow_downward,
                         size: 12,
-                        color: Colors.grey.shade600),
+                        color: Colors.white60),
                   ],
                 ],
               ),
@@ -1012,7 +928,7 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                             ? Icons.arrow_upward
                             : Icons.arrow_downward,
                         size: 12,
-                        color: Colors.grey.shade600),
+                        color: Colors.white60),
                   ],
                 ],
               ),
@@ -1041,7 +957,7 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                             ? Icons.arrow_upward
                             : Icons.arrow_downward,
                         size: 12,
-                        color: Colors.grey.shade600),
+                        color: Colors.white60),
                   ],
                 ],
               ),
@@ -1056,51 +972,47 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
     return Text(
       text,
       style: const TextStyle(
-          fontWeight: FontWeight.w600, fontSize: 10, color: Colors.grey),
+          fontWeight: FontWeight.w600, fontSize: 10, color: Colors.white60),
     );
   }
 
   Widget _statusBadge(String status) {
-    Color backgroundColor;
-    Color textColor;
+    Color color;
     String displayText;
 
     switch (status.toLowerCase()) {
       case 'approved':
-        backgroundColor = Colors.green.shade50;
-        textColor = Colors.green.shade700;
+        color = kTealAccent;
         displayText = 'Approved';
         break;
       case 'rejected':
-        backgroundColor = Colors.red.shade50;
-        textColor = Colors.red.shade700;
+        color = kRedAccent;
         displayText = 'Rejected';
         break;
       default:
-        backgroundColor = Colors.orange.shade50;
-        textColor = Colors.orange.shade700;
+        color = kAmberAccent;
         displayText = 'Pending';
     }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
       decoration: BoxDecoration(
-        color: backgroundColor,
+        color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(3),
       ),
       child: Text(
         displayText,
         textAlign: TextAlign.center,
         style: TextStyle(
-            color: textColor, fontSize: 8, fontWeight: FontWeight.w500),
+            color: color, fontSize: 8, fontWeight: FontWeight.w500),
       ),
     );
   }
 
   Widget _ratingDisplay(double averageRating, int totalRatings) {
     if (totalRatings == 0) {
-      return Text('No ratings',
-          style: TextStyle(fontSize: 8, color: Colors.grey.shade400));
+      return const Text('No ratings',
+          style: TextStyle(fontSize: 8, color: Colors.white38));
     }
 
     return Column(
@@ -1109,15 +1021,15 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.star, color: Colors.amber, size: 10),
+            const Icon(Icons.star, color: kAmberAccent, size: 10),
             const SizedBox(width: 1),
             Text(averageRating.toStringAsFixed(1),
-                style:
-                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 9)),
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold, fontSize: 9, color: Colors.white)),
           ],
         ),
         Text('($totalRatings)',
-            style: TextStyle(fontSize: 7, color: Colors.grey.shade500)),
+            style: const TextStyle(fontSize: 7, color: Colors.white38)),
       ],
     );
   }
@@ -1151,11 +1063,14 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Row(
+        backgroundColor: kNavyMid,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
           children: [
-            const Icon(Icons.person, size: 22),
-            const SizedBox(width: 8),
-            const Text('Volunteer Details', style: TextStyle(fontSize: 16)),
+            Icon(Icons.person, size: 22, color: kPinkBright),
+            SizedBox(width: 8),
+            Text('Volunteer Details',
+                style: TextStyle(fontSize: 16, color: Colors.white)),
           ],
         ),
         content: Container(
@@ -1195,14 +1110,14 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                         children: List.generate(5, (index) {
                           if (index < avgRating.floor()) {
                             return const Icon(Icons.star,
-                                color: Colors.amber, size: 16);
+                                color: kAmberAccent, size: 16);
                           } else if (index < avgRating &&
                               avgRating - index >= 0.5) {
                             return const Icon(Icons.star_half,
-                                color: Colors.amber, size: 16);
+                                color: kAmberAccent, size: 16);
                           } else {
                             return const Icon(Icons.star_border,
-                                color: Colors.amber, size: 16);
+                                color: kAmberAccent, size: 16);
                           }
                         }),
                       ),
@@ -1215,6 +1130,7 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
+            style: TextButton.styleFrom(foregroundColor: kBlueAccent),
             child: const Text('Close'),
           ),
         ],
@@ -1225,9 +1141,9 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
   Widget _buildDetailCard(String title, List<Widget> children) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: Colors.white.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1235,14 +1151,14 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: Colors.grey.shade100,
+              color: Colors.white.withValues(alpha: 0.04),
               borderRadius:
                   const BorderRadius.vertical(top: Radius.circular(4)),
-              border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+              border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.08))),
             ),
             child: Text(title,
-                style:
-                    const TextStyle(fontWeight: FontWeight.w600, fontSize: 11)),
+                style: const TextStyle(
+                    fontWeight: FontWeight.w600, fontSize: 11, color: Colors.white)),
           ),
           Padding(
             padding: const EdgeInsets.all(6),
@@ -1268,11 +1184,11 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                 style: const TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 11,
-                    color: Colors.black87)),
+                    color: Colors.white)),
           ),
           Expanded(
             child: Text(value,
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                style: const TextStyle(fontSize: 11, color: Colors.white70)),
           ),
         ],
       ),
