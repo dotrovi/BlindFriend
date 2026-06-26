@@ -278,15 +278,18 @@ class _AdminOverviewPageState extends State<AdminOverviewPage> {
       child: RefreshIndicator(
         onRefresh: _loadDashboardData,
         color: kPinkBright,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeader(),
-              const SizedBox(height: 24),
-              _buildStatCardsRow(),
-              const SizedBox(height: 20),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth > 800;
+            return SingleChildScrollView(
+              padding: EdgeInsets.all(isWide ? 24 : 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(isWide),
+                  const SizedBox(height: 20),
+                  _buildStatCardsRow(),
+                  const SizedBox(height: 20),
               LayoutBuilder(
                 builder: (context, constraints) {
                   final isWide = constraints.maxWidth > 800;
@@ -321,8 +324,10 @@ class _AdminOverviewPageState extends State<AdminOverviewPage> {
               ),
               const SizedBox(height: 20),
               _buildQuickActions(),
-            ],
-          ),
+                ],
+              ),
+            );
+          },
         ),
       ),
     );
@@ -332,7 +337,7 @@ class _AdminOverviewPageState extends State<AdminOverviewPage> {
   // HEADER
   // ---------------------------------------------------------------------------
 
-  Widget _buildHeader() {
+  Widget _buildHeader(bool isWide) {
     final hour = DateTime.now().hour;
     final greeting = hour < 12
         ? 'Good morning'
@@ -348,13 +353,19 @@ class _AdminOverviewPageState extends State<AdminOverviewPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('$greeting,',
-                  style: const TextStyle(fontSize: 16, color: Colors.white60)),
+                  style: const TextStyle(fontSize: 14, color: Colors.white60)),
               Text(_adminName,
-                  style: const TextStyle(
-                      fontSize: 30, fontWeight: FontWeight.bold, color: Colors.white)),
+                  style: TextStyle(
+                      fontSize: isWide ? 30 : 22,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis),
               const SizedBox(height: 2),
               const Text('Welcome back to BlindFriend Admin Portal',
-                  style: TextStyle(fontSize: 13, color: Colors.white38)),
+                  style: TextStyle(fontSize: 12, color: Colors.white38),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis),
             ],
           ),
         ),
@@ -392,23 +403,25 @@ class _AdminOverviewPageState extends State<AdminOverviewPage> {
             ],
           ),
         ),
-        const SizedBox(width: 16),
-        Container(
-          width: 44,
-          height: 44,
-          decoration: const BoxDecoration(shape: BoxShape.circle, gradient: kAccentGradient),
-          child: const Icon(Icons.person, color: Colors.white),
-        ),
-        const SizedBox(width: 10),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(_adminName,
-                style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-            const Text('Admin', style: TextStyle(color: Colors.white38, fontSize: 12)),
-          ],
-        ),
+        if (isWide) ...[
+          const SizedBox(width: 16),
+          Container(
+            width: 44,
+            height: 44,
+            decoration: const BoxDecoration(shape: BoxShape.circle, gradient: kAccentGradient),
+            child: const Icon(Icons.person, color: Colors.white),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(_adminName,
+                  style: const TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+              const Text('Admin', style: TextStyle(color: Colors.white38, fontSize: 12)),
+            ],
+          ),
+        ],
       ],
     );
   }
@@ -532,10 +545,14 @@ class _AdminOverviewPageState extends State<AdminOverviewPage> {
             children: [
               const Icon(Icons.location_on, color: kPurpleAccent, size: 20),
               const SizedBox(width: 8),
-              const Text('Live Location',
-                  style: TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)),
-              const Spacer(),
+              const Expanded(
+                child: Text('Live Location',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)),
+              ),
+              const SizedBox(width: 8),
               if (hasLocation)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -681,10 +698,14 @@ class _AdminOverviewPageState extends State<AdminOverviewPage> {
             children: [
               const Icon(Icons.show_chart, color: kBlueAccent, size: 20),
               const SizedBox(width: 8),
-              const Text('Request Activity',
-                  style: TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)),
-              const Spacer(),
+              const Expanded(
+                child: Text('Request Activity',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)),
+              ),
+              const SizedBox(width: 8),
               const Text('This Week',
                   style: TextStyle(fontSize: 12, color: Colors.white60)),
             ],
@@ -704,10 +725,14 @@ class _AdminOverviewPageState extends State<AdminOverviewPage> {
           ),
           const SizedBox(height: 6),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: _dayLabels
-                .map((l) => Text(l,
-                    style: const TextStyle(fontSize: 10, color: Colors.white38)))
+                .map((l) => Expanded(
+                      child: Text(l,
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 10, color: Colors.white38)),
+                    ))
                 .toList(),
           ),
         ],
@@ -735,9 +760,13 @@ class _AdminOverviewPageState extends State<AdminOverviewPage> {
             children: [
               Icon(Icons.star, color: kAmberAccent, size: 20),
               SizedBox(width: 8),
-              Text('Volunteer Rating Overview',
-                  style: TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)),
+              Expanded(
+                child: Text('Volunteer Rating Overview',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)),
+              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -844,9 +873,13 @@ class _AdminOverviewPageState extends State<AdminOverviewPage> {
             children: [
               Icon(Icons.pie_chart, color: kPurpleAccent, size: 20),
               SizedBox(width: 8),
-              Text('Volunteer Status',
-                  style: TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)),
+              Expanded(
+                child: Text('Volunteer Status',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)),
+              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -901,6 +934,8 @@ class _AdminOverviewPageState extends State<AdminOverviewPage> {
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(s.label,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                     color: Colors.white70, fontSize: 12)),
                           ),
@@ -933,10 +968,14 @@ class _AdminOverviewPageState extends State<AdminOverviewPage> {
             children: [
               const Icon(Icons.emoji_events, color: kAmberAccent, size: 20),
               const SizedBox(width: 8),
-              const Text('Top Performing Volunteers',
-                  style: TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)),
-              const Spacer(),
+              const Expanded(
+                child: Text('Top Performing Volunteers',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)),
+              ),
+              const SizedBox(width: 8),
               GestureDetector(
                 onTap: () => widget.onNavigate('volunteers'),
                 child: const Text('View All',
@@ -1028,9 +1067,13 @@ class _AdminOverviewPageState extends State<AdminOverviewPage> {
             children: [
               Icon(Icons.bolt, color: kPinkBright, size: 18),
               SizedBox(width: 8),
-              Text('Quick Actions',
-                  style: TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)),
+              Expanded(
+                child: Text('Quick Actions',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)),
+              ),
             ],
           ),
           const SizedBox(height: 14),

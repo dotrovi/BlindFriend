@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'theme/app_palette.dart';
 
+const double _kWideBreakpoint = 700;
+
 class AdminVolunteersPage extends StatefulWidget {
   const AdminVolunteersPage({super.key});
 
@@ -174,30 +176,35 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
   Widget build(BuildContext context) {
     return Container(
       color: kNavyDeep,
-      child: Column(
-        children: [
-          _buildHeader(),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildSearchBar(),
-                  const SizedBox(height: 12),
-                  _buildFilters(),
-                  const SizedBox(height: 12),
-                  _buildTable(),
-                ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth >= _kWideBreakpoint;
+          return Column(
+            children: [
+              _buildHeader(isWide),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.all(isWide ? 12 : 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSearchBar(),
+                      const SizedBox(height: 12),
+                      _buildFilters(),
+                      const SizedBox(height: 12),
+                      _buildTable(isWide),
+                    ],
+                  ),
+                ),
               ),
-            ),
-          ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(bool isWide) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: const BoxDecoration(
@@ -223,17 +230,21 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Volunteers Management',
                   style: TextStyle(
-                      fontSize: 18,
+                      fontSize: isWide ? 18 : 15,
                       fontWeight: FontWeight.w700,
                       color: Colors.white),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 Text(
                   'View and manage volunteer applications',
                   style: TextStyle(
                       fontSize: 12, color: Colors.white.withValues(alpha: 0.8)),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -575,7 +586,7 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
     );
   }
 
-  Widget _buildTable() {
+  Widget _buildTable(bool isWide) {
     if (_isLoading) {
       return const Center(
         child: Column(
@@ -622,7 +633,7 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
         ),
         child: Column(
           children: [
-            _buildTableHeader(),
+            if (isWide) _buildTableHeader(),
             Padding(
               padding: const EdgeInsets.all(32),
               child: Column(
@@ -736,7 +747,7 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
         ),
         child: Column(
           children: [
-            _buildTableHeader(),
+            if (isWide) _buildTableHeader(),
             Padding(
               padding: const EdgeInsets.all(32),
               child: Column(
@@ -758,6 +769,14 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
             ),
           ],
         ),
+      );
+    }
+
+    if (!isWide) {
+      return Column(
+        children: filteredVolunteers
+            .map((data) => _buildMobileCard(data))
+            .toList(),
       );
     }
 
@@ -858,6 +877,114 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
             );
           }),
         ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // MOBILE CARD (narrow screens)
+  // ---------------------------------------------------------------------------
+
+  Widget _buildMobileCard(Map<String, dynamic> data) {
+    final name = data['name'] ?? 'Unknown';
+    final email = data['email'] ?? 'N/A';
+    final phone = data['phoneNumber'] ?? 'N/A';
+    final address = data['locationAddress'] ?? 'N/A';
+    final status = data['status'] ?? 'pending';
+    final avgRating = (data['averageRating'] ?? 0.0).toDouble();
+    final totalRatings = data['totalRatings'] ?? 0;
+
+    return GestureDetector(
+      onTap: () => _showVolunteerDetails(context, data['docId'], data),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: kCardFill.withValues(alpha: 0.6),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    name,
+                    style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                _statusBadge(status),
+              ],
+            ),
+            const SizedBox(height: 6),
+            if (email != 'N/A')
+              Row(children: [
+                const Icon(Icons.email_outlined,
+                    size: 13, color: Colors.white38),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(email,
+                      style: const TextStyle(
+                          fontSize: 12, color: Colors.white70),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+                ),
+              ]),
+            if (phone != 'N/A') ...[
+              const SizedBox(height: 2),
+              Row(children: [
+                const Icon(Icons.phone_outlined,
+                    size: 13, color: Colors.white38),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(phone,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 12, color: Colors.white70)),
+                ),
+              ]),
+            ],
+            if (address != 'N/A') ...[
+              const SizedBox(height: 2),
+              Row(children: [
+                const Icon(Icons.location_on_outlined,
+                    size: 13, color: Colors.white38),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(address,
+                      style: const TextStyle(
+                          fontSize: 12, color: Colors.white70),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+                ),
+              ]),
+            ],
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                _ratingDisplay(avgRating, totalRatings),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Submitted ${_formatDate(data['submittedAt'])}',
+                    textAlign: TextAlign.right,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11, color: Colors.white38),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

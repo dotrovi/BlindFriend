@@ -155,38 +155,45 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
     // No Scaffold or AppBar here — this widget sits inside AdminDashboardPage
     return Container(
       color: kNavyDeep,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Page header ──
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(32, 32, 32, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Reports',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth > 700;
+          final horizontalPadding = isWide ? 32.0 : 16.0;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Page header ──
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.fromLTRB(
+                    horizontalPadding, isWide ? 32 : 20, horizontalPadding, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Reports',
+                      style: TextStyle(
+                        fontSize: isWide ? 28 : 22,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Reports submitted by blind users against volunteers',
+                      style: TextStyle(fontSize: 14, color: Colors.white60),
+                    ),
+                    const SizedBox(height: 16),
+                    // ── Filter bar ──
+                    _buildFilterBar(),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Reports submitted by blind users against volunteers',
-                  style: TextStyle(fontSize: 15, color: Colors.white60),
-                ),
-                const SizedBox(height: 20),
-                // ── Filter bar ──
-                _buildFilterBar(),
-              ],
-            ),
-          ),
-          // ── Reports list ──
-          Expanded(child: _buildReportsList()),
-        ],
+              ),
+              // ── Reports list ──
+              Expanded(child: _buildReportsList(horizontalPadding)),
+            ],
+          );
+        },
       ),
     );
   }
@@ -231,7 +238,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
     );
   }
 
-  Widget _buildReportsList() {
+  Widget _buildReportsList(double horizontalPadding) {
     // Build the Firestore query based on the selected filter
     Query<Map<String, dynamic>> query = FirebaseFirestore.instance
         .collection('reports')
@@ -285,7 +292,8 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
         }
 
         return ListView.builder(
-          padding: const EdgeInsets.fromLTRB(32, 8, 32, 32),
+          padding: EdgeInsets.fromLTRB(
+              horizontalPadding, 8, horizontalPadding, horizontalPadding),
           itemCount: docs.length,
           itemBuilder: (context, index) {
             final doc = docs[index];
@@ -387,19 +395,23 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                   'Reason: ',
                   style: TextStyle(fontSize: 13, color: Colors.white60),
                 ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: _reportTypeColor(reportType).withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    _formatReportType(reportType),
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: _reportTypeColor(reportType),
+                Flexible(
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: _reportTypeColor(reportType).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      _formatReportType(reportType),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: _reportTypeColor(reportType),
+                      ),
                     ),
                   ),
                 ),
@@ -413,9 +425,13 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
               children: [
                 const Icon(Icons.help_outline, size: 16, color: Colors.white38),
                 const SizedBox(width: 6),
-                Text(
-                  'Request type: $requestType',
-                  style: const TextStyle(fontSize: 13, color: Colors.white70),
+                Expanded(
+                  child: Text(
+                    'Request type: $requestType',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13, color: Colors.white70),
+                  ),
                 ),
               ],
             ),
