@@ -135,8 +135,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
           }
         }
       },
-      listenFor: const Duration(seconds: 10),
-      pauseFor: const Duration(seconds: 3),
+      listenFor: const Duration(seconds: 30),
+      pauseFor: const Duration(seconds: 10),
       localeId: 'en_US',
     );
   }
@@ -274,7 +274,16 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    Text(name, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        name,
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -401,8 +410,14 @@ class _InfoRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: const TextStyle(color: Colors.white60, fontSize: 12)),
-                Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Colors.white), softWrap: true),
+                Text(label,
+                    style: const TextStyle(color: Colors.white60, fontSize: 12),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis),
+                Text(value,
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Colors.white),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis),
               ],
             ),
           ),

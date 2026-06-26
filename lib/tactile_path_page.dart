@@ -37,8 +37,9 @@ import 'theme/app_palette.dart';
 
 class TactilePathPage extends StatefulWidget {
   final VoidCallback? onBackToHome;
+  final bool isActive;
 
-  const TactilePathPage({super.key, this.onBackToHome});
+  const TactilePathPage({super.key, this.onBackToHome, this.isActive = true});
 
   @override
   State<TactilePathPage> createState() => _TactilePathPageState();
@@ -214,6 +215,19 @@ class _TactilePathPageState extends State<TactilePathPage>
     _stt.stop();
     _tts.stop();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant TactilePathPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // This page lives inside an IndexedStack, so switching tabs doesn't
+    // dispose it — without this, detection and TTS keep running and bleed
+    // into whichever tab the user switches to.
+    if (oldWidget.isActive && !widget.isActive) {
+      if (_isDetecting) _stopDetection(speak: false);
+      _stt.stop();
+      _tts.stop();
+    }
   }
 
   @override

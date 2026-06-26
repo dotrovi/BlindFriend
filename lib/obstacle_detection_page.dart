@@ -15,8 +15,13 @@ import 'theme/app_palette.dart';
 
 class ObstacleDetectionPage extends StatefulWidget {
   final VoidCallback? onBackToHome;
+  final bool isActive;
 
-  const ObstacleDetectionPage({super.key, this.onBackToHome});
+  const ObstacleDetectionPage({
+    super.key,
+    this.onBackToHome,
+    this.isActive = true,
+  });
 
   @override
   State<ObstacleDetectionPage> createState() => _ObstacleDetectionPageState();
@@ -149,6 +154,19 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
     _stt.stop();
     _tts.stop();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant ObstacleDetectionPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // This page lives inside an IndexedStack, so switching tabs doesn't
+    // dispose it — without this, detection and TTS keep running and bleed
+    // into whichever tab the user switches to.
+    if (oldWidget.isActive && !widget.isActive) {
+      if (_isDetecting) _stopDetection(speak: false);
+      _stt.stop();
+      _tts.stop();
+    }
   }
 
   @override

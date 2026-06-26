@@ -67,6 +67,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
 
   void _navigateToNotifications() async {
     _shouldListen = false;
+    await _stt.stop();
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const BlindNotificationsPage()),
@@ -207,7 +208,8 @@ class _BlindHomePageState extends State<BlindHomePage> {
       _setSelectedIndex(0);
     } else if (command.contains('profile')) {
       _shouldListen = false;
-      _speak('Opening your profile.');
+      await _speak('Opening your profile.');
+      await _stt.stop();
       if (!mounted) return;
       await Navigator.push(
         context,
@@ -304,6 +306,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
 
   void _navigateToSendHelpRequest() async {
     _shouldListen = false;
+    await _stt.stop();
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const BlindSendHelpRequestScreen()),
@@ -316,6 +319,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
 
   void _navigateToTrackRequests() async {
     _shouldListen = false;
+    await _stt.stop();
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const BlindTrackRequestsScreen()),
@@ -329,6 +333,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
   Future<void> _navigateToAccessibilitySettings() async {
     if (!mounted) return;
     _shouldListen = false;
+    await _stt.stop();
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const AccessibilitySettingsPage()),
@@ -989,17 +994,26 @@ class _BlindHomePageState extends State<BlindHomePage> {
 
   // ===================== SHOPPING HELPER PAGE =====================
   Widget _buildShoppingHelper() {
-    return ShoppingHelperPage(onBackToHome: () => _setSelectedIndex(0));
+    return ShoppingHelperPage(
+      onBackToHome: () => _setSelectedIndex(0),
+      isActive: _selectedIndex == 1,
+    );
   }
 
   // ===================== OBSTACLE DETECTION PAGE =====================
   Widget _buildObstacleDetection() {
-    return ObstacleDetectionPage(onBackToHome: () => _setSelectedIndex(0));
+    return ObstacleDetectionPage(
+      onBackToHome: () => _setSelectedIndex(0),
+      isActive: _selectedIndex == 2,
+    );
   }
 
   // ===================== PATH DETECTION PAGE =====================
   Widget _buildPathDetection() {
-    return TactilePathPage(onBackToHome: () => _setSelectedIndex(0));
+    return TactilePathPage(
+      onBackToHome: () => _setSelectedIndex(0),
+      isActive: _selectedIndex == 3,
+    );
   }
 
   // ===================== FIND VOLUNTEERS PAGE (UPDATED) =====================

@@ -8,8 +8,13 @@ import 'theme/app_palette.dart';
 
 class ShoppingHelperPage extends StatefulWidget {
   final VoidCallback? onBackToHome;
+  final bool isActive;
 
-  const ShoppingHelperPage({super.key, this.onBackToHome});
+  const ShoppingHelperPage({
+    super.key,
+    this.onBackToHome,
+    this.isActive = true,
+  });
 
   @override
   State<ShoppingHelperPage> createState() => _ShoppingHelperPageState();
@@ -141,6 +146,17 @@ class _ShoppingHelperPageState extends State<ShoppingHelperPage> {
     _stt.stop();
     _tts.stop();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant ShoppingHelperPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // This page lives inside an IndexedStack, so switching tabs doesn't
+    // dispose it — stop any in-flight voice activity when it's hidden.
+    if (oldWidget.isActive && !widget.isActive) {
+      _stt.stop();
+      _tts.stop();
+    }
   }
 
   @override

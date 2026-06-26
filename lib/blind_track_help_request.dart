@@ -1248,168 +1248,176 @@ class _BlindTrackRequestsScreenState extends State<BlindTrackRequestsScreen> {
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
       ),
-      child: InkWell(
-        onTap: () async {
-          await _speakRequestDetailsOnTap(request, number, thenListen: false);
-          _showRequestDetails(request);
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            onTap: () async {
+              await _speakRequestDetailsOnTap(request, number,
+                  thenListen: false);
+              _showRequestDetails(request);
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(statusIcon, color: statusColor, size: 20),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(statusIcon, color: statusColor, size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              '#$number ${request.requestType.toUpperCase()}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                                color: Colors.white,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: statusColor.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                request.status.toUpperCase(),
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  color: statusColor,
+                            Row(
+                              children: [
+                                Text(
+                                  '#$number ${request.requestType.toUpperCase()}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    color: Colors.white,
+                                  ),
                                 ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: statusColor.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    request.status.toUpperCase(),
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: statusColor,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Text(
+                              _formatDate(request.createdAt),
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.white54,
                               ),
                             ),
                           ],
                         ),
-                        Text(
-                          _formatDate(request.createdAt),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    request.description,
+                    style: const TextStyle(fontSize: 13, color: Colors.white70),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Icon(Icons.location_on,
+                          size: 12, color: Colors.white54),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          request.location,
                           style: const TextStyle(
-                            fontSize: 11,
-                            color: Colors.white54,
+                              fontSize: 11, color: Colors.white54),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (request.hasVolunteer)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Row(
+                        children: [
+                          Icon(Icons.person,
+                              size: 12, color: Colors.greenAccent.shade400),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Volunteer: ${(request.volunteerName != null && request.volunteerName!.isNotEmpty) ? request.volunteerName : 'Assigned'}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.greenAccent.shade400,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (request.reported)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 6),
+                      child: Row(
+                        children: [
+                          Icon(Icons.flag, size: 12, color: kRedAccent),
+                          SizedBox(width: 4),
+                          Text(
+                            'Reported',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: kRedAccent,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          // Outside the InkWell so it doesn't compete with the card's own
+          // tap-to-view-details gesture.
+          if (request.status == 'completed' && request.rating == null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    if (request.id != null && request.hasVolunteer) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => BlindRateVolunteerPage(
+                            helpRequestId: request.id!,
+                            volunteerId: request.volunteerId!,
+                            volunteerName: (request.volunteerName != null &&
+                                    request.volunteerName!.isNotEmpty)
+                                ? request.volunteerName!
+                                : 'your volunteer',
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                request.description,
-                style: const TextStyle(fontSize: 13, color: Colors.white70),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  const Icon(Icons.location_on,
-                      size: 12, color: Colors.white54),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      request.location,
-                      style:
-                          const TextStyle(fontSize: 11, color: Colors.white54),
-                    ),
-                  ),
-                ],
-              ),
-              if (request.hasVolunteer)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Row(
-                    children: [
-                      Icon(Icons.person,
-                          size: 12, color: Colors.greenAccent.shade400),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Volunteer: ${(request.volunteerName != null && request.volunteerName!.isNotEmpty) ? request.volunteerName : 'Assigned'}',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.greenAccent.shade400,
-                        ),
-                      ),
-                    ],
+                      ).then((_) => _refreshRequests());
+                    }
+                  },
+                  icon: const Icon(Icons.star_outline),
+                  label: const Text('Rate Your Volunteer'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: kAmberAccent,
+                    foregroundColor: Colors.black,
                   ),
                 ),
-              if (request.reported)
-                const Padding(
-                  padding: EdgeInsets.only(top: 6),
-                  child: Row(
-                    children: [
-                      Icon(Icons.flag, size: 12, color: kRedAccent),
-                      SizedBox(width: 4),
-                      Text(
-                        'Reported',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: kRedAccent,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              if (request.status == 'completed' && request.rating == null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12.0),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        if (request.id != null && request.hasVolunteer) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => BlindRateVolunteerPage(
-                                helpRequestId: request.id!,
-                                volunteerId: request.volunteerId!,
-                                volunteerName: (request.volunteerName != null &&
-                                        request.volunteerName!.isNotEmpty)
-                                    ? request.volunteerName!
-                                    : 'your volunteer',
-                              ),
-                            ),
-                          ).then((_) => _refreshRequests());
-                        }
-                      },
-                      icon: const Icon(Icons.star_outline),
-                      label: const Text('Rate Your Volunteer'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: kAmberAccent,
-                        foregroundColor: Colors.black,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
+              ),
+            ),
+        ],
       ),
     );
   }

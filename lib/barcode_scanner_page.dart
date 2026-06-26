@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:http/http.dart' as http;
+import 'package:permission_handler/permission_handler.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 import 'dart:convert';
 import 'services/platform_support.dart';
 import 'theme/app_palette.dart';
@@ -15,6 +17,7 @@ class BarcodeScannerPage extends StatefulWidget {
 
 class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
   final FlutterTts _tts = FlutterTts();
+  final SpeechToText _stt = SpeechToText();
   final MobileScannerController _scannerController = MobileScannerController();
 
   bool _isLoading = false;
@@ -23,14 +26,81 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
   String? _errorMessage;
   final List<ProductInfo> _recentScans = [];
 
+  bool _sttAvailable = false;
+  bool _isListening = false;
+
+  static const String _voiceInstruction =
+      'Tap the mic and say rescan, read details, ingredients, allergens, '
+      'or go back.';
+
   @override
   void initState() {
     super.initState();
     _initTts();
+    _initVoice();
     if (barcodeScanningSupported) {
-      _speak('Barcode scanner opened. Point your camera at a product barcode.');
+      _speak(
+        'Barcode scanner opened. Point your camera at a product barcode. '
+        '$_voiceInstruction',
+      );
     } else {
       _speak('Barcode scanning is not available on this device.');
+    }
+  }
+
+  Future<void> _initVoice() async {
+    final micStatus = await Permission.microphone.request();
+    if (!mounted) return;
+
+    if (micStatus.isGranted) {
+      _sttAvailable = await _stt.initialize(
+        onStatus: (status) {
+          if (!mounted) return;
+          if (status == 'listening') {
+            setState(() => _isListening = true);
+          } else if (status == 'done' || status == 'notListening') {
+            setState(() => _isListening = false);
+          }
+        },
+        onError: (error) {
+          debugPrint('STT error: ${error.errorMsg}');
+          if (mounted) setState(() => _isListening = false);
+        },
+      );
+    }
+  }
+
+  Future<void> _pressMic() async {
+    if (!_sttAvailable || _isListening) return;
+    setState(() => _isListening = true);
+    await _stt.listen(
+      onResult: (result) {
+        if (!mounted || !result.finalResult) return;
+        _handleVoiceCommand(result.recognizedWords.toLowerCase());
+      },
+      listenFor: const Duration(seconds: 30),
+      pauseFor: const Duration(seconds: 10),
+      localeId: 'en_US',
+    );
+  }
+
+  void _handleVoiceCommand(String command) {
+    if ((command.contains('back') || command.contains('close')) ||
+        command.contains('exit')) {
+      _speak('Closing scanner.');
+      Navigator.pop(context);
+    } else if (command.contains('rescan') ||
+        command.contains('scan again') ||
+        command.contains('try again')) {
+      _rescan();
+    } else if (command.contains('ingredient')) {
+      _readIngredients();
+    } else if (command.contains('allerg')) {
+      _readAllergens();
+    } else if (command.contains('detail')) {
+      _readProductDetails();
+    } else {
+      _speak('I did not catch that. $_voiceInstruction');
     }
   }
 
@@ -191,6 +261,7 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
   @override
   void dispose() {
     _scannerController.dispose();
+    _stt.stop();
     _tts.stop();
     super.dispose();
   }
@@ -264,6 +335,14 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
         ),
         centerTitle: true,
         actions: [
+          IconButton(
+            icon: Icon(
+              _isListening ? Icons.mic : Icons.mic_none,
+              color: _isListening ? Colors.greenAccent : Colors.white,
+            ),
+            tooltip: 'Voice command',
+            onPressed: _pressMic,
+          ),
           IconButton(
             icon: const Icon(Icons.flash_on, color: Colors.white),
             onPressed: () => _scannerController.toggleTorch(),

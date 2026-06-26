@@ -607,7 +607,7 @@ class _BlindSendHelpRequestScreenState
                   crossAxisCount: 2,
                   mainAxisSpacing: 12,
                   crossAxisSpacing: 12,
-                  childAspectRatio: 2.5,
+                  childAspectRatio: 2.0,
                   children: _requestTypes.entries.map((entry) {
                     return _buildRequestTypeCard(entry.key, entry.value,
                         _selectedRequestType == entry.key);
@@ -839,18 +839,27 @@ class _BlindSendHelpRequestScreenState
               ? null
               : Border.all(color: Colors.white.withValues(alpha: 0.15)),
         ),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(icon,
                 color: isSelected ? Colors.white : Colors.white60,
-                size: 20),
-            const SizedBox(width: 8),
-            Text(type.toUpperCase(),
+                size: 18),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                type.toUpperCase(),
                 style: TextStyle(
+                    fontSize: 12,
                     color: isSelected ? Colors.white : Colors.white70,
                     fontWeight:
-                        isSelected ? FontWeight.w600 : FontWeight.normal)),
+                        isSelected ? FontWeight.w600 : FontWeight.normal),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+              ),
+            ),
           ],
         ),
       ),
