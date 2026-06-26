@@ -281,17 +281,19 @@ class _BlindRateVolunteerPageState extends State<BlindRateVolunteerPage> {
 
             // Star Rating
             Row(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(5, (index) {
-                return IconButton(
-                  icon: Icon(
-                    index < _rating ? Icons.star : Icons.star_border,
-                    color: kAmberAccent,
-                    size: 48,
+                return Expanded(
+                  child: IconButton(
+                    padding: EdgeInsets.zero,
+                    icon: Icon(
+                      index < _rating ? Icons.star : Icons.star_border,
+                      color: kAmberAccent,
+                      size: 40,
+                    ),
+                    onPressed: () {
+                      setState(() => _rating = index + 1);
+                    },
                   ),
-                  onPressed: () {
-                    setState(() => _rating = index + 1);
-                  },
                 );
               }),
             ),
