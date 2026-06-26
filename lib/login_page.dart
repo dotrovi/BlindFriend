@@ -847,10 +847,15 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                       const SizedBox(height: 16),
                       TextButton(
-                        onPressed: () => Navigator.pushNamed(context, '/admin'),
-                        child: const Text('Admin Portal', style: TextStyle(color: Colors.white38, fontSize: 12)),
+                      onPressed: () {
+                        Navigator.pushReplacementNamed(context, '/admin');
+                      },
+                      child: const Text(
+                        'Admin Portal', 
+                        style: TextStyle(color: Colors.white38, fontSize: 12),
                       ),
-                      const SizedBox(height: 70),
+                    ),
+                    const SizedBox(height: 70),
                     ],
                   ),
                 ),

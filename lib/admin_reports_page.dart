@@ -152,7 +152,6 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
 
   @override
   Widget build(BuildContext context) {
-    // No Scaffold or AppBar here — this widget sits inside AdminDashboardPage
     return Container(
       color: kNavyDeep,
       child: LayoutBuilder(
@@ -181,7 +180,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                     const SizedBox(height: 4),
                     const Text(
                       'Reports submitted by blind users against volunteers',
-                      style: TextStyle(fontSize: 14, color: Colors.white60),
+                      style: TextStyle(fontSize: 13, color: Colors.white60),
                     ),
                     const SizedBox(height: 16),
                     // ── Filter bar ──
@@ -203,6 +202,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
       child: Row(
         children: filters.map((filter) {
           final isSelected = _selectedFilter == filter;
@@ -239,7 +239,6 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
   }
 
   Widget _buildReportsList(double horizontalPadding) {
-    // Build the Firestore query based on the selected filter
     Query<Map<String, dynamic>> query = FirebaseFirestore.instance
         .collection('reports')
         .orderBy('createdAt', descending: true);
@@ -251,14 +250,12 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
     return StreamBuilder<QuerySnapshot>(
       stream: query.snapshots(),
       builder: (context, snapshot) {
-        // Still loading
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
             child: CircularProgressIndicator(color: kPinkBright),
           );
         }
 
-        // Error from Firestore
         if (snapshot.hasError) {
           return Center(
             child: Text(
@@ -271,7 +268,6 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
 
         final docs = snapshot.data?.docs ?? [];
 
-        // No reports found
         if (docs.isEmpty) {
           return Center(
             child: Column(
@@ -294,6 +290,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
         return ListView.builder(
           padding: EdgeInsets.fromLTRB(
               horizontalPadding, 8, horizontalPadding, horizontalPadding),
+          physics: const AlwaysScrollableScrollPhysics(),
           itemCount: docs.length,
           itemBuilder: (context, index) {
             final doc = docs[index];
@@ -313,7 +310,6 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
     final status = data['status'] ?? 'pending';
     final createdAt = data['createdAt'] as Timestamp?;
 
-    // Format the date nicely
     String formattedDate = 'Date unknown';
     if (createdAt != null) {
       final dt = createdAt.toDate();
@@ -321,156 +317,200 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
           '${dt.day}/${dt.month}/${dt.year}  ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
     }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      decoration: BoxDecoration(
-        color: kCardFill.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Top row: volunteer name + status badge ──
-            Row(
+    return LayoutBuilder(
+      builder: (context, cardConstraints) {
+        // If the single card space drops below 340px, stack badge under name cleanly
+        final isCompactCard = cardConstraints.maxWidth < 340;
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 14),
+          decoration: BoxDecoration(
+            color: kCardFill.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.person_outline, size: 18, color: Colors.white54),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    'Volunteer: $volunteerName',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                      color: Colors.white,
-                    ),
+                // ── Top section: Volunteer Header & Status Badge ──
+                if (isCompactCard)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.person_outline, size: 18, color: Colors.white54),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              volunteerName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                                color: Colors.white,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      _buildStatusBadge(docId, status),
+                    ],
+                  )
+                else
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.person_outline, size: 18, color: Colors.white54),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'Volunteer: $volunteerName',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                            color: Colors.white,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _buildStatusBadge(docId, status),
+                    ],
                   ),
-                ),
-                // Status badge — tap to change status
-                GestureDetector(
-                  onTap: () => _showStatusPicker(docId, status),
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _statusColor(status).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: _statusColor(status)),
+
+                const SizedBox(height: 12),
+                Divider(height: 1, color: Colors.white.withValues(alpha: 0.08)),
+                const SizedBox(height: 12),
+
+                // ── Reason Badge row ──
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Icon(Icons.flag_rounded, size: 16, color: _reportTypeColor(reportType)),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          status[0].toUpperCase() + status.substring(1),
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: _statusColor(status),
+                    const SizedBox(width: 6),
+                    const Text(
+                      'Reason: ',
+                      style: TextStyle(fontSize: 13, color: Colors.white60),
+                    ),
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: _reportTypeColor(reportType).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            _formatReportType(reportType),
+                            maxLines: 2, // Wraps neatly if string is long on narrow screens
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: _reportTypeColor(reportType),
+                            ),
                           ),
                         ),
-                        const SizedBox(width: 4),
-                        Icon(Icons.expand_more,
-                            size: 14, color: _statusColor(status)),
-                      ],
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
-            ),
 
-            const SizedBox(height: 10),
-            Divider(height: 1, color: Colors.white.withValues(alpha: 0.08)),
-            const SizedBox(height: 10),
+                const SizedBox(height: 10),
 
-            // ── Report type ──
-            Row(
-              children: [
-                Icon(Icons.flag_rounded,
-                    size: 16, color: _reportTypeColor(reportType)),
-                const SizedBox(width: 6),
-                const Text(
-                  'Reason: ',
-                  style: TextStyle(fontSize: 13, color: Colors.white60),
+                // ── Request details row ──
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(top: 1),
+                      child: Icon(Icons.help_outline, size: 16, color: Colors.white38),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Request type: $requestType',
+                        maxLines: 2,
+                        style: const TextStyle(fontSize: 13, color: Colors.white70),
+                      ),
+                    ),
+                  ],
                 ),
-                Flexible(
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+
+                // ── User's description ──
+                if (description.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: _reportTypeColor(reportType).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(6),
+                      color: Colors.white.withValues(alpha: 0.03),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
                     ),
                     child: Text(
-                      _formatReportType(reportType),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: _reportTypeColor(reportType),
+                      '"$description"',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Colors.white70,
+                        fontStyle: FontStyle.italic,
+                        height: 1.3,
                       ),
                     ),
                   ),
+                ],
+
+                const SizedBox(height: 12),
+
+                // ── Date stamp ──
+                Row(
+                  children: [
+                    const Icon(Icons.access_time, size: 14, color: Colors.white38),
+                    const SizedBox(width: 4),
+                    Text(
+                      formattedDate,
+                      style: const TextStyle(fontSize: 12, color: Colors.white38),
+                    ),
+                  ],
                 ),
               ],
             ),
+          ),
+        );
+      },
+    );
+  }
 
-            const SizedBox(height: 8),
-
-            // ── Request type ──
-            Row(
-              children: [
-                const Icon(Icons.help_outline, size: 16, color: Colors.white38),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    'Request type: $requestType',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 13, color: Colors.white70),
-                  ),
-                ),
-              ],
-            ),
-
-            // ── Description (only show if not empty) ──
-            if (description.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.04),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-                ),
-                child: Text(
-                  '"$description"',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Colors.white70,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
+  Widget _buildStatusBadge(String docId, String status) {
+    return GestureDetector(
+      onTap: () => _showStatusPicker(docId, status),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: _statusColor(status).withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: _statusColor(status).withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              status[0].toUpperCase() + status.substring(1),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: _statusColor(status),
               ),
-            ],
-
-            const SizedBox(height: 10),
-
-            // ── Date ──
-            Row(
-              children: [
-                const Icon(Icons.access_time, size: 14, color: Colors.white38),
-                const SizedBox(width: 4),
-                Text(
-                  formattedDate,
-                  style: const TextStyle(fontSize: 12, color: Colors.white38),
-                ),
-              ],
             ),
+            const SizedBox(width: 4),
+            Icon(Icons.expand_more, size: 14, color: _statusColor(status)),
           ],
         ),
       ),

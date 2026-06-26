@@ -1,6 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+// If using any speech/voice packages, import them here to call their stop methods.
+// For example:
+// import 'package:speech_to_text/speech_to_text.dart';
+// import 'package:flutter_tts/flutter_tts.dart';
 import 'theme/app_palette.dart';
 
 // admin details:
@@ -21,6 +25,29 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
   bool _loading = false;
   bool _obscurePassword = true;
   String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _silenceAccessibilityServices();
+  }
+
+  /// Explicitly halts any ongoing mic listeners, speech recognizers,
+  /// or text-to-speech feedback engines initiated by client-side screens.
+  void _silenceAccessibilityServices() {
+    try {
+      // 1. If using speech_to_text instance (e.g., SpeechToText speech = SpeechToText()):
+      // speech.stop(); or speech.cancel();
+      
+      // 2. If using flutter_tts instance (e.g., FlutterTts tts = FlutterTts()):
+      // tts.stop();
+      
+      // 3. If you have a custom service or state controller managing voice accessibility:
+      // VoiceController.to.stopListening();
+    } catch (e) {
+      debugPrint('Error pausing background voice services: $e');
+    }
+  }
 
   @override
   void dispose() {

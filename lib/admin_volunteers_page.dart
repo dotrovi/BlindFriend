@@ -180,21 +180,24 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
         builder: (context, constraints) {
           final isWide = constraints.maxWidth >= _kWideBreakpoint;
           return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildHeader(isWide),
               Expanded(
-                child: SingleChildScrollView(
-                  padding: EdgeInsets.all(isWide ? 12 : 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildSearchBar(),
-                      const SizedBox(height: 12),
-                      _buildFilters(),
-                      const SizedBox(height: 12),
-                      _buildTable(isWide),
-                    ],
+                child: ListView(
+                  padding: EdgeInsets.fromLTRB(
+                    isWide ? 32 : 16, 
+                    isWide ? 24 : 16, 
+                    isWide ? 32 : 16, 
+                    isWide ? 32 : 16
                   ),
+                  children: [
+                    _buildSearchBar(),
+                    const SizedBox(height: 16),
+                    _buildFilters(),
+                    const SizedBox(height: 16),
+                    _buildTable(isWide),
+                  ],
                 ),
               ),
             ],
@@ -205,27 +208,15 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
   }
 
   Widget _buildHeader(bool isWide) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: const BoxDecoration(
-        gradient: kAccentGradient,
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(12),
-          bottomRight: Radius.circular(12),
-        ),
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        isWide ? 32 : 16, 
+        isWide ? 32 : 20, 
+        isWide ? 32 : 16, 
+        0
       ),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(Icons.volunteer_activism,
-                color: Colors.white, size: 22),
-          ),
-          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -233,26 +224,31 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                 Text(
                   'Volunteers Management',
                   style: TextStyle(
-                      fontSize: isWide ? 18 : 15,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                    fontSize: isWide ? 28 : 22,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
                 ),
-                Text(
-                  'View and manage volunteer applications',
-                  style: TextStyle(
-                      fontSize: 12, color: Colors.white.withValues(alpha: 0.8)),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                const SizedBox(height: 4),
+                const Text(
+                  'View and manage volunteer listings and performance profiles',
+                  style: TextStyle(fontSize: 14, color: Colors.white60),
                 ),
               ],
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white, size: 20),
-            onPressed: _loadVolunteers,
-            tooltip: 'Refresh',
+          Container(
+            margin: const EdgeInsets.only(left: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.white.withOpacity(0.08)),
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.refresh, color: Colors.white, size: 20),
+              onPressed: _loadVolunteers,
+              tooltip: 'Refresh Data',
+            ),
           ),
         ],
       ),
@@ -261,20 +257,19 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
 
   Widget _buildSearchBar() {
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: kCardFill.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        color: kCardFill.withOpacity(0.6),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
       ),
       child: TextField(
-        onChanged: (value) =>
-            setState(() => _searchQuery = value.toLowerCase()),
-        style: const TextStyle(color: Colors.white, fontSize: 13),
+        onChanged: (value) => setState(() => _searchQuery = value.toLowerCase()),
+        style: const TextStyle(color: Colors.white, fontSize: 14),
         decoration: InputDecoration(
-          hintText: 'Search volunteers...',
+          hintText: 'Search by name, email, phone number, location, uid...',
           hintStyle: const TextStyle(fontSize: 13, color: Colors.white38),
-          prefixIcon: const Icon(Icons.search, color: Colors.white54, size: 18),
+          prefixIcon: const Icon(Icons.search, color: Colors.white54, size: 20),
           suffixIcon: _searchQuery.isNotEmpty
               ? IconButton(
                   icon: const Icon(Icons.close, size: 16, color: Colors.white54),
@@ -282,56 +277,54 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                 )
               : null,
           filled: true,
-          fillColor: Colors.white.withValues(alpha: 0.05),
+          fillColor: Colors.white.withOpacity(0.04),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(6),
-            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: Colors.white.withOpacity(0.12)),
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(6),
-            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: Colors.white.withOpacity(0.12)),
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(8),
             borderSide: const BorderSide(color: kPinkBright, width: 1.5),
           ),
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           isDense: true,
         ),
       ),
     );
   }
 
-  // Shared dark dropdown decoration so the five filter dropdowns stay consistent.
   InputDecoration _dropdownDecoration(String label) {
     return InputDecoration(
       labelText: label,
-      labelStyle: const TextStyle(color: kPinkBright, fontSize: 10),
+      labelStyle: const TextStyle(color: kPinkBright, fontSize: 11, fontWeight: FontWeight.w500),
       border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(4),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.15))),
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.12))),
       enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(4),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.15))),
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.12))),
       focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: kPinkBright, width: 1.5)),
       filled: true,
-      fillColor: Colors.white.withValues(alpha: 0.05),
+      fillColor: Colors.white.withOpacity(0.04),
       isDense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
     );
   }
 
   Widget _buildFilters() {
     return Container(
       decoration: BoxDecoration(
-        color: kCardFill.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        color: kCardFill.withOpacity(0.6),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
       ),
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -342,223 +335,109 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Language Filter
                 SizedBox(
                   width: 130,
                   child: DropdownButtonFormField<String>(
-                    initialValue: _selectedLanguage,
+                    value: _selectedLanguage,
                     isExpanded: true,
                     dropdownColor: kNavyMid,
-                    style: const TextStyle(fontSize: 11, color: Colors.white),
+                    style: const TextStyle(fontSize: 12, color: Colors.white),
                     decoration: _dropdownDecoration('Language'),
                     items: const [
-                      DropdownMenuItem(
-                          value: 'all',
-                          child: Text('All',
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1)),
-                      DropdownMenuItem(
-                          value: 'english',
-                          child: Text('English',
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1)),
-                      DropdownMenuItem(
-                          value: 'spanish',
-                          child: Text('Spanish',
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1)),
-                      DropdownMenuItem(
-                          value: 'mandarin',
-                          child: Text('Mandarin',
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1)),
-                      DropdownMenuItem(
-                          value: 'french',
-                          child: Text('French',
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1)),
-                      DropdownMenuItem(
-                          value: 'german',
-                          child: Text('German',
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1)),
-                      DropdownMenuItem(
-                          value: 'korean',
-                          child: Text('Korean',
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1)),
+                      DropdownMenuItem(value: 'all', child: Text('All Languages')),
+                      DropdownMenuItem(value: 'english', child: Text('English')),
+                      DropdownMenuItem(value: 'spanish', child: Text('Spanish')),
+                      DropdownMenuItem(value: 'mandarin', child: Text('Mandarin')),
+                      DropdownMenuItem(value: 'french', child: Text('French')),
+                      DropdownMenuItem(value: 'german', child: Text('German')),
+                      DropdownMenuItem(value: 'korean', child: Text('Korean')),
                     ],
-                    onChanged: (value) =>
-                        setState(() => _selectedLanguage = value ?? 'all'),
+                    onChanged: (value) => setState(() => _selectedLanguage = value ?? 'all'),
                   ),
                 ),
-                const SizedBox(width: 8),
-                // Specialty Filter
+                const SizedBox(width: 10),
                 SizedBox(
                   width: 140,
                   child: DropdownButtonFormField<String>(
-                    initialValue: _selectedSpecialty,
+                    value: _selectedSpecialty,
                     isExpanded: true,
                     dropdownColor: kNavyMid,
-                    style: const TextStyle(fontSize: 11, color: Colors.white),
+                    style: const TextStyle(fontSize: 12, color: Colors.white),
                     decoration: _dropdownDecoration('Specialty'),
                     items: const [
-                      DropdownMenuItem(
-                          value: 'all',
-                          child: Text('All',
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1)),
-                      DropdownMenuItem(
-                          value: 'shopping',
-                          child: Text('Shopping',
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1)),
-                      DropdownMenuItem(
-                          value: 'navigation',
-                          child: Text('Navigation',
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1)),
-                      DropdownMenuItem(
-                          value: 'reading',
-                          child: Text('Reading',
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1)),
-                      DropdownMenuItem(
-                          value: 'tech support',
-                          child: Text('Tech Support',
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1)),
-                      DropdownMenuItem(
-                          value: 'emergency assistance',
-                          child: Text('Emergency',
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1)),
-                      DropdownMenuItem(
-                          value: 'medical support',
-                          child: Text('Medical',
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1)),
-                      DropdownMenuItem(
-                          value: 'transportation',
-                          child: Text('Transport',
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1)),
+                      DropdownMenuItem(value: 'all', child: Text('All Specialties')),
+                      DropdownMenuItem(value: 'shopping', child: Text('Shopping')),
+                      DropdownMenuItem(value: 'navigation', child: Text('Navigation')),
+                      DropdownMenuItem(value: 'reading', child: Text('Reading')),
+                      DropdownMenuItem(value: 'tech support', child: Text('Tech Support')),
+                      DropdownMenuItem(value: 'emergency assistance', child: Text('Emergency')),
+                      DropdownMenuItem(value: 'medical support', child: Text('Medical')),
+                      DropdownMenuItem(value: 'transportation', child: Text('Transport')),
                     ],
-                    onChanged: (value) =>
-                        setState(() => _selectedSpecialty = value ?? 'all'),
+                    onChanged: (value) => setState(() => _selectedSpecialty = value ?? 'all'),
                   ),
                 ),
-                const SizedBox(width: 8),
-                // Availability Filter
+                const SizedBox(width: 10),
                 SizedBox(
                   width: 140,
                   child: DropdownButtonFormField<String>(
-                    initialValue: _selectedAvailability,
+                    value: _selectedAvailability,
                     isExpanded: true,
                     dropdownColor: kNavyMid,
-                    style: const TextStyle(fontSize: 11, color: Colors.white),
+                    style: const TextStyle(fontSize: 12, color: Colors.white),
                     decoration: _dropdownDecoration('Availability'),
                     items: const [
-                      DropdownMenuItem(
-                          value: 'all',
-                          child: Text('All',
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1)),
-                      DropdownMenuItem(
-                          value: 'weekends',
-                          child: Text('Weekends',
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1)),
-                      DropdownMenuItem(
-                          value: 'weekdays',
-                          child: Text('Weekdays',
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1)),
-                      DropdownMenuItem(
-                          value: 'anytime',
-                          child: Text('Anytime',
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1)),
-                      DropdownMenuItem(
-                          value: 'emergency only',
-                          child: Text('Emergency',
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1)),
+                      DropdownMenuItem(value: 'all', child: Text('All Availability')),
+                      DropdownMenuItem(value: 'weekends', child: Text('Weekends')),
+                      DropdownMenuItem(value: 'weekdays', child: Text('Weekdays')),
+                      DropdownMenuItem(value: 'anytime', child: Text('Anytime')),
+                      DropdownMenuItem(value: 'emergency only', child: Text('Emergency Only')),
                     ],
-                    onChanged: (value) =>
-                        setState(() => _selectedAvailability = value ?? 'all'),
+                    onChanged: (value) => setState(() => _selectedAvailability = value ?? 'all'),
                   ),
                 ),
-                const SizedBox(width: 8),
-                // Status Filter
+                const SizedBox(width: 10),
                 SizedBox(
                   width: 130,
                   child: DropdownButtonFormField<String>(
-                    initialValue: _filterStatus,
+                    value: _filterStatus,
                     isExpanded: true,
                     dropdownColor: kNavyMid,
-                    style: const TextStyle(fontSize: 11, color: Colors.white),
+                    style: const TextStyle(fontSize: 12, color: Colors.white),
                     decoration: _dropdownDecoration('Status'),
                     items: const [
-                      DropdownMenuItem(
-                          value: 'all',
-                          child: Text('All',
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1)),
-                      DropdownMenuItem(
-                          value: 'pending',
-                          child: Text('Pending',
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1)),
-                      DropdownMenuItem(
-                          value: 'approved',
-                          child: Text('Approved',
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1)),
-                      DropdownMenuItem(
-                          value: 'rejected',
-                          child: Text('Rejected',
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1)),
+                      DropdownMenuItem(value: 'all', child: Text('All Status')),
+                      DropdownMenuItem(value: 'pending', child: Text('Pending')),
+                      DropdownMenuItem(value: 'approved', child: Text('Approved')),
+                      DropdownMenuItem(value: 'rejected', child: Text('Rejected')),
                     ],
-                    onChanged: (value) =>
-                        setState(() => _filterStatus = value ?? 'all'),
+                    onChanged: (value) => setState(() => _filterStatus = value ?? 'all'),
                   ),
                 ),
-                const SizedBox(width: 8),
-                // Location Filter
+                const SizedBox(width: 10),
                 SizedBox(
-                  width: 140,
+                  width: 150,
                   child: DropdownButtonFormField<String>(
-                    initialValue: _selectedLocation,
+                    value: _selectedLocation,
                     isExpanded: true,
                     dropdownColor: kNavyMid,
-                    style: const TextStyle(fontSize: 11, color: Colors.white),
+                    style: const TextStyle(fontSize: 12, color: Colors.white),
                     decoration: _dropdownDecoration('Location'),
                     items: [
-                      const DropdownMenuItem(
-                          value: 'all',
-                          child: Text('All',
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1)),
+                      const DropdownMenuItem(value: 'all', child: Text('All Locations')),
                       ..._getUniqueLocations().map((location) =>
-                          DropdownMenuItem(
-                              value: location,
-                              child: Text(location,
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 1))),
+                          DropdownMenuItem(value: location, child: Text(location))),
                     ],
-                    onChanged: (value) =>
-                        setState(() => _selectedLocation = value ?? 'all'),
+                    onChanged: (value) => setState(() => _selectedLocation = value ?? 'all'),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           Row(
+            mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              const Spacer(),
               TextButton.icon(
                 onPressed: () {
                   setState(() {
@@ -570,13 +449,11 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                     _searchQuery = '';
                   });
                 },
-                icon: const Icon(Icons.clear_all, size: 14),
-                label:
-                    const Text('Clear Filters', style: TextStyle(fontSize: 11)),
+                icon: const Icon(Icons.clear_all, size: 16),
+                label: const Text('Clear All Filters', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
                 style: TextButton.styleFrom(
                   foregroundColor: kBlueAccent,
-                  padding: EdgeInsets.zero,
-                  minimumSize: const Size(0, 30),
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
                 ),
               ),
             ],
@@ -588,72 +465,45 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
 
   Widget _buildTable(bool isWide) {
     if (_isLoading) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(color: kPinkBright),
-            SizedBox(height: 12),
-            Text('Loading volunteers...',
-                style: TextStyle(fontSize: 14, color: Colors.white70)),
-          ],
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 64),
+        child: Center(
+          child: Column(
+            children: [
+              CircularProgressIndicator(color: kPinkBright),
+              SizedBox(height: 16),
+              Text('Loading volunteer records...',
+                  style: TextStyle(fontSize: 14, color: Colors.white60)),
+            ],
+          ),
         ),
       );
     }
 
     if (_errorMessage != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 40, color: kRedAccent),
-            const SizedBox(height: 12),
-            Text('Error: $_errorMessage',
-                style: const TextStyle(fontSize: 14, color: kRedAccent)),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: _loadVolunteers,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: kPinkBright,
-                foregroundColor: Colors.white,
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 48),
+        child: Center(
+          child: Column(
+            children: [
+              const Icon(Icons.error_outline, size: 44, color: kRedAccent),
+              const SizedBox(height: 12),
+              Text('Error Loading Data: $_errorMessage',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 14, color: kRedAccent)),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: _loadVolunteers,
+                icon: const Icon(Icons.replay, size: 16),
+                label: const Text('Retry Execution'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: kPinkBright,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
               ),
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (_volunteers.isEmpty) {
-      return Container(
-        decoration: BoxDecoration(
-          color: kCardFill.withValues(alpha: 0.6),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-        ),
-        child: Column(
-          children: [
-            if (isWide) _buildTableHeader(),
-            Padding(
-              padding: const EdgeInsets.all(32),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.people_outline,
-                      size: 40, color: Colors.white.withValues(alpha: 0.3)),
-                  const SizedBox(height: 12),
-                  const Text('No volunteers found',
-                      style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white)),
-                  const SizedBox(height: 4),
-                  const Text('Volunteer registrations will appear here',
-                      style: TextStyle(fontSize: 12, color: Colors.white60)),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       );
     }
@@ -676,31 +526,21 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
     }
 
     if (_filterStatus != 'all') {
-      filteredVolunteers = filteredVolunteers.where((data) {
-        final status = (data['status'] ?? '').toLowerCase();
-        return status == _filterStatus.toLowerCase();
-      }).toList();
+      filteredVolunteers = filteredVolunteers.where((data) => (data['status'] ?? '').toLowerCase() == _filterStatus.toLowerCase()).toList();
     }
 
     if (_selectedLanguage != 'all') {
-      filteredVolunteers = filteredVolunteers.where((data) {
-        final language = (data['language'] ?? '').toLowerCase();
-        return language == _selectedLanguage.toLowerCase();
-      }).toList();
+      filteredVolunteers = filteredVolunteers.where((data) => (data['language'] ?? '').toLowerCase() == _selectedLanguage.toLowerCase()).toList();
     }
 
     if (_selectedAvailability != 'all') {
-      filteredVolunteers = filteredVolunteers.where((data) {
-        final availability = (data['availability'] ?? '').toLowerCase();
-        return availability == _selectedAvailability.toLowerCase();
-      }).toList();
+      filteredVolunteers = filteredVolunteers.where((data) => (data['availability'] ?? '').toLowerCase() == _selectedAvailability.toLowerCase()).toList();
     }
 
     if (_selectedSpecialty != 'all') {
       filteredVolunteers = filteredVolunteers.where((data) {
         final specialties = data['specialties'] as List? ?? [];
-        final specialtyList =
-            specialties.map((e) => e.toString().toLowerCase()).toList();
+        final specialtyList = specialties.map((e) => e.toString().toLowerCase()).toList();
         return specialtyList.contains(_selectedSpecialty.toLowerCase());
       }).toList();
     }
@@ -719,7 +559,6 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
     if (filteredVolunteers.isNotEmpty) {
       filteredVolunteers.sort((a, b) {
         int comparison = 0;
-
         if (_sortBy == 'submittedAt') {
           final dateA = _getDateTimeFromTimestamp(a['submittedAt']);
           final dateB = _getDateTimeFromTimestamp(b['submittedAt']);
@@ -733,37 +572,36 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
           final ratingB = (b['averageRating'] ?? 0.0).toDouble();
           comparison = ratingA.compareTo(ratingB);
         }
-
         return _sortAscending ? comparison : -comparison;
       });
     }
 
     if (filteredVolunteers.isEmpty) {
       return Container(
+        width: double.infinity,
         decoration: BoxDecoration(
-          color: kCardFill.withValues(alpha: 0.6),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          color: kCardFill.withOpacity(0.6),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withOpacity(0.08)),
         ),
         child: Column(
           children: [
             if (isWide) _buildTableHeader(),
             Padding(
-              padding: const EdgeInsets.all(32),
+              padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 16),
               child: Column(
-                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.search_off,
-                      size: 40, color: Colors.white.withValues(alpha: 0.3)),
-                  const SizedBox(height: 12),
-                  const Text('No matching volunteers',
-                      style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white)),
-                  const SizedBox(height: 4),
-                  const Text('Try adjusting your search or filters',
-                      style: TextStyle(fontSize: 12, color: Colors.white60)),
+                  Icon(Icons.people_outline, size: 44, color: Colors.white.withOpacity(0.25)),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'No volunteers matched metrics',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Colors.white),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Adjust current dropdown selections or check back later.',
+                    style: TextStyle(fontSize: 13, color: Colors.white38),
+                  ),
                 ],
               ),
             ),
@@ -774,17 +612,15 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
 
     if (!isWide) {
       return Column(
-        children: filteredVolunteers
-            .map((data) => _buildMobileCard(data))
-            .toList(),
+        children: filteredVolunteers.map((data) => _buildMobileCard(data)).toList(),
       );
     }
 
     return Container(
       decoration: BoxDecoration(
-        color: kCardFill.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        color: kCardFill.withOpacity(0.6),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
       ),
       child: Column(
         children: [
@@ -795,13 +631,14 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
             final isEven = index % 2 == 0;
 
             return Container(
-              color: isEven ? Colors.transparent : Colors.white.withValues(alpha: 0.03),
+              decoration: BoxDecoration(
+                color: isEven ? Colors.transparent : Colors.white.withOpacity(0.02),
+                border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.05))),
+              ),
               child: InkWell(
-                onTap: () =>
-                    _showVolunteerDetails(context, data['docId'], data),
+                onTap: () => _showVolunteerDetails(context, data['docId'], data),
                 child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   child: Row(
                     children: [
                       Expanded(
@@ -811,15 +648,12 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                           children: [
                             Text(
                               data['name'] ?? 'Unknown',
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                  fontSize: 12,
-                                  color: Colors.white),
+                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.white),
                             ),
+                            const SizedBox(height: 2),
                             Text(
                               data['language'] ?? '',
-                              style: const TextStyle(
-                                  fontSize: 9, color: Colors.white38),
+                              style: const TextStyle(fontSize: 11, color: Colors.white38),
                             ),
                           ],
                         ),
@@ -831,13 +665,13 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                           children: [
                             Text(
                               data['email'] ?? 'N/A',
-                              style: const TextStyle(fontSize: 11, color: Colors.white70),
+                              style: const TextStyle(fontSize: 13, color: Colors.white70),
                               overflow: TextOverflow.ellipsis,
                             ),
+                            const SizedBox(height: 2),
                             Text(
                               data['phoneNumber'] ?? 'N/A',
-                              style: const TextStyle(
-                                  fontSize: 10, color: Colors.white38),
+                              style: const TextStyle(fontSize: 11, color: Colors.white38),
                             ),
                           ],
                         ),
@@ -846,7 +680,7 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                         flex: 2,
                         child: Text(
                           data['locationAddress'] ?? 'N/A',
-                          style: const TextStyle(fontSize: 11, color: Colors.white70),
+                          style: const TextStyle(fontSize: 13, color: Colors.white70),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -867,7 +701,7 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                         flex: 1,
                         child: Text(
                           _formatDate(data['submittedAt']),
-                          style: const TextStyle(fontSize: 10, color: Colors.white70),
+                          style: const TextStyle(fontSize: 12, color: Colors.white70),
                         ),
                       ),
                     ],
@@ -881,127 +715,19 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // MOBILE CARD (narrow screens)
-  // ---------------------------------------------------------------------------
-
-  Widget _buildMobileCard(Map<String, dynamic> data) {
-    final name = data['name'] ?? 'Unknown';
-    final email = data['email'] ?? 'N/A';
-    final phone = data['phoneNumber'] ?? 'N/A';
-    final address = data['locationAddress'] ?? 'N/A';
-    final status = data['status'] ?? 'pending';
-    final avgRating = (data['averageRating'] ?? 0.0).toDouble();
-    final totalRatings = data['totalRatings'] ?? 0;
-
-    return GestureDetector(
-      onTap: () => _showVolunteerDetails(context, data['docId'], data),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: kCardFill.withValues(alpha: 0.6),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    name,
-                    style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                _statusBadge(status),
-              ],
-            ),
-            const SizedBox(height: 6),
-            if (email != 'N/A')
-              Row(children: [
-                const Icon(Icons.email_outlined,
-                    size: 13, color: Colors.white38),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(email,
-                      style: const TextStyle(
-                          fontSize: 12, color: Colors.white70),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
-                ),
-              ]),
-            if (phone != 'N/A') ...[
-              const SizedBox(height: 2),
-              Row(children: [
-                const Icon(Icons.phone_outlined,
-                    size: 13, color: Colors.white38),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(phone,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontSize: 12, color: Colors.white70)),
-                ),
-              ]),
-            ],
-            if (address != 'N/A') ...[
-              const SizedBox(height: 2),
-              Row(children: [
-                const Icon(Icons.location_on_outlined,
-                    size: 13, color: Colors.white38),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(address,
-                      style: const TextStyle(
-                          fontSize: 12, color: Colors.white70),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
-                ),
-              ]),
-            ],
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                _ratingDisplay(avgRating, totalRatings),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Submitted ${_formatDate(data['submittedAt'])}',
-                    textAlign: TextAlign.right,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 11, color: Colors.white38),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildTableHeader() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.03),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.08))),
+        color: Colors.white.withOpacity(0.03),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+        border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.08))),
       ),
       child: Row(
         children: [
           Expanded(
             flex: 2,
-            child: GestureDetector(
+            child: InkWell(
               onTap: () {
                 setState(() {
                   if (_sortBy == 'name') {
@@ -1016,24 +742,19 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                 children: [
                   _headerCell('Name'),
                   if (_sortBy == 'name') ...[
-                    const SizedBox(width: 2),
-                    Icon(
-                        _sortAscending
-                            ? Icons.arrow_upward
-                            : Icons.arrow_downward,
-                        size: 12,
-                        color: Colors.white60),
+                    const SizedBox(width: 4),
+                    Icon(_sortAscending ? Icons.arrow_upward : Icons.arrow_downward, size: 12, color: kPinkBright),
                   ],
                 ],
               ),
             ),
           ),
-          Expanded(flex: 2, child: _headerCell('Contact')),
-          Expanded(flex: 2, child: _headerCell('Address')),
-          Expanded(flex: 1, child: _headerCell('Status')),
+          Expanded(flex: 2, child: _headerCell('Contact Info')),
+          Expanded(flex: 2, child: _headerCell('Location Area')),
+          Expanded(flex: 1, child: _headerCell('System Status')),
           Expanded(
             flex: 1,
-            child: GestureDetector(
+            child: InkWell(
               onTap: () {
                 setState(() {
                   if (_sortBy == 'rating') {
@@ -1047,15 +768,10 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _headerCell('Rating'),
+                  _headerCell('Rating Score'),
                   if (_sortBy == 'rating') ...[
-                    const SizedBox(width: 2),
-                    Icon(
-                        _sortAscending
-                            ? Icons.arrow_upward
-                            : Icons.arrow_downward,
-                        size: 12,
-                        color: Colors.white60),
+                    const SizedBox(width: 4),
+                    Icon(_sortAscending ? Icons.arrow_upward : Icons.arrow_downward, size: 12, color: kPinkBright),
                   ],
                 ],
               ),
@@ -1063,7 +779,7 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
           ),
           Expanded(
             flex: 1,
-            child: GestureDetector(
+            child: InkWell(
               onTap: () {
                 setState(() {
                   if (_sortBy == 'submittedAt') {
@@ -1078,13 +794,8 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
                 children: [
                   _headerCell('Submitted'),
                   if (_sortBy == 'submittedAt') ...[
-                    const SizedBox(width: 2),
-                    Icon(
-                        _sortAscending
-                            ? Icons.arrow_upward
-                            : Icons.arrow_downward,
-                        size: 12,
-                        color: Colors.white60),
+                    const SizedBox(width: 4),
+                    Icon(_sortAscending ? Icons.arrow_upward : Icons.arrow_downward, size: 12, color: kPinkBright),
                   ],
                 ],
               ),
@@ -1098,65 +809,152 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
   Widget _headerCell(String text) {
     return Text(
       text,
-      style: const TextStyle(
-          fontWeight: FontWeight.w600, fontSize: 10, color: Colors.white60),
+      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: Colors.white60),
+    );
+  }
+
+  Widget _buildMobileCard(Map<String, dynamic> data) {
+    final name = data['name'] ?? 'Unknown';
+    final email = data['email'] ?? 'N/A';
+    final phone = data['phoneNumber'] ?? 'N/A';
+    final address = data['locationAddress'] ?? 'N/A';
+    final status = data['status'] ?? 'pending';
+    final avgRating = (data['averageRating'] ?? 0.0).toDouble();
+    final totalRatings = data['totalRatings'] ?? 0;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: kCardFill.withOpacity(0.6),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => _showVolunteerDetails(context, data['docId'], data),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      name,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  _statusBadge(status),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (email != 'N/A')
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.email_outlined, size: 14, color: Colors.white38),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(email, style: const TextStyle(fontSize: 13, color: Colors.white70), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ),
+                    ],
+                  ),
+                ),
+              if (phone != 'N/A')
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.phone_outlined, size: 14, color: Colors.white38),
+                      const SizedBox(width: 6),
+                      Text(phone, style: const TextStyle(fontSize: 13, color: Colors.white70)),
+                    ],
+                  ),
+                ),
+              if (address != 'N/A')
+                Row(
+                  children: [
+                    const Icon(Icons.location_on_outlined, size: 14, color: Colors.white38),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(address, style: const TextStyle(fontSize: 13, color: Colors.white70), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ),
+                  ],
+                ),
+              const SizedBox(height: 12),
+              Divider(height: 1, color: Colors.white.withOpacity(0.06)),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _ratingDisplay(avgRating, totalRatings),
+                  Text(
+                    'Enrolled: ${_formatDate(data['submittedAt'])}',
+                    style: const TextStyle(fontSize: 11, color: Colors.white38),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
   Widget _statusBadge(String status) {
     Color color;
-    String displayText;
-
     switch (status.toLowerCase()) {
       case 'approved':
         color = kTealAccent;
-        displayText = 'Approved';
         break;
       case 'rejected':
         color = kRedAccent;
-        displayText = 'Rejected';
         break;
       default:
         color = kAmberAccent;
-        displayText = 'Pending';
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(3),
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withOpacity(0.2)),
       ),
       child: Text(
-        displayText,
-        textAlign: TextAlign.center,
-        style: TextStyle(
-            color: color, fontSize: 8, fontWeight: FontWeight.w500),
+        status.toUpperCase(),
+        style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 0.5),
       ),
     );
   }
 
   Widget _ratingDisplay(double averageRating, int totalRatings) {
     if (totalRatings == 0) {
-      return const Text('No ratings',
-          style: TextStyle(fontSize: 8, color: Colors.white38));
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.04),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: const Text('Unrated', style: TextStyle(fontSize: 11, color: Colors.white38)),
+      );
     }
 
-    return Column(
+    return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.star, color: kAmberAccent, size: 10),
-            const SizedBox(width: 1),
-            Text(averageRating.toStringAsFixed(1),
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold, fontSize: 9, color: Colors.white)),
-          ],
+        const Icon(Icons.star_rounded, color: kAmberAccent, size: 16),
+        const SizedBox(width: 2),
+        Text(
+          averageRating.toStringAsFixed(1),
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
         ),
-        Text('($totalRatings)',
-            style: const TextStyle(fontSize: 7, color: Colors.white38)),
+        const SizedBox(width: 2),
+        Text('($totalRatings reviews)', style: const TextStyle(fontSize: 11, color: Colors.white38)),
       ],
     );
   }
@@ -1174,121 +972,175 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
     if (timestamp == null) return 'N/A';
     try {
       final date = (timestamp as Timestamp).toDate();
-      return '${date.day}/${date.month}/${date.year}';
+      return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
     } catch (e) {
       return 'N/A';
     }
   }
 
-  void _showVolunteerDetails(
-      BuildContext context, String volunteerId, Map<String, dynamic> data) {
+  void _showVolunteerDetails(BuildContext context, String volunteerId, Map<String, dynamic> data) {
+    final isWide = MediaQuery.of(context).size.width >= _kWideBreakpoint;
+    
+    if (isWide) {
+      showDialog(
+        context: context,
+        builder: (ctx) => Dialog(
+          backgroundColor: kNavyMid,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480, maxHeight: 600),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: _buildDetailsShellLayout(ctx, data),
+            ),
+          ),
+        ),
+      );
+    } else {
+      showModalBottomSheet(
+        context: context,
+        backgroundColor: kNavyMid,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+        builder: (ctx) => Padding(
+          padding: EdgeInsets.fromLTRB(16, 12, 16, MediaQuery.of(ctx).padding.bottom + 16),
+          child: Container(
+            constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.82),
+            child: _buildDetailsShellLayout(ctx, data),
+          ),
+        ),
+      );
+    }
+  }
+
+  Widget _buildDetailsShellLayout(BuildContext ctx, Map<String, dynamic> data) {
     final specialties = data['specialtiesStr'] ?? 'N/A';
     final status = data['status'] ?? 'pending';
     final avgRating = (data['averageRating'] ?? 0.0).toDouble();
     final totalRatings = data['totalRatings'] ?? 0;
 
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: kNavyMid,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Center(
+          child: Container(
+            width: 36,
+            height: 4,
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+        ),
+        Row(
           children: [
-            Icon(Icons.person, size: 22, color: kPinkBright),
-            SizedBox(width: 8),
-            Text('Volunteer Details',
-                style: TextStyle(fontSize: 16, color: Colors.white)),
+            const Icon(Icons.account_circle_outlined, size: 22, color: kPinkBright),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text(
+                'Volunteer Enrolment Details',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.white),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close, color: Colors.white70, size: 20),
+              onPressed: () => Navigator.pop(ctx),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
           ],
         ),
-        content: Container(
-          width: double.maxFinite,
-          constraints: const BoxConstraints(maxWidth: 400),
+        Divider(height: 24, color: Colors.white.withOpacity(0.08)),
+        Expanded(
           child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
               children: [
-                _buildDetailCard('Personal', [
+                _buildDetailCard('Personal & Core Profile', [
                   _detailRow('Name:', data['name'] ?? 'N/A'),
-                  _detailRow('Email:', data['email'] ?? 'N/A'),
-                  _detailRow('Phone:', data['phoneNumber'] ?? 'N/A'),
-                  _detailRow('Address:', data['locationAddress'] ?? 'N/A'),
+                  _detailRow('Email ID:', data['email'] ?? 'N/A'),
+                  _detailRow('Contact No:', data['phoneNumber'] ?? 'N/A'),
+                  _detailRow('Home Address:', data['locationAddress'] ?? 'N/A'),
                 ]),
-                const SizedBox(height: 8),
-                _buildDetailCard('Volunteer', [
-                  _detailRow('Language:', data['language'] ?? 'N/A'),
+                const SizedBox(height: 12),
+                _buildDetailCard('Operational Logistics', [
+                  _detailRow('Languages:', data['language'] ?? 'N/A'),
                   _detailRow('Availability:', data['availability'] ?? 'N/A'),
                   _detailRow('Specialties:', specialties),
-                  _detailRow('Status:', _capitalize(status)),
+                  _detailRow('Status Flag:', _capitalize(status)),
                 ]),
-                const SizedBox(height: 8),
-                _buildDetailCard('Rating', [
-                  _detailRow(
-                      'Average:',
-                      avgRating > 0
-                          ? avgRating.toStringAsFixed(1)
-                          : 'No ratings'),
-                  _detailRow('Total:',
-                      totalRatings > 0 ? totalRatings.toString() : '0'),
-                  if (totalRatings > 0)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Row(
-                        children: List.generate(5, (index) {
-                          if (index < avgRating.floor()) {
-                            return const Icon(Icons.star,
-                                color: kAmberAccent, size: 16);
-                          } else if (index < avgRating &&
-                              avgRating - index >= 0.5) {
-                            return const Icon(Icons.star_half,
-                                color: kAmberAccent, size: 16);
-                          } else {
-                            return const Icon(Icons.star_border,
-                                color: kAmberAccent, size: 16);
-                          }
-                        }),
-                      ),
+                const SizedBox(height: 12),
+                _buildDetailCard('Performance Audit Summary', [
+                  _detailRow('Avg Rating:', totalRatings > 0 ? '${avgRating.toStringAsFixed(1)} / 5.0' : 'No aggregate metrics yet'),
+                  _detailRow('Total Volume:', '$totalRatings evaluation records'),
+                  if (totalRatings > 0) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: List.generate(5, (index) {
+                        if (index < avgRating.floor()) {
+                          return const Icon(Icons.star_rounded, color: kAmberAccent, size: 20);
+                        } else if (index < avgRating && avgRating - index >= 0.5) {
+                          return const Icon(Icons.star_half_rounded, color: kAmberAccent, size: 20);
+                        } else {
+                          return const Icon(Icons.star_border_rounded, color: kAmberAccent, size: 20);
+                        }
+                      }),
                     ),
+                  ]
                 ]),
               ],
             ),
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            style: TextButton.styleFrom(foregroundColor: kBlueAccent),
-            child: const Text('Close'),
+        Divider(height: 24, color: Colors.white.withOpacity(0.08)),
+        Align(
+          alignment: Alignment.centerRight,
+          child: SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: () => Navigator.pop(ctx),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: Colors.white.withOpacity(0.12)),
+                foregroundColor: Colors.white70,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('Close Sheet', style: TextStyle(fontWeight: FontWeight.w500)),
+            ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   Widget _buildDetailCard(String title, List<Widget> children) {
     return Container(
+      width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        color: Colors.white.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.04),
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(4)),
-              border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.08))),
+              color: Colors.white.withOpacity(0.04),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+              border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.08))),
             ),
-            child: Text(title,
-                style: const TextStyle(
-                    fontWeight: FontWeight.w600, fontSize: 11, color: Colors.white)),
+            child: Text(
+              title,
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.white),
+            ),
           ),
           Padding(
-            padding: const EdgeInsets.all(6),
+            padding: const EdgeInsets.all(12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: children,
@@ -1301,21 +1153,22 @@ class _AdminVolunteersPageState extends State<AdminVolunteersPage> {
 
   Widget _detailRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 2),
+      padding: const EdgeInsets.only(bottom: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 70,
-            child: Text(label,
-                style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 11,
-                    color: Colors.white)),
+            width: 90,
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.white38),
+            ),
           ),
           Expanded(
-            child: Text(value,
-                style: const TextStyle(fontSize: 11, color: Colors.white70)),
+            child: Text(
+              value,
+              style: const TextStyle(fontSize: 13, color: Colors.white70, height: 1.25),
+            ),
           ),
         ],
       ),
