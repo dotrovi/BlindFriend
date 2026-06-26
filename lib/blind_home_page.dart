@@ -113,7 +113,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
     _sttAvailable = micStatus.isGranted && sttInitialized;
 
     if (mounted) {
-      // Temporarily mark processing true during startup intro text execution
       _isProcessingVoice = true; 
       await Future.delayed(const Duration(milliseconds: 300));
       _speak(
@@ -158,9 +157,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
     if (mounted) setState(() => _isSpeaking = false);
 
     if (mounted && _sttAvailable && _shouldListen) {
-      // ── THE ECHO FIX ──
-      // Give physical hardware audio components a 600ms clearing delay 
-      // before opening the microphone pipeline and dropping the processing lock.
       await Future.delayed(const Duration(milliseconds: 600));
       _isProcessingVoice = false; 
       _startListening();
@@ -223,7 +219,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
 
     print('🎤 Processing command: "$command"');
 
-    // Request Help
     if (command.contains('request help') || 
         command.contains('send help') ||
         command.contains('help request') ||
@@ -234,14 +229,12 @@ class _BlindHomePageState extends State<BlindHomePage> {
       return;
     }
 
-    // Track Requests
     if (command.contains('track')) {
       _speak('Opening your help requests.');
       _navigateToTrackRequests();
       return;
     }
 
-    // Path / Navigation
     if (command.contains('path') || 
         command.contains('pass') ||
         command.contains('pat') ||
@@ -253,7 +246,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
       return;
     }
 
-    // Shopping
     if (command.contains('shopping') || 
         command.contains('scan') ||
         command.contains('barcode') ||
@@ -263,7 +255,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
       return;
     }
 
-    // Obstacle
     if (command.contains('obstacle') || 
         command.contains('obs') || 
         command.contains('detection') ||
@@ -274,7 +265,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
       return;
     }
 
-    // Volunteers / Help Center
     if (command.contains('volunteer') || 
         command.contains('find help') ||
         command.contains('helper')) {
@@ -283,14 +273,12 @@ class _BlindHomePageState extends State<BlindHomePage> {
       return;
     }
 
-    // Home
     if (command.contains('home') || command.contains('dashboard')) {
       _speak('Returning home.');
       _setSelectedIndex(0);
       return;
     }
 
-    // Profile
     if (command.contains('profile') || command.contains('account')) {
       _shouldListen = false;
       _speak('Opening your profile.');
@@ -308,7 +296,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
       return;
     }
 
-    // Settings
     if (command.contains('setting') || 
         command.contains('accessibility') ||
         command.contains('contrast') ||
@@ -318,14 +305,12 @@ class _BlindHomePageState extends State<BlindHomePage> {
       return;
     }
 
-    // Notifications
     if (command.contains('notification') || command.contains('update')) {
       _speak('Opening notifications.');
       _navigateToNotifications();
       return;
     }
 
-    // Logout
     if (command.contains('logout') || command.contains('sign out')) {
       _shouldListen = false;
       await _speak('Logging out.');
@@ -340,7 +325,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
       return;
     }
 
-    // Repeat commands
     if (command.contains('repeat') || command.contains('commands') || command.contains('help')) {
       _speak(
         'Available commands: Shopping, Obstacle, Path, Request Help, '
@@ -349,7 +333,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
       return;
     }
 
-    // Fallback if nothing matched
     _speak('Command not recognized. Say Repeat to list options.');
   }
 
@@ -404,27 +387,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
     super.dispose();
   }
 
-  Widget _headerIconButton({
-    required IconData icon,
-    required Color color,
-    required VoidCallback onPressed,
-    String? tooltip,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 8),
-      child: Material(
-        color: color.withValues(alpha: 0.18),
-        shape: const CircleBorder(),
-        child: IconButton(
-          onPressed: onPressed,
-          icon: Icon(icon, size: 22),
-          color: color,
-          tooltip: tooltip,
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -432,14 +394,13 @@ class _BlindHomePageState extends State<BlindHomePage> {
       body: SafeArea(
         child: Column(
           children: [
-            // Top Header
+            // Top Header Configuration
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
               decoration: BoxDecoration(
                 color: kNavyMid,
                 border: Border(
-                  bottom:
-                      BorderSide(color: Colors.white.withValues(alpha: 0.06)),
+                  bottom: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
                 ),
               ),
               child: Row(
@@ -455,30 +416,22 @@ class _BlindHomePageState extends State<BlindHomePage> {
                             fontWeight: FontWeight.bold,
                           ),
                           children: [
-                            TextSpan(
-                              text: 'Blind',
-                              style: TextStyle(color: Colors.white),
-                            ),
-                            TextSpan(
-                              text: 'Friend',
-                              style: TextStyle(color: kPinkBright),
-                            ),
+                            TextSpan(text: 'Blind', style: TextStyle(color: Colors.white)),
+                            TextSpan(text: 'Friend', style: TextStyle(color: kPinkBright)),
                           ],
                         ),
                       ),
+                      const SizedBox(height: 2),
                       RichText(
                         text: TextSpan(
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Colors.white60,
-                          ),
+                          style: const TextStyle(fontSize: 13, color: Colors.white54),
                           children: [
                             const TextSpan(text: 'Welcome back, '),
                             TextSpan(
                               text: widget.userName,
                               style: const TextStyle(
                                 color: kBlueAccent,
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
                           ],
@@ -488,31 +441,22 @@ class _BlindHomePageState extends State<BlindHomePage> {
                   ),
                   Row(
                     children: [
-                      _headerIconButton(
-                        icon: Icons.person,
-                        color: kBlueAccent,
+                      IconButton(
                         onPressed: () {
                           _shouldListen = false;
                           _speak('Opening your profile.');
                           Navigator.push(
                             context,
-                            MaterialPageRoute(
-                              builder: (context) => const UserProfilePage(),
-                            ),
+                            MaterialPageRoute(builder: (context) => const UserProfilePage()),
                           ).then((_) => _shouldListen = true);
                         },
+                        icon: const Icon(Icons.account_circle_outlined, size: 26, color: Colors.white70),
                       ),
-                      _headerIconButton(
-                        icon: Icons.accessibility_new,
-                        color: kPurpleAccent,
-                        tooltip: 'Accessibility Settings',
-                        onPressed: () {
-                          _navigateToAccessibilitySettings();
-                        },
+                      IconButton(
+                        onPressed: _navigateToAccessibilitySettings,
+                        icon: const Icon(Icons.tune_outlined, size: 24, color: Colors.white70),
                       ),
-                      _headerIconButton(
-                        icon: Icons.logout,
-                        color: kRedAccent,
+                      IconButton(
                         onPressed: () async {
                           _shouldListen = false;
                           await _tts.stop();
@@ -523,6 +467,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
                             );
                           }
                         },
+                        icon: const Icon(Icons.power_settings_new_outlined, size: 24, color: kRedAccent),
                       ),
                     ],
                   ),
@@ -530,7 +475,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
               ),
             ),
 
-            // Main Content Area
+            // Main Stack Container Page Switcher
             Expanded(
               child: IndexedStack(
                 index: _selectedIndex,
@@ -544,7 +489,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
               ),
             ),
 
-            // Bottom Navigation Bar
+            // Bottom Navigation Setup
             Container(
               decoration: BoxDecoration(
                 color: kNavyMid,
@@ -557,17 +502,17 @@ class _BlindHomePageState extends State<BlindHomePage> {
                 onTap: _onNavBarTap,
                 type: BottomNavigationBarType.fixed,
                 backgroundColor: kNavyMid,
-                selectedItemColor: kBlueAccent,
+                selectedItemColor: kPinkBright,
                 unselectedItemColor: Colors.white38,
-                selectedFontSize: 12,
-                unselectedFontSize: 12,
+                selectedFontSize: 11,
+                unselectedFontSize: 11,
                 elevation: 0,
                 items: const [
-                  BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-                  BottomNavigationBarItem(icon: Icon(Icons.qr_code_scanner), label: 'Shopping'),
-                  BottomNavigationBarItem(icon: Icon(Icons.warning), label: 'Obstacles'),
-                  BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Path'),
-                  BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Help'),
+                  BottomNavigationBarItem(icon: Icon(Icons.dashboard_outlined), activeIcon: Icon(Icons.dashboard), label: 'Home'),
+                  BottomNavigationBarItem(icon: Icon(Icons.shopping_bag_outlined), activeIcon: Icon(Icons.shopping_bag), label: 'Shopping'),
+                  BottomNavigationBarItem(icon: Icon(Icons.blur_circular), activeIcon: Icon(Icons.lens), label: 'Obstacles'),
+                  BottomNavigationBarItem(icon: Icon(Icons.explore_outlined), activeIcon: Icon(Icons.explore), label: 'Path'),
+                  BottomNavigationBarItem(icon: Icon(Icons.handshake_outlined), activeIcon: Icon(Icons.handshake), label: 'Help'),
                 ],
               ),
             ),
@@ -577,169 +522,378 @@ class _BlindHomePageState extends State<BlindHomePage> {
     );
   }
 
-  // ===================== HOME PAGE =====================
+  // ===================== HOME PAGE ARRANGE MATRIX =====================
   Widget _buildHomePage() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // [1] VOICE CARD (SPEAK NOW INTERACTION FIELD)
           GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: _onVoiceButtonTap,
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
               decoration: BoxDecoration(
-                color: kCardFill.withValues(alpha: 0.6),
-                borderRadius: BorderRadius.circular(20),
+                color: kCardFill.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(24),
                 border: Border.all(
-                  color: (_isListening ? Colors.greenAccent : kPinkBright).withValues(alpha: 0.4),
+                  color: (_isListening ? Colors.greenAccent : kPinkBright).withValues(alpha: 0.25),
+                  width: 1.5,
                 ),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildVoiceWaveBars(reversed: true, compact: false),
+                      Container(
+                        width: 84,
+                        height: 84,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: _isListening
+                              ? const LinearGradient(colors: [Colors.green, Colors.lightGreen])
+                              : kAccentGradient,
+                          boxShadow: [
+                            BoxShadow(
+                              color: (_isListening ? Colors.green : kPinkBright).withValues(alpha: 0.4),
+                              blurRadius: 24,
+                              spreadRadius: 3,
+                            ),
+                          ],
+                        ),
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 200),
+                          child: Icon(
+                            _isListening ? Icons.mic : Icons.mic_none_outlined,
+                            key: ValueKey(_isListening),
+                            color: Colors.white,
+                            size: 38,
+                          ),
+                        ),
+                      ),
+                      _buildVoiceWaveBars(reversed: false, compact: false),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    _isListening ? 'Listening Intently...' : 'Voice Assistant Idle',
+                    style: TextStyle(
+                      color: _isListening ? Colors.greenAccent : Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _isListening ? 'Say your voice action target command' : 'Tap panel or speak trigger phrase directly',
+                    style: const TextStyle(color: Colors.white38, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 28),
+
+          // [2] MAP CARD PLACED RIGHT AFTER SPEAK NOW PANEL
+          _buildLiveLocationCard(),
+          const SizedBox(height: 28),
+
+          // [3] FEATURE GRID WIDGETS SECTION
+          const Text(
+            'Explore Navigation Utilities',
+            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+          ),
+          const SizedBox(height: 14),
+
+          GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 2,
+            mainAxisSpacing: 14,
+            crossAxisSpacing: 14,
+            childAspectRatio: 1.25,
+            children: [
+              _buildFeatureCard(
+                icon: Icons.qr_code_scanner_outlined,
+                title: 'Shopping Helper',
+                description: 'Analyze codes & labels',
+                color: kPurpleAccent,
+                index: 1,
+              ),
+              _buildFeatureCard(
+                icon: Icons.notifications_active_outlined,
+                title: 'Obstacle Alert',
+                description: 'Realtime spatial warning',
+                color: kAmberAccent,
+                index: 2,
+              ),
+              _buildFeatureCard(
+                icon: Icons.map_outlined,
+                title: 'Tactile Path',
+                description: 'Geometric trail guidelines',
+                color: kTealAccent,
+                index: 3,
+              ),
+              _buildFeatureCard(
+                icon: Icons.support_agent_outlined,
+                title: 'Live Volunteers',
+                description: 'Request instant assistance',
+                color: kBlueAccent,
+                index: 4,
+                onTapOverride: _openHelpCenter,
+              ),
+            ],
+          ),
+          const SizedBox(height: 28),
+
+          // [4] NOTIFICATIONS SYSTEM COMPONENT
+          GestureDetector(
+            onTap: _navigateToNotifications,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              decoration: BoxDecoration(
+                color: kBlueAccent.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: kBlueAccent.withValues(alpha: 0.25)),
               ),
               child: Row(
                 children: [
-                  _buildVoiceWaveBars(reversed: true, compact: true),
-                  const SizedBox(width: 14),
                   Container(
-                    width: 76,
-                    height: 76,
+                    padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
+                      color: kBlueAccent.withValues(alpha: 0.15),
                       shape: BoxShape.circle,
-                      gradient: _isListening
-                          ? const LinearGradient(colors: [Colors.green, Colors.lightGreen])
-                          : kAccentGradient,
-                      boxShadow: [
-                        BoxShadow(
-                          color: (_isListening ? Colors.green : kPinkBright).withValues(alpha: 0.5),
-                          blurRadius: 22,
-                          spreadRadius: 2,
-                        ),
-                      ],
                     ),
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 250),
-                      child: Icon(
-                        _isListening ? Icons.mic : Icons.mic_none,
-                        key: ValueKey(_isListening),
-                        color: Colors.white,
-                        size: 36,
-                      ),
-                    ),
+                    child: Icon(Icons.notifications_outlined, size: 22, color: kBlueAccent),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          _isListening ? 'Listening...' : 'Tap to Speak',
-                          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 4),
                         const Text(
-                          'Tap and say a command',
-                          style: TextStyle(color: Colors.white60, fontSize: 12),
+                          'System Notification Hub',
+                          style: TextStyle(fontSize: 14, color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _unreadNotifications > 0 ? 'You have $_unreadNotifications unread tracking updates' : 'No pending tracking alerts right now',
+                          style: const TextStyle(fontSize: 12, color: Colors.white54),
                         ),
                       ],
                     ),
                   ),
-                  _buildVoiceWaveBars(reversed: false, compact: false),
+                  const Icon(Icons.chevron_right_outlined, size: 20, color: Colors.white30),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 20),
-
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: _buildFeatureCard(
-                  icon: Icons.qr_code_scanner,
-                  title: 'Shopping Helper',
-                  description: 'Scan barcodes',
-                  color: kPurpleAccent,
-                  index: 1,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _buildFeatureCard(
-                  icon: Icons.warning_amber,
-                  title: 'Obstacles',
-                  description: 'Alert alerts',
-                  color: kAmberAccent,
-                  index: 2,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _buildFeatureCard(
-                  icon: Icons.map_outlined,
-                  title: 'Path',
-                  description: 'Tactile path',
-                  color: kTealAccent,
-                  index: 3,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _buildFeatureCard(
-                  icon: Icons.people_alt,
-                  title: 'Volunteers',
-                  description: 'Find help',
-                  color: kTealAccent,
-                  index: 4,
-                  onTapOverride: _openHelpCenter,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          GestureDetector(
-            onTap: _navigateToNotifications,
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: kBlueAccent.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: kBlueAccent.withValues(alpha: 0.4)),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.notifications, size: 28, color: kBlueAccent),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Text(
-                      _unreadNotifications > 0 ? '$_unreadNotifications updates pending' : 'No new notifications',
-                      style: const TextStyle(fontSize: 14, color: Colors.white),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 80),
+          const SizedBox(height: 40),
         ],
       ),
     );
   }
 
+  // Helper builder for the visual location telemetry block matching dashboard photo
+  Widget _buildLiveLocationCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: kCardFill.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.location_on, color: kPurpleAccent, size: 22),
+                  SizedBox(width: 8),
+                  Text(
+                    'Live Location',
+                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.green.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  children: [
+                    CircleAvatar(radius: 3.5, backgroundColor: Colors.greenAccent),
+                    SizedBox(width: 6),
+                    Text('Live', style: TextStyle(color: Colors.greenAccent, fontSize: 11, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          
+          const Text('You are currently at:', style: TextStyle(color: Colors.white38, fontSize: 12)),
+          const SizedBox(height: 2),
+          const Text(
+            'Pulai, Iskandar Puteri, Johor',
+            style: TextStyle(color: kBlueAccent, fontSize: 15, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+
+          // Vector Dark Map Container Mockup with FIXED Border.all decoration logic
+          Container(
+            height: 150,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: kNavyDeep.withValues(alpha: 0.8),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: Opacity(
+                      opacity: 0.07,
+                      child: GridView.builder(
+                        physics: const NeverScrollableScrollPhysics(),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 6),
+                        itemBuilder: (_, __) => Container(
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.white, width: 0.5),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const Positioned(
+                    top: 25,
+                    left: 30,
+                    child: Text('TAMAN\nUNIVERSITI', style: TextStyle(color: Colors.white12, fontSize: 10, fontWeight: FontWeight.bold)),
+                  ),
+                  const Positioned(
+                    top: 30,
+                    right: 40,
+                    child: Text('ISKANDAR\nPUTERI', style: TextStyle(color: Colors.white12, fontSize: 10, fontWeight: FontWeight.bold)),
+                  ),
+                  Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            CircleAvatar(radius: 18, backgroundColor: kBlueAccent.withValues(alpha: 0.2)),
+                            const CircleAvatar(radius: 6, backgroundColor: Colors.white),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(color: kBlueAccent, borderRadius: BorderRadius.circular(8)),
+                          child: const Text('You are here', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Positioned(
+                    right: 12,
+                    bottom: 12,
+                    child: Column(
+                      children: [
+                        _buildMapMiniButton(Icons.add),
+                        const SizedBox(height: 4),
+                        _buildMapMiniButton(Icons.remove),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _buildMapMetaItem(Icons.gps_fixed, 'Accuracy', 'High (15m)'),
+              _buildMapMetaItem(Icons.access_time, 'Last Updated', 'Just now'),
+              _buildMapMetaItem(Icons.share, 'Shared with', '3 volunteers', isAccent: true),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMapMiniButton(IconData icon) {
+    return Container(
+      width: 28,
+      height: 28,
+      decoration: BoxDecoration(
+        color: kNavyMid.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+      ),
+      child: Icon(icon, color: Colors.white70, size: 16),
+    );
+  }
+
+  Widget _buildMapMetaItem(IconData icon, String label, String value, {bool isAccent = false}) {
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: isAccent ? Colors.greenAccent : Colors.white38),
+        const SizedBox(width: 6),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: const TextStyle(color: Colors.white38, fontSize: 10)),
+            Text(
+              value,
+              style: TextStyle(
+                color: isAccent ? Colors.greenAccent : Colors.white70,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   Widget _buildVoiceWaveBars({required bool reversed, required bool compact}) {
-    final heights = compact ? [6.0, 10.0, 14.0, 10.0, 6.0] : [10.0, 18.0, 28.0, 20.0, 10.0];
+    final heights = compact ? [8.0, 14.0, 20.0, 14.0, 8.0] : [14.0, 26.0, 42.0, 28.0, 12.0];
+    final barList = heights.map((h) {
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 2.5),
+        width: 3.5,
+        height: _isListening ? h : 6.0,
+        decoration: BoxDecoration(
+          color: _isListening ? kBlueAccent : Colors.white12,
+          borderRadius: BorderRadius.circular(4),
+        ),
+      );
+    }).toList();
+
     return Row(
       mainAxisSize: MainAxisSize.min,
-      children: heights
-          .map((h) => Container(
-                margin: const EdgeInsets.symmetric(horizontal: 1.5),
-                width: 3,
-                height: _isListening ? h : h * 0.5,
-                decoration: BoxDecoration(color: kBlueAccent.withValues(alpha: 0.7), borderRadius: BorderRadius.circular(3)),
-              ))
-          .toList(),
+      children: reversed ? barList.reversed.toList() : barList,
     );
   }
 
@@ -752,18 +906,46 @@ class _BlindHomePageState extends State<BlindHomePage> {
     VoidCallback? onTapOverride,
   }) {
     return Material(
-      color: kCardFill.withValues(alpha: 0.6),
-      borderRadius: BorderRadius.circular(16),
+      color: kCardFill.withValues(alpha: 0.45),
+      borderRadius: BorderRadius.circular(20),
       child: InkWell(
         onTap: onTapOverride ?? () => _onNavBarTap(index),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         child: Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+          ),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(icon, color: color, size: 24),
-              const SizedBox(height: 8),
-              Text(title, style: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, color: color, size: 24),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(fontSize: 14, color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 0.3),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    description,
+                    style: const TextStyle(fontSize: 11, color: Colors.white38),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ],
           ),
         ),
