@@ -353,7 +353,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
       return;
     }
 
-    if (command.contains('logout') || command.contains('sign out')) {
+    if (command.contains('logout') || command.contains('sign out') || command.contains('log out')) {
       _shouldListen = false;
       await _speak('Logging out.');
       await FirebaseAuth.instance.signOut();
@@ -500,16 +500,24 @@ class _BlindHomePageState extends State<BlindHomePage> {
                       ),
                       IconButton(
                         onPressed: () async {
+                          // 1. Capture the navigator state before async gaps if needed,
+                          // or just rely on the mounted check securely.
                           _shouldListen = false;
                           await _tts.stop();
                           await FirebaseAuth.instance.signOut();
-                          if (mounted) {
-                            Navigator.of(context).pushReplacement(
-                              MaterialPageRoute(builder: (_) => const LoginPage()),
-                            );
-                          }
+                          
+                          // 2. Check if the widget is still in the tree before navigating
+                          if (!mounted) return;
+                          
+                          Navigator.of(context).pushReplacement(
+                            MaterialPageRoute(builder: (_) => const LoginPage()),
+                          );
                         },
-                        icon: const Icon(Icons.power_settings_new_outlined, size: 24, color: kRedAccent),
+                        icon: const Icon(
+                          Icons.power_settings_new_outlined, 
+                          size: 24, 
+                          color: kRedAccent,
+                        ),
                       ),
                     ],
                   ),
