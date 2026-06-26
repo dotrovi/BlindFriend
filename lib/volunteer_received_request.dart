@@ -74,7 +74,7 @@ class HelpRequest {
       id: id,
       blindUserId: map['blindUserId'] ?? '',
       blindUserName: map['blindUserName'] ?? '',
-      blindUserPhone: map['blindUserPhone'] ?? '',
+      blindUserPhone: map['blindUserPhone'] ?? map['phoneNumber'] ?? 'Not set',
       volunteerId: map['volunteerId'],
       volunteerName: map['volunteerName'],
       requestType: map['requestType'] ?? '',
@@ -187,9 +187,6 @@ class _VolunteerReceivedRequestsScreenState
         final data = doc.data();
         final status = data['status'] ?? 'pending';
         if (status == 'cancelled') continue;
-        // Pending requests are visible to every volunteer. Once a request is
-        // accepted, in progress, or completed, only the volunteer who
-        // accepted it should see it.
         if (status != 'pending' && data['volunteerId'] != volunteerId) {
           continue;
         }
@@ -224,7 +221,7 @@ class _VolunteerReceivedRequestsScreenState
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: _kNavyDeep, // dark background
+      color: _kNavyDeep,
       child: Column(
         children: [
           _buildHeader(),
@@ -323,9 +320,7 @@ class _VolunteerReceivedRequestsScreenState
             final val = f['value']!;
             final label = f['label']!;
             final isSelected = _filterStatus == val;
-            final color = val == 'all'
-                ? _kPinkBright
-                : _getStatusColor(val);
+            final color = val == 'all' ? _kPinkBright : _getStatusColor(val);
             return Padding(
               padding: const EdgeInsets.only(right: 8),
               child: GestureDetector(
@@ -485,197 +480,167 @@ class _VolunteerReceivedRequestsScreenState
   }
 
   Widget _buildRequestCard(HelpRequest request) {
-  final statusColor = _getStatusColor(request.status);
-  final isMatch = _volunteerSpecialties
-          .contains(request.requestType.toLowerCase()) &&
-      _volunteerLanguages
-          .contains(request.preferredLanguage?.toLowerCase() ?? 'english') &&
-      request.status == 'pending';
+    final statusColor = _getStatusColor(request.status);
+    final isMatch = _volunteerSpecialties.contains(request.requestType.toLowerCase()) &&
+        _volunteerLanguages.contains(request.preferredLanguage?.toLowerCase() ?? 'english') &&
+        request.status == 'pending';
 
-  return GestureDetector(
-    onTap: () => _showRequestActions(request),
-    child: Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      child: IntrinsicHeight( // ✅ makes left bar match card height
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // ── Left accent bar ──
-            Container(
-              width: 5,
-              decoration: BoxDecoration(
-                color: statusColor,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(18),
-                  bottomLeft: Radius.circular(18),
+    return GestureDetector(
+      onTap: () => _showRequestActions(request),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                width: 5,
+                decoration: BoxDecoration(
+                  color: statusColor,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(18),
+                    bottomLeft: Radius.circular(18),
+                  ),
                 ),
               ),
-            ),
-            // ── Main card body ──
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: _kCardFill,
-                  borderRadius: const BorderRadius.only(
-                    topRight: Radius.circular(18),
-                    bottomRight: Radius.circular(18),
-                  ),
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.12),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: statusColor.withOpacity(0.35),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: _kCardFill,
+                    borderRadius: const BorderRadius.only(
+                      topRight: Radius.circular(18),
+                      bottomRight: Radius.circular(18),
                     ),
-                  ],
-                ),
-                child: DefaultTextStyle.merge(
-                  style: const TextStyle(color: Colors.white),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min, // ✅ takes only needed height
-                      children: [
-                        // Top row: icon, type/name, status badge
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: statusColor.withOpacity(0.3),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Icon(
-                                _getStatusIcon(request.status),
-                                color: statusColor,
-                                size: 20,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Flexible(
-                                        child: Text(
-                                          request.requestType.toUpperCase(),
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 14,
-                                            color: Colors.white,
-                                          ),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                      if (isMatch) ...[
-                                        const SizedBox(width: 6),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 7, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            gradient: _kAccentGradient,
-                                            borderRadius:
-                                                BorderRadius.circular(6),
-                                          ),
-                                          child: const Text(
-                                            'Match',
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    request.blindUserName,
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.white70,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            _buildStatusBadge(request.status, statusColor),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        // Description
-                        if (request.description.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Text(
-                              request.description,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: Colors.white,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        // Location & phone row (scrollable if needed)
-                        SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.12),
+                    ),
+                  ),
+                  child: DefaultTextStyle.merge(
+                    style: const TextStyle(color: Colors.white),
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
                             children: [
-                              _cardChip(
-                                Icons.location_on_rounded,
-                                request.location,
-                                Colors.white70,
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: statusColor.withOpacity(0.3),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Icon(
+                                  _getStatusIcon(request.status),
+                                  color: statusColor,
+                                  size: 20,
+                                ),
                               ),
                               const SizedBox(width: 12),
-                              _cardChip(
-                                Icons.phone_rounded,
-                                request.blindUserPhone,
-                                Colors.white70,
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            request.requestType.toUpperCase(),
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14,
+                                              color: Colors.white,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        if (isMatch) ...[
+                                          const SizedBox(width: 6),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              gradient: _kAccentGradient,
+                                              borderRadius: BorderRadius.circular(6),
+                                            ),
+                                            child: const Text(
+                                              'Match',
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      request.blindUserName,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.white70,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              _buildStatusBadge(request.status, statusColor),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          if (request.description.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Text(
+                                request.description,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.white70,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          _cardChip(
+                            Icons.location_on_rounded,
+                            request.location,
+                            Colors.white70,
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              if (request.preferredLanguage != null)
+                                _cardChip(
+                                  Icons.language_rounded,
+                                  _languageNames[request.preferredLanguage] ?? request.preferredLanguage!,
+                                  _kBlueAccent,
+                                ),
+                              const Spacer(),
+                              Text(
+                                _formatDate(request.createdAt),
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.white54,
+                                ),
                               ),
                             ],
                           ),
-                        ),
-                        const SizedBox(height: 6),
-                        // Language & date row
-                        Row(
-                          children: [
-                            if (request.preferredLanguage != null)
-                              _cardChip(
-                                Icons.language_rounded,
-                                _languageNames[request.preferredLanguage] ??
-                                    request.preferredLanguage!,
-                                _kBlueAccent,
-                              ),
-                            const Spacer(),
-                            Text(
-                              _formatDate(request.createdAt),
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: Colors.white54,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
+
   Widget _buildStatusBadge(String status, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -701,7 +666,7 @@ class _VolunteerReceivedRequestsScreenState
       mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, size: 13, color: color),
-        const SizedBox(width: 3),
+        const SizedBox(width: 4),
         Flexible(
           child: Text(
             text,
@@ -713,7 +678,6 @@ class _VolunteerReceivedRequestsScreenState
     );
   }
 
-  // ── Bottom sheet actions (dark themed) ──────────────────────────
   void _showRequestActions(HelpRequest request) {
     final volunteer = auth.currentUser;
     if (volunteer == null) return;
@@ -725,164 +689,249 @@ class _VolunteerReceivedRequestsScreenState
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: _kNavyMid,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                margin: const EdgeInsets.only(top: 12),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(2),
-                ),
+        return DraggableScrollableSheet(
+          initialChildSize: 0.85,
+          minChildSize: 0.5,
+          maxChildSize: 0.95,
+          builder: (_, scrollController) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: _kNavyMid,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
               ),
-              // Header
-              Container(
-                margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [statusColor, statusColor.withOpacity(0.7)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.25),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(_getStatusIcon(request.status), color: Colors.white, size: 22),
+              child: Column(
+                children: [
+                  Container(
+                    margin: const EdgeInsets.only(top: 12, bottom: 8),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(2),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            request.requestType.toUpperCase(),
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  Expanded(
+                    child: ListView(
+                      controller: scrollController,
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [statusColor, statusColor.withOpacity(0.7)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(16),
                           ),
-                          Text(
-                            'From: ${request.blindUserName}',
-                            style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 12),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.25),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Icon(_getStatusIcon(request.status), color: Colors.white, size: 22),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      request.requestType.toUpperCase(),
+                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                                    ),
+                                    Text(
+                                      'From: ${request.blindUserName}',
+                                      style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 12),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              _buildStatusBadge(request.status, Colors.white.withOpacity(0.9)),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        
+                        _detailRow(Icons.person_rounded, 'Name', request.blindUserName),
+                        
+// ── PHONE NUMBER (cleaned UI) ──
+FutureBuilder<DocumentSnapshot>(
+  future: firestore.collection('users').doc(request.blindUserId).get(),
+  builder: (context, snapshot) {
+    String activePhone = 'Loading...';
+    if (snapshot.hasData && snapshot.data!.exists) {
+      final userData = snapshot.data!.data() as Map<String, dynamic>?;
+      activePhone = userData?['phoneNumber'] ?? userData?['phone'] ?? 'Not set';
+    } else if (snapshot.hasError) {
+      activePhone = 'Error loading number';
+    } else if (snapshot.connectionState == ConnectionState.done) {
+      activePhone = request.blindUserPhone;
+    }
+
+    final bool canCall = activePhone != 'Not set' && activePhone != 'Loading...' && activePhone != 'Error loading number';
+    final bool showCallPrompt = canCall && (request.status == 'accepted' || request.status == 'in_progress');
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: showCallPrompt ? Colors.green.shade900.withOpacity(0.3) : Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: showCallPrompt ? Colors.greenAccent.withOpacity(0.4) : Colors.white.withOpacity(0.1),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.phone_rounded, size: 18, color: showCallPrompt ? Colors.greenAccent : _kPinkBright),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Phone',
+                  style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.5)),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  activePhone,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: canCall ? Colors.white : Colors.white.withOpacity(0.6),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (canCall) ...[
+            if (showCallPrompt)
+              // When call is appropriate, a filled call button
+              Material(
+                color: Colors.green.shade600,
+                borderRadius: BorderRadius.circular(8),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () => _callNumber(activePhone),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.phone_in_talk_rounded, size: 16, color: Colors.white),
+                        SizedBox(width: 4),
+                        Text('Call', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+                ),
+              )
+            else
+              // Otherwise just a call icon to keep it compact
+              IconButton(
+                icon: Icon(Icons.phone_forwarded_rounded, size: 20, color: _kPinkBright),
+                onPressed: () => _callNumber(activePhone),
+                visualDensity: VisualDensity.compact,
+              ),
+          ],
+        ],
+      ),
+    );
+  },
+),
+                        
+                        _detailRow(Icons.category_rounded, 'Type', request.requestType),
+                        _detailRow(Icons.location_on_rounded, 'Location', request.location),
+                        _detailRow(Icons.description_rounded, 'Description', request.description),
+                        if (request.preferredLanguage != null)
+                          _detailRow(Icons.language_rounded, 'Language',
+                              _languageNames[request.preferredLanguage] ?? request.preferredLanguage!),
+                        if (request.hasLocation) ...[
+                          const SizedBox(height: 8),
+                          _buildLocationPreview(request),
+                        ],
+                        const SizedBox(height: 8),
+                        const Divider(color: Colors.white12),
+                        const SizedBox(height: 12),
+                        
+                        if (request.status == 'pending') ...[
+                          _actionButton(
+                            label: 'Accept Request',
+                            icon: Icons.check_circle_outline_rounded,
+                            color: const Color(0xFF6EE7B7),
+                            onTap: () async {
+                              Navigator.pop(context);
+                              await _acceptRequest(request, volunteer.uid, volunteerName);
+                            },
+                          ),
+                          _actionButton(
+                            label: 'Decline Request',
+                            icon: Icons.cancel_outlined,
+                            color: Colors.redAccent,
+                            onTap: () async {
+                              Navigator.pop(context);
+                              await _declineRequest(request, volunteer.uid);
+                            },
                           ),
                         ],
-                      ),
-                    ),
-                    _buildStatusBadge(request.status, Colors.white.withOpacity(0.9)),
-                  ],
-                ),
-              ),
-              // Details
-              SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    _detailRow(Icons.person_rounded, 'Name', request.blindUserName),
-                    _detailRow(Icons.phone_rounded, 'Phone', request.blindUserPhone),
-                    _detailRow(Icons.category_rounded, 'Type', request.requestType),
-                    _detailRow(Icons.location_on_rounded, 'Location', request.location),
-                    _detailRow(Icons.description_rounded, 'Description', request.description),
-                    if (request.preferredLanguage != null)
-                      _detailRow(Icons.language_rounded, 'Language',
-                          _languageNames[request.preferredLanguage] ?? request.preferredLanguage!),
-                    if (request.hasLocation) ...[
-                      const SizedBox(height: 8),
-                      _buildLocationPreview(request),
-                    ],
-                    const SizedBox(height: 8),
-                    const Divider(color: Colors.white12),
-                    const SizedBox(height: 8),
-                    // Actions
-                    if (request.status == 'accepted' ||
-                        request.status == 'in_progress')
-                      _actionButton(
-                        label: "Can't find them? Call ${request.blindUserName}",
-                        icon: Icons.call_rounded,
-                        color: Colors.orange.shade400,
-                        onTap: () => _callBlindUser(request),
-                      ),
-                    if (request.status == 'pending') ...[
-                      _actionButton(
-                        label: 'Accept Request',
-                        icon: Icons.check_circle_outline_rounded,
-                        color: const Color(0xFF6EE7B7),
-                        onTap: () async {
-                          Navigator.pop(context);
-                          await _acceptRequest(request, volunteer.uid, volunteerName);
-                        },
-                      ),
-                      _actionButton(
-                        label: 'Decline Request',
-                        icon: Icons.cancel_outlined,
-                        color: Colors.redAccent,
-                        onTap: () async {
-                          Navigator.pop(context);
-                          await _declineRequest(request, volunteer.uid);
-                        },
-                      ),
-                    ],
-                    if (request.status == 'accepted')
-                      _actionButton(
-                        label: 'Mark as In Progress',
-                        icon: Icons.hourglass_top_rounded,
-                        color: Colors.blue.shade400,
-                        onTap: () async {
-                          Navigator.pop(context);
-                          await _startHelp(request);
-                        },
-                      ),
-                    if (request.status == 'in_progress')
-                      _actionButton(
-                        label: 'Mark as Completed',
-                        icon: Icons.done_all_rounded,
-                        color: const Color(0xFF6EE7B7),
-                        onTap: () async {
-                          Navigator.pop(context);
-                          await _completeHelp(request);
-                        },
-                      ),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          side: BorderSide(color: Colors.white.withOpacity(0.3)),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        if (request.status == 'accepted')
+                          _actionButton(
+                            label: 'Mark as In Progress',
+                            icon: Icons.hourglass_top_rounded,
+                            color: Colors.blue.shade400,
+                            onTap: () async {
+                              Navigator.pop(context);
+                              await _startHelp(request);
+                            },
+                          ),
+                        if (request.status == 'in_progress')
+                          _actionButton(
+                            label: 'Mark as Completed',
+                            icon: Icons.done_all_rounded,
+                            color: const Color(0xFF6EE7B7),
+                            onTap: () async {
+                              Navigator.pop(context);
+                              await _completeHelp(request);
+                            },
+                          ),
+                        const SizedBox(height: 4),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              side: BorderSide(color: Colors.white.withOpacity(0.3)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: const Text('Close', style: TextStyle(color: Colors.white)),
+                          ),
                         ),
-                        child: const Text('Close', style: TextStyle(color: Colors.white)),
-                      ),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
   }
 
-  Future<void> _callBlindUser(HelpRequest request) async {
-    final uri = Uri(scheme: 'tel', path: request.blindUserPhone);
+  Future<void> _callNumber(String phoneNumber) async {
+    if (phoneNumber.isEmpty || phoneNumber == 'Not set') return;
+    final uri = Uri(scheme: 'tel', path: phoneNumber.trim());
     if (!await launchUrl(uri)) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not start a call to ${request.blindUserPhone}')),
+          SnackBar(content: Text('Could not start a call to $phoneNumber')),
         );
       }
     }
@@ -994,23 +1043,17 @@ class _VolunteerReceivedRequestsScreenState
             width: 80,
             child: Text(
               label,
-              style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                  color: Colors.white70),   // already light
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.white70),
             ),
           ),
           Expanded(
-            child: Text(value,
-                style: const TextStyle(
-                    fontSize: 13, color: Colors.white)),  // FIXED
+            child: Text(value, style: const TextStyle(fontSize: 13, color: Colors.white)),
           ),
         ],
       ),
     );
   }
 
-  // ── Logic methods (unchanged) ─────────────────────────────────────
   Future<void> _acceptRequest(HelpRequest request, String volunteerId, String volunteerName) async {
     try {
       final batch = firestore.batch();
@@ -1028,8 +1071,7 @@ class _VolunteerReceivedRequestsScreenState
               .doc(),
           {
             'title': 'Request Accepted!',
-            'body':
-                'Good news! $volunteerName has accepted your ${request.requestType} request.',
+            'body': 'Good news! $volunteerName has accepted your ${request.requestType} request.',
             'type': 'request_accepted',
             'read': false,
             'createdAt': FieldValue.serverTimestamp(),
@@ -1053,8 +1095,7 @@ class _VolunteerReceivedRequestsScreenState
       await firestore.collection('help_requests').doc(request.id).update({'status': 'in_progress'});
       await _loadMatchingRequests();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Help marked as in progress')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Help marked as in progress')));
       }
     } catch (e) {
       if (mounted) {
@@ -1143,9 +1184,7 @@ class _VolunteerReceivedRequestsScreenState
       await _loadMatchingRequests();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(reason.isEmpty
-                ? 'Request declined'
-                : 'Request declined: $reason'),
+            content: Text(reason.isEmpty ? 'Request declined' : 'Request declined: $reason'),
             backgroundColor: Colors.red.shade600));
       }
     } catch (e) {
@@ -1244,10 +1283,9 @@ class _VolunteerReceivedRequestsScreenState
                             child: Text(
                               r,
                               style: TextStyle(
-                                fontSize: 13,
-                                color: isSelected ? Colors.white : Colors.redAccent,
-                                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                              ),
+                                  fontSize: 13,
+                                  color: isSelected ? Colors.white : Colors.redAccent,
+                                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal),
                             ),
                           ),
                         );
