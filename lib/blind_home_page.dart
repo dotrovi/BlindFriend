@@ -125,7 +125,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
   Future<void> _speak(String text) async {
     final myGen = ++_speakGeneration;
     
-    // Kill STT instantly before talking
     if (_stt.isListening) {
       await _stt.stop();
     }
@@ -149,7 +148,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
 
     await _tts.speak(text);
     
-    // Lowered timeout to prevent long system hangs
     await completer.future.timeout(
       const Duration(seconds: 6),
       onTimeout: () {},
@@ -157,15 +155,13 @@ class _BlindHomePageState extends State<BlindHomePage> {
 
     if (mounted) setState(() => _isSpeaking = false);
 
-    // Dynamic quick-start listening turnaround
     if (mounted && _sttAvailable && _shouldListen) {
-      await Future.delayed(const Duration(milliseconds: 200));
+      await Future.delayed(const Duration(milliseconds: 300));
       _startListening();
     }
   }
 
   void _onVoiceButtonTap() async {
-    // Unconditional hard reset for the buttons if things freeze
     if (_isSpeaking) {
       await _tts.stop();
       setState(() => _isSpeaking = false);
@@ -197,17 +193,19 @@ class _BlindHomePageState extends State<BlindHomePage> {
               setState(() => _isListening = false);
               await _stt.stop();
               
-              // Non-blocking processing kickoff
               scheduleMicrotask(() => _processCommand(commandStr));
             }
           }
         },
-        listenFor: const Duration(seconds: 10),
-        pauseFor: const Duration(seconds: 2), // Faster feedback loop when user stops talking
+        listenFor: const Duration(seconds: 12),
+        // ── INCREASING PAUSE WINDOW ──
+        // Changed from 2 seconds to 4 seconds so the engine waits significantly 
+        // longer for you to finish complete words like "navigation" or "obstacle".
+        pauseFor: const Duration(seconds: 4), 
         localeId: 'en_US',
         cancelOnError: true,
         partialResults: false,
-        listenMode: ListenMode.confirmation, // Snappy hardware audio channel configuration
+        listenMode: ListenMode.confirmation, 
       );
     } catch (e) {
       print('❌ Error calling stt.listen: $e');
@@ -221,7 +219,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
 
     print('🎤 Processing command: "$command"');
 
-    // Direct navigation for "Request Help" - goes straight to send request
+    // Request Help
     if (command.contains('request help') || 
         command.contains('send help') ||
         command.contains('help request') ||
@@ -233,7 +231,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
       return;
     }
 
-    // Direct navigation for "Track Requests"
+    // Track Requests
     if (command.contains('track')) {
       _speak('Opening your help requests.');
       _navigateToTrackRequests();
@@ -241,12 +239,11 @@ class _BlindHomePageState extends State<BlindHomePage> {
       return;
     }
 
-    // Broader matching for "Path" - catches various pronunciations
+    // Path / Navigation (includes broader cutoff phrases)
     if (command.contains('path') || 
         command.contains('pass') ||
         command.contains('pat') ||
-        command.contains('navigation') ||
-        command.contains('navigate') ||
+        command.contains('navig') || // Catches broken "navig" syllables
         command.contains('direction') ||
         command.contains('tactile')) {
       _speak('Path detection activated.');
@@ -268,6 +265,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
 
     // Obstacle
     if (command.contains('obstacle') || 
+        command.contains('obs') || // Catches cut-off "obs" syllables
         command.contains('detection') ||
         command.contains('warning') ||
         command.contains('alert')) {
@@ -341,7 +339,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
       if (mounted) {
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context) => const LoginPage()),
+          MaterialPageRoute(builder: (_) => const LoginPage()),
           (route) => false,
         );
       }
