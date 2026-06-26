@@ -403,6 +403,7 @@ class _BlindSendHelpRequestScreenState
       return;
     }
 
+    bool submitted = false;
     try {
       final user = auth.currentUser;
       if (user == null) throw Exception('User not logged in');
@@ -441,51 +442,50 @@ class _BlindSendHelpRequestScreenState
         'notes': null,
       };
 
+      // This is the only step that defines "did the request actually get sent".
+      // Everything after this (TTS, snackbar, navigation) must not be able to
+      // turn a successful submission into a reported failure.
       await firestore.collection('help_requests').add(helpRequestData);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Help request sent successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        
-        // 1. Immediately turn off voice processing loops permanently
-        _shouldListen = false; 
-        
-        // 2. Clear out TTS and announce success
-        await _speak('Help request sent successfully!');
-        
-        if (mounted) {
-          setState(() {
-            _descriptionController.clear();
-            _currentVoiceStep = 'type';
-            _isSubmitting = false;
-          });
-
-          // 3. Handle navigation safely
-          if (widget.onSuccess != null) {
-            widget.onSuccess!.call();
-          } else if (Navigator.canPop(context)) {
-            Navigator.pop(context);
-          }
-          
-          // 4. CRITICAL: Return immediately so the code stops executing 
-          // and never falls down into the catch block during page disposal!
-          return; 
-        }
-      }
+      submitted = true;
     } catch (e) {
-      // This will now ONLY catch real database/network exceptions!
       if (mounted) {
         setState(() {
           _errorMessage = 'Failed to send request. Please try again.';
           _isSubmitting = false;
         });
-        _isProcessingVoice = false; 
+        _isProcessingVoice = false;
         await _speak('Failed to send request. Please try again.');
       }
+      return;
+    }
+
+    if (!submitted || !mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Help request sent successfully!'),
+        backgroundColor: Colors.green,
+      ),
+    );
+
+    _shouldListen = false;
+
+    setState(() {
+      _descriptionController.clear();
+      _currentVoiceStep = 'type';
+      _isSubmitting = false;
+    });
+
+    try {
+      await _speak('Help request sent successfully!');
+    } catch (_) {}
+
+    if (!mounted) return;
+
+    if (widget.onSuccess != null) {
+      widget.onSuccess!.call();
+    } else if (Navigator.canPop(context)) {
+      Navigator.pop(context);
     }
   }
 

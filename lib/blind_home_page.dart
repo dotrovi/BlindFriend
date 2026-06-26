@@ -753,9 +753,11 @@ class _BlindHomePageState extends State<BlindHomePage> with TickerProviderStateM
         Expanded(
           child: TabBarView(
             controller: _helpTabController,
-            children: const [
-              BlindSendHelpRequestScreen(),
-              BlindTrackRequestsScreen(),
+            children: [
+              BlindSendHelpRequestScreen(
+                onSuccess: () => _helpTabController.animateTo(1),
+              ),
+              const BlindTrackRequestsScreen(),
             ],
           ),
         ),
