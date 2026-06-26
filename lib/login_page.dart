@@ -153,6 +153,12 @@ class _LoginPageState extends State<LoginPage> {
       onTimeout: () {},
     );
     if (mounted) setState(() => _isSpeaking = false);
+
+    // ── AUTOMATICALLY START LISTENING AFTER SPEAKING FINISHES ──
+    // This removes the requirement for the user to manually find and tap the mic button.
+    if (mounted && _shouldListen && _currentStep != 'done' && !_stt.isListening) {
+      _startListening();
+    }
   }
 
   Future<void> _pressToSpeak() async {
@@ -497,6 +503,8 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   void dispose() {
+    // ── CRITICAL DISPOSE ADDITION FOR LOCAL CONTROLLER ──
+    _tts.stop();
     _shouldListen = false;
     _emailController.dispose();
     _passwordController.dispose();
