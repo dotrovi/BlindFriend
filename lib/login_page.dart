@@ -135,8 +135,7 @@ class _LoginPageState extends State<LoginPage> {
     _tts.setCompletionHandler(() {});
     _tts.setErrorHandler((_) {});
     if (_stt.isListening) await _stt.cancel();
-    await _tts.stop();
-    await Future.delayed(const Duration(milliseconds: 50));
+    if (_isSpeaking) await _tts.stop();
     if (myGen != _speakGeneration) return;
     if (mounted) setState(() => _isSpeaking = true);
     final completer = Completer<void>();
@@ -199,7 +198,7 @@ class _LoginPageState extends State<LoginPage> {
         if (!mounted) return;
         if (result.recognizedWords.isNotEmpty) _gotResult = true;
         if (!result.finalResult) return;
-        Future(() => _handleAnswer(result.recognizedWords.trim()));
+        _handleAnswer(result.recognizedWords.trim());
       },
       listenFor: const Duration(seconds: 45),
       pauseFor: pauseFor,
