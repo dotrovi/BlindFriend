@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'services/admin_service.dart';
+import 'theme/app_palette.dart';
 
 class PendingVerificationsPage extends StatefulWidget {
   const PendingVerificationsPage({super.key});
@@ -24,25 +25,32 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Pending Verifications',
-            style: TextStyle(fontSize: 28, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Review and approve volunteer applications',
-            style: TextStyle(fontSize: 15, color: Colors.grey.shade600),
-          ),
-          const SizedBox(height: 28),
-          _buildStatsRow(),
-          const SizedBox(height: 28),
-          _buildTable(),
-        ],
+    return Container(
+      color: kNavyDeep,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Pending Verifications',
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Review and approve volunteer applications',
+              style: TextStyle(fontSize: 15, color: Colors.white60),
+            ),
+            const SizedBox(height: 28),
+            _buildStatsRow(),
+            const SizedBox(height: 28),
+            _buildTable(),
+          ],
+        ),
       ),
     );
   }
@@ -68,7 +76,7 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
             Expanded(
               child: _statCard(
                 icon: Icons.hourglass_empty,
-                iconColor: Colors.orange,
+                iconColor: kAmberAccent,
                 label: 'Pending Applications',
                 value: '$total',
               ),
@@ -77,7 +85,7 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
             Expanded(
               child: _statCard(
                 icon: Icons.check_circle_outline,
-                iconColor: Colors.green,
+                iconColor: kTealAccent,
                 label: 'Ready to Approve',
                 value: '$readyCount',
               ),
@@ -86,7 +94,7 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
             Expanded(
               child: _statCard(
                 icon: Icons.search,
-                iconColor: Colors.deepPurple,
+                iconColor: kPurpleAccent,
                 label: 'Needs Review',
                 value: '${total - readyCount}',
               ),
@@ -103,9 +111,12 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
     required String label,
     required String value,
   }) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    return Container(
+      decoration: BoxDecoration(
+        color: kCardFill.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Row(
@@ -113,7 +124,7 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: iconColor.withValues(alpha: 0.1),
+                color: iconColor.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(icon, color: iconColor, size: 22),
@@ -124,13 +135,16 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
               children: [
                 Text(
                   label,
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                  style: const TextStyle(fontSize: 13, color: Colors.white60),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   value,
                   style: const TextStyle(
-                      fontSize: 26, fontWeight: FontWeight.w600),
+                    fontSize: 26,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
                 ),
               ],
             ),
@@ -145,9 +159,12 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
   // ---------------------------------------------------------------------------
 
   Widget _buildTable() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    return Container(
+      decoration: BoxDecoration(
+        color: kCardFill.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -155,7 +172,8 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
             decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+              border: Border(
+                  bottom: BorderSide(color: Colors.white.withValues(alpha: 0.08))),
             ),
             child: const Row(
               children: [
@@ -175,18 +193,17 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
                 return const Padding(
                   padding: EdgeInsets.all(48),
                   child: Center(
-                      child:
-                          CircularProgressIndicator(color: Colors.deepPurple)),
+                      child: CircularProgressIndicator(color: kPinkBright)),
                 );
               }
 
               if (snapshot.hasError) {
-                return Padding(
-                  padding: const EdgeInsets.all(48),
+                return const Padding(
+                  padding: EdgeInsets.all(48),
                   child: Center(
                     child: Text(
                       'Could not load data. Please try again.',
-                      style: TextStyle(color: Colors.grey.shade600),
+                      style: TextStyle(color: Colors.white60),
                     ),
                   ),
                 );
@@ -201,18 +218,20 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
                     child: Column(
                       children: [
                         Icon(Icons.inbox_outlined,
-                            size: 48, color: Colors.grey.shade300),
+                            size: 48, color: Colors.white.withValues(alpha: 0.3)),
                         const SizedBox(height: 16),
                         const Text(
                           'No volunteers pending approval',
                           style: TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.w500),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.white,
+                          ),
                         ),
                         const SizedBox(height: 6),
-                        Text(
+                        const Text(
                           'New volunteer applications will appear here.',
-                          style: TextStyle(
-                              fontSize: 13, color: Colors.grey.shade500),
+                          style: TextStyle(fontSize: 13, color: Colors.white38),
                         ),
                       ],
                     ),
@@ -276,6 +295,7 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
       context: context,
       builder: (ctx) => Dialog(
         insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+        backgroundColor: kNavyMid,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 500, maxHeight: 600),
@@ -291,18 +311,21 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
                   children: [
                     const Text(
                       'Volunteer Details',
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.close),
+                      icon: const Icon(Icons.close, color: Colors.white70),
                       onPressed: () => Navigator.pop(ctx),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                     ),
                   ],
                 ),
-                const Divider(height: 20),
+                Divider(height: 20, color: Colors.white.withValues(alpha: 0.08)),
 
                 // Scrollable content
                 Expanded(
@@ -351,7 +374,7 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
                   ),
                 ),
 
-                const Divider(height: 20),
+                Divider(height: 20, color: Colors.white.withValues(alpha: 0.08)),
 
                 // Action buttons
                 Row(
@@ -361,7 +384,7 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
                         icon: const Icon(Icons.check, size: 16),
                         label: const Text('Approve'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
+                          backgroundColor: kTealAccent,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
@@ -380,7 +403,7 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
                         icon: const Icon(Icons.close, size: 16),
                         label: const Text('Reject'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
+                          backgroundColor: kRedAccent,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
@@ -410,9 +433,9 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
   Widget _buildDetailCard(String title, List<Widget> children) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: Colors.white.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -420,16 +443,18 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.grey.shade100,
+              color: Colors.white.withValues(alpha: 0.04),
               borderRadius:
                   const BorderRadius.vertical(top: Radius.circular(8)),
-              border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+              border: Border(
+                  bottom: BorderSide(color: Colors.white.withValues(alpha: 0.08))),
             ),
             child: Text(
               title,
               style: const TextStyle(
                 fontWeight: FontWeight.w600,
                 fontSize: 13,
+                color: Colors.white,
               ),
             ),
           ),
@@ -462,16 +487,16 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
               style: const TextStyle(
                 fontWeight: FontWeight.w600,
                 fontSize: 13,
-                color: Colors.black87,
+                color: Colors.white,
               ),
             ),
           ),
           Expanded(
             child: Text(
               value,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 13,
-                color: Colors.grey.shade700,
+                color: Colors.white70,
               ),
             ),
           ),
@@ -495,13 +520,14 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
           width: 120,
           child: Text(
             label,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+            style: const TextStyle(
+                fontSize: 13, fontWeight: FontWeight.w500, color: Colors.white70),
           ),
         ),
         Icon(
           passed ? Icons.check_circle : Icons.schedule,
           size: 16,
-          color: passed ? Colors.green : Colors.orange,
+          color: passed ? kTealAccent : kAmberAccent,
         ),
         const SizedBox(width: 6),
         Text(
@@ -509,7 +535,7 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w500,
-            color: passed ? Colors.green.shade700 : Colors.orange.shade700,
+            color: passed ? kTealAccent : kAmberAccent,
           ),
         ),
       ],
@@ -524,19 +550,22 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        backgroundColor: kNavyMid,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Approve Application'),
+        title: const Text('Approve Application', style: TextStyle(color: Colors.white)),
         content: Text(
           'Are you sure you want to approve $name as a volunteer?\n\nThey will be notified by in-app message and email.',
+          style: const TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
+            style: TextButton.styleFrom(foregroundColor: Colors.white60),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
+              backgroundColor: kTealAccent,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8)),
@@ -552,7 +581,7 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text('$name has been approved!'),
-                    backgroundColor: Colors.green,
+                    backgroundColor: kTealAccent,
                   ),
                 );
               }
@@ -574,22 +603,28 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        backgroundColor: kNavyMid,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Reject Application'),
+        title: const Text('Reject Application', style: TextStyle(color: Colors.white)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("Reject $name's application?"),
+            Text("Reject $name's application?",
+                style: const TextStyle(color: Colors.white70)),
             const SizedBox(height: 16),
             const Text('Reason (optional):',
-                style: TextStyle(fontSize: 13, color: Colors.grey)),
+                style: TextStyle(fontSize: 13, color: Colors.white60)),
             const SizedBox(height: 8),
             TextField(
               controller: reasonController,
               maxLines: 3,
+              style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
                 hintText: 'e.g. Incomplete documents...',
+                hintStyle: const TextStyle(color: Colors.white38),
+                filled: true,
+                fillColor: Colors.white.withValues(alpha: 0.05),
                 border:
                     OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                 contentPadding:
@@ -601,11 +636,12 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
+            style: TextButton.styleFrom(foregroundColor: Colors.white60),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
+              backgroundColor: kRedAccent,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8)),
@@ -624,7 +660,7 @@ class _PendingVerificationsPageState extends State<PendingVerificationsPage> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text("$name's application has been rejected."),
-                    backgroundColor: Colors.red,
+                    backgroundColor: kRedAccent,
                   ),
                 );
               }
@@ -723,7 +759,7 @@ class _VolunteerRowState extends State<_VolunteerRow> {
             width: 16,
             height: 16,
             child: CircularProgressIndicator(
-                strokeWidth: 2, color: Colors.deepPurple),
+                strokeWidth: 2, color: kPinkBright),
           ),
         ),
       );
@@ -737,7 +773,8 @@ class _VolunteerRowState extends State<_VolunteerRow> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: Colors.grey.shade100)),
+          border: Border(
+              bottom: BorderSide(color: Colors.white.withValues(alpha: 0.06))),
         ),
         child: Row(
           children: [
@@ -750,11 +787,11 @@ class _VolunteerRowState extends State<_VolunteerRow> {
                   Text(
                     name.isNotEmpty ? name : 'Unknown',
                     style: const TextStyle(
-                        fontSize: 15, fontWeight: FontWeight.w500),
+                        fontSize: 15, fontWeight: FontWeight.w500, color: Colors.white),
                   ),
                   Text(
                     language.isNotEmpty ? language : '—',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                    style: const TextStyle(fontSize: 12, color: Colors.white38),
                   ),
                 ],
               ),
@@ -767,25 +804,23 @@ class _VolunteerRowState extends State<_VolunteerRow> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(children: [
-                    Icon(Icons.email_outlined,
-                        size: 13, color: Colors.grey.shade400),
+                    const Icon(Icons.email_outlined, size: 13, color: Colors.white38),
                     const SizedBox(width: 4),
                     Flexible(
                       child: Text(
                         email.isNotEmpty ? email : '—',
-                        style: const TextStyle(fontSize: 13),
+                        style: const TextStyle(fontSize: 13, color: Colors.white70),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ]),
                   const SizedBox(height: 2),
                   Row(children: [
-                    Icon(Icons.phone_outlined,
-                        size: 13, color: Colors.grey.shade400),
+                    const Icon(Icons.phone_outlined, size: 13, color: Colors.white38),
                     const SizedBox(width: 4),
                     Text(
                       phone.isNotEmpty ? phone : '—',
-                      style: const TextStyle(fontSize: 13),
+                      style: const TextStyle(fontSize: 13, color: Colors.white70),
                     ),
                   ]),
                 ],
@@ -798,10 +833,10 @@ class _VolunteerRowState extends State<_VolunteerRow> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(dateStr, style: const TextStyle(fontSize: 13)),
+                  Text(dateStr, style: const TextStyle(fontSize: 13, color: Colors.white70)),
                   Text(
                     '$daysAgo day${daysAgo == 1 ? '' : 's'} ago',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                    style: const TextStyle(fontSize: 11, color: Colors.white38),
                   ),
                 ],
               ),
@@ -840,14 +875,14 @@ class _VolunteerRowState extends State<_VolunteerRow> {
         Icon(
           passed ? Icons.check_circle : Icons.schedule,
           size: 13,
-          color: passed ? Colors.green : Colors.orange,
+          color: passed ? kTealAccent : kAmberAccent,
         ),
         const SizedBox(width: 4),
         Text(
           label,
           style: TextStyle(
             fontSize: 11,
-            color: passed ? Colors.green.shade700 : Colors.orange.shade700,
+            color: passed ? kTealAccent : kAmberAccent,
           ),
         ),
       ],
@@ -867,7 +902,8 @@ class _HeaderCell extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       label,
-      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+      style: const TextStyle(
+          fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white60),
     );
   }
 }

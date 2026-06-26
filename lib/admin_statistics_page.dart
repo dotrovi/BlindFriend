@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'theme/app_palette.dart';
 
 class AdminStatisticsPage extends StatefulWidget {
   const AdminStatisticsPage({super.key});
@@ -186,13 +187,14 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: const Color(0xFFF8F9FA),
+      color: kNavyDeep,
       child: Column(
         children: [
           _buildHeader(),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Center(
+                    child: CircularProgressIndicator(color: kPinkBright))
                 : _errorMessage != null
                     ? _buildErrorWidget()
                     : SingleChildScrollView(
@@ -219,13 +221,9 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.purple.shade700, Colors.purple.shade500],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: const BorderRadius.only(
+      decoration: const BoxDecoration(
+        gradient: kAccentGradient,
+        borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(12),
           bottomRight: Radius.circular(12),
         ),
@@ -275,12 +273,17 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.error_outline, size: 48, color: Colors.red.shade400),
+          const Icon(Icons.error_outline, size: 48, color: kRedAccent),
           const SizedBox(height: 16),
-          Text('Error loading statistics: $_errorMessage'),
+          Text('Error loading statistics: $_errorMessage',
+              style: const TextStyle(color: Colors.white70)),
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: _loadStatistics,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kPinkBright,
+              foregroundColor: Colors.white,
+            ),
             child: const Text('Retry'),
           ),
         ],
@@ -294,7 +297,7 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
         Expanded(
           child: _statCard(
             icon: Icons.people,
-            iconColor: Colors.blue,
+            iconColor: kBlueAccent,
             label: 'Total Volunteers',
             value: _totalVolunteers.toString(),
           ),
@@ -303,7 +306,7 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
         Expanded(
           child: _statCard(
             icon: Icons.star,
-            iconColor: Colors.amber,
+            iconColor: kAmberAccent,
             label: 'Avg Rating',
             value: _totalRatings > 0
                 ? _overallAverageRating.toStringAsFixed(1)
@@ -323,23 +326,16 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: kCardFill.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: 0.1),
+              color: iconColor.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(icon, color: iconColor, size: 20),
@@ -351,12 +347,15 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
               children: [
                 Text(
                   label,
-                  style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                  style: const TextStyle(fontSize: 10, color: Colors.white60),
                 ),
                 Text(
                   value,
                   style: const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.bold),
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
               ],
             ),
@@ -378,12 +377,12 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: kCardFill.withValues(alpha: 0.6),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.grey.shade200),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
         ),
         child: const Center(
-          child: Text('No ratings yet'),
+          child: Text('No ratings yet', style: TextStyle(color: Colors.white60)),
         ),
       );
     }
@@ -394,27 +393,24 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: kCardFill.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Row(
             children: [
-              Icon(Icons.bar_chart, size: 18, color: Colors.purple),
+              Icon(Icons.bar_chart, size: 18, color: kPurpleAccent),
               SizedBox(width: 8),
               Text(
                 'Rating Distribution',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
             ],
           ),
@@ -426,15 +422,15 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
 
             Color barColor;
             if (rating == 5) {
-              barColor = Colors.green.shade600;
+              barColor = kTealAccent;
             } else if (rating == 4) {
-              barColor = Colors.blue.shade600;
+              barColor = kBlueAccent;
             } else if (rating == 3) {
-              barColor = Colors.orange.shade600;
+              barColor = kAmberAccent;
             } else if (rating == 2) {
-              barColor = Colors.deepOrange.shade600;
+              barColor = const Color(0xFFFF8A50);
             } else {
-              barColor = Colors.red.shade600;
+              barColor = kRedAccent;
             }
 
             return Padding(
@@ -447,8 +443,10 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
                       children: [
                         Text('$rating',
                             style: const TextStyle(
-                                fontSize: 12, fontWeight: FontWeight.w600)),
-                        const Icon(Icons.star, size: 12, color: Colors.amber),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white)),
+                        const Icon(Icons.star, size: 12, color: kAmberAccent),
                       ],
                     ),
                   ),
@@ -456,7 +454,7 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
                     child: Container(
                       height: 20,
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade200,
+                        color: Colors.white.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Align(
@@ -479,7 +477,9 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
                     child: Text(
                       count.toString(),
                       style: const TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.w500),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white70),
                       textAlign: TextAlign.right,
                     ),
                   ),
@@ -490,7 +490,7 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
           const SizedBox(height: 8),
           Text(
             'Total ratings: $total',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            style: const TextStyle(fontSize: 12, color: Colors.white60),
           ),
         ],
       ),
@@ -504,38 +504,35 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: kCardFill.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Row(
             children: [
-              Icon(Icons.pie_chart, size: 18, color: Colors.purple),
+              Icon(Icons.pie_chart, size: 18, color: kPurpleAccent),
               SizedBox(width: 8),
               Text(
                 'Volunteer Status Breakdown',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 12),
           Row(
             children: [
-              _statusBadge('Pending', _pendingCount, Colors.orange, total),
+              _statusBadge('Pending', _pendingCount, kAmberAccent, total),
               const SizedBox(width: 8),
-              _statusBadge('Approved', _approvedCount, Colors.green, total),
+              _statusBadge('Approved', _approvedCount, kTealAccent, total),
               const SizedBox(width: 8),
-              _statusBadge('Rejected', _rejectedCount, Colors.red, total),
+              _statusBadge('Rejected', _rejectedCount, kRedAccent, total),
             ],
           ),
           const SizedBox(height: 8),
@@ -545,7 +542,7 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
                 child: Container(
                   height: 8,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
+                    color: Colors.white.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Row(
@@ -554,9 +551,9 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
                         Flexible(
                           flex: _pendingCount,
                           child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.orange,
-                              borderRadius: const BorderRadius.only(
+                            decoration: const BoxDecoration(
+                              color: kAmberAccent,
+                              borderRadius: BorderRadius.only(
                                 topLeft: Radius.circular(4),
                                 bottomLeft: Radius.circular(4),
                               ),
@@ -567,16 +564,16 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
                         Flexible(
                           flex: _approvedCount,
                           child: Container(
-                            color: Colors.green,
+                            color: kTealAccent,
                           ),
                         ),
                       if (_rejectedCount > 0)
                         Flexible(
                           flex: _rejectedCount,
                           child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.red,
-                              borderRadius: const BorderRadius.only(
+                            decoration: const BoxDecoration(
+                              color: kRedAccent,
+                              borderRadius: BorderRadius.only(
                                 topRight: Radius.circular(4),
                                 bottomRight: Radius.circular(4),
                               ),
@@ -606,11 +603,11 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
           ),
           Text(
             label,
-            style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+            style: const TextStyle(fontSize: 10, color: Colors.white60),
           ),
           Text(
             '${percentage.toStringAsFixed(1)}%',
-            style: TextStyle(fontSize: 9, color: Colors.grey.shade500),
+            style: const TextStyle(fontSize: 9, color: Colors.white38),
           ),
         ],
       ),
@@ -622,12 +619,13 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: kCardFill.withValues(alpha: 0.6),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.grey.shade200),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
         ),
         child: const Center(
-          child: Text('No volunteers with ratings yet'),
+          child: Text('No volunteers with ratings yet',
+              style: TextStyle(color: Colors.white60)),
         ),
       );
     }
@@ -635,27 +633,24 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: kCardFill.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Row(
             children: [
-              Icon(Icons.emoji_events, size: 18, color: Colors.amber),
+              Icon(Icons.emoji_events, size: 18, color: kAmberAccent),
               SizedBox(width: 8),
               Text(
                 'Top Performing Volunteers',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
             ],
           ),
@@ -664,7 +659,8 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
             const Center(
               child: Padding(
                 padding: EdgeInsets.all(16),
-                child: Text('No volunteers with ratings yet'),
+                child: Text('No volunteers with ratings yet',
+                    style: TextStyle(color: Colors.white60)),
               ),
             )
           else
@@ -695,11 +691,14 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: isFirst ? Colors.amber.shade50 : Colors.grey.shade50,
+                  color: isFirst
+                      ? kAmberAccent.withValues(alpha: 0.12)
+                      : Colors.white.withValues(alpha: 0.04),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color:
-                        isFirst ? Colors.amber.shade300 : Colors.grey.shade200,
+                    color: isFirst
+                        ? kAmberAccent.withValues(alpha: 0.4)
+                        : Colors.white.withValues(alpha: 0.08),
                   ),
                 ),
                 child: Row(
@@ -708,7 +707,8 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
                       width: 30,
                       child: Text(
                         medal,
-                        style: const TextStyle(fontSize: 16),
+                        style: const TextStyle(
+                            fontSize: 16, color: Colors.white),
                         textAlign: TextAlign.center,
                       ),
                     ),
@@ -716,30 +716,36 @@ class _AdminStatisticsPageState extends State<AdminStatisticsPage> {
                       child: Text(
                         name,
                         style: const TextStyle(
-                            fontSize: 13, fontWeight: FontWeight.w500),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                     Row(
                       children: [
-                        const Icon(Icons.star, size: 14, color: Colors.amber),
+                        const Icon(Icons.star, size: 14, color: kAmberAccent),
                         const SizedBox(width: 2),
                         Text(
                           avgRating.toStringAsFixed(1),
                           style: const TextStyle(
-                              fontSize: 13, fontWeight: FontWeight.bold),
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
                         const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: Colors.purple.shade100,
+                            color: kPurpleAccent.withValues(alpha: 0.18),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
                             '$totalRatings ratings',
-                            style: TextStyle(
-                                fontSize: 9, color: Colors.purple.shade700),
+                            style: const TextStyle(
+                                fontSize: 9, color: kPurpleAccent),
                           ),
                         ),
                       ],

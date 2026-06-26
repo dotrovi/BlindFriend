@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'theme/app_palette.dart';
 
 class AdminReportsPage extends StatefulWidget {
   const AdminReportsPage({super.key});
@@ -32,26 +33,13 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
   Color _statusColor(String status) {
     switch (status) {
       case 'pending':
-        return Colors.orange.shade700;
+        return kAmberAccent;
       case 'reviewed':
-        return Colors.blue.shade700;
+        return kBlueAccent;
       case 'resolved':
-        return Colors.green.shade700;
+        return kTealAccent;
       default:
-        return Colors.grey.shade600;
-    }
-  }
-
-  Color _statusBgColor(String status) {
-    switch (status) {
-      case 'pending':
-        return Colors.orange.shade50;
-      case 'reviewed':
-        return Colors.blue.shade50;
-      case 'resolved':
-        return Colors.green.shade50;
-      default:
-        return Colors.grey.shade100;
+        return Colors.white60;
     }
   }
 
@@ -59,15 +47,15 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
   Color _reportTypeColor(String reportType) {
     switch (reportType) {
       case 'no_show':
-        return Colors.red.shade700;
+        return kRedAccent;
       case 'inappropriate_behaviour':
-        return Colors.deepPurple.shade700;
+        return kPurpleAccent;
       case 'did_not_complete':
-        return Colors.amber.shade800;
+        return kAmberAccent;
       case 'other':
-        return Colors.blueGrey.shade700;
+        return kBlueAccent;
       default:
-        return Colors.grey.shade700;
+        return Colors.white60;
     }
   }
 
@@ -83,7 +71,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Status updated to "$newStatus".'),
-            backgroundColor: Colors.green.shade700,
+            backgroundColor: kTealAccent,
           ),
         );
       }
@@ -92,7 +80,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Failed to update status. Please try again.'),
-            backgroundColor: Colors.red,
+            backgroundColor: kRedAccent,
           ),
         );
       }
@@ -105,6 +93,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
 
     showModalBottomSheet(
       context: context,
+      backgroundColor: kNavyMid,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -117,7 +106,11 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
             children: [
               const Text(
                 'Update Report Status',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
               const SizedBox(height: 16),
               ...statuses.map((status) {
@@ -135,7 +128,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                           isCurrentStatus ? FontWeight.bold : FontWeight.normal,
                       color: isCurrentStatus
                           ? _statusColor(status)
-                          : Colors.black87,
+                          : Colors.white70,
                     ),
                   ),
                   trailing: isCurrentStatus
@@ -160,34 +153,41 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
   @override
   Widget build(BuildContext context) {
     // No Scaffold or AppBar here — this widget sits inside AdminDashboardPage
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // ── Page header ──
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.fromLTRB(32, 32, 32, 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Reports',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Reports submitted by blind users against volunteers',
-                style: TextStyle(fontSize: 15, color: Colors.grey.shade600),
-              ),
-              const SizedBox(height: 20),
-              // ── Filter bar ──
-              _buildFilterBar(),
-            ],
+    return Container(
+      color: kNavyDeep,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Page header ──
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(32, 32, 32, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Reports',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Reports submitted by blind users against volunteers',
+                  style: TextStyle(fontSize: 15, color: Colors.white60),
+                ),
+                const SizedBox(height: 20),
+                // ── Filter bar ──
+                _buildFilterBar(),
+              ],
+            ),
           ),
-        ),
-        // ── Reports list ──
-        Expanded(child: _buildReportsList()),
-      ],
+          // ── Reports list ──
+          Expanded(child: _buildReportsList()),
+        ],
+      ),
     );
   }
 
@@ -206,17 +206,20 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
               margin: const EdgeInsets.only(right: 8, bottom: 16),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: isSelected ? Colors.red.shade700 : Colors.grey.shade100,
+                color: isSelected
+                    ? kRedAccent
+                    : Colors.white.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color:
-                      isSelected ? Colors.red.shade700 : Colors.grey.shade300,
+                  color: isSelected
+                      ? kRedAccent
+                      : Colors.white.withValues(alpha: 0.15),
                 ),
               ),
               child: Text(
                 filter[0].toUpperCase() + filter.substring(1),
                 style: TextStyle(
-                  color: isSelected ? Colors.white : Colors.grey.shade700,
+                  color: isSelected ? Colors.white : Colors.white70,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                   fontSize: 13,
                 ),
@@ -243,7 +246,9 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
       builder: (context, snapshot) {
         // Still loading
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(
+            child: CircularProgressIndicator(color: kPinkBright),
+          );
         }
 
         // Error from Firestore
@@ -252,7 +257,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
             child: Text(
               'Error loading reports.\n${snapshot.error}',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.red),
+              style: const TextStyle(color: kRedAccent),
             ),
           );
         }
@@ -266,13 +271,13 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(Icons.flag_outlined,
-                    size: 60, color: Colors.grey.shade400),
+                    size: 60, color: Colors.white.withValues(alpha: 0.3)),
                 const SizedBox(height: 12),
                 Text(
                   _selectedFilter == 'all'
                       ? 'No reports submitted yet.'
                       : 'No $_selectedFilter reports.',
-                  style: TextStyle(fontSize: 15, color: Colors.grey.shade500),
+                  style: const TextStyle(fontSize: 15, color: Colors.white60),
                 ),
               ],
             ),
@@ -311,16 +316,9 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: kCardFill.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 6,
-            offset: const Offset(0, 3),
-          ),
-        ],
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -331,8 +329,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.person_outline,
-                    size: 18, color: Colors.black54),
+                const Icon(Icons.person_outline, size: 18, color: Colors.white54),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
@@ -340,6 +337,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 15,
+                      color: Colors.white,
                     ),
                   ),
                 ),
@@ -350,7 +348,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: _statusBgColor(status),
+                      color: _statusColor(status).withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(color: _statusColor(status)),
                     ),
@@ -376,7 +374,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
             ),
 
             const SizedBox(height: 10),
-            const Divider(height: 1),
+            Divider(height: 1, color: Colors.white.withValues(alpha: 0.08)),
             const SizedBox(height: 10),
 
             // ── Report type ──
@@ -385,15 +383,15 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                 Icon(Icons.flag_rounded,
                     size: 16, color: _reportTypeColor(reportType)),
                 const SizedBox(width: 6),
-                Text(
+                const Text(
                   'Reason: ',
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 13, color: Colors.white60),
                 ),
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: _reportTypeColor(reportType).withValues(alpha: 0.08),
+                    color: _reportTypeColor(reportType).withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
@@ -413,11 +411,11 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
             // ── Request type ──
             Row(
               children: [
-                Icon(Icons.help_outline, size: 16, color: Colors.grey.shade500),
+                const Icon(Icons.help_outline, size: 16, color: Colors.white38),
                 const SizedBox(width: 6),
                 Text(
                   'Request type: $requestType',
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                  style: const TextStyle(fontSize: 13, color: Colors.white70),
                 ),
               ],
             ),
@@ -429,15 +427,15 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
+                  color: Colors.white.withValues(alpha: 0.04),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey.shade200),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
                 ),
                 child: Text(
                   '"$description"',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 13,
-                    color: Colors.grey.shade700,
+                    color: Colors.white70,
                     fontStyle: FontStyle.italic,
                   ),
                 ),
@@ -449,11 +447,11 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
             // ── Date ──
             Row(
               children: [
-                Icon(Icons.access_time, size: 14, color: Colors.grey.shade400),
+                const Icon(Icons.access_time, size: 14, color: Colors.white38),
                 const SizedBox(width: 4),
                 Text(
                   formattedDate,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                  style: const TextStyle(fontSize: 12, color: Colors.white38),
                 ),
               ],
             ),
