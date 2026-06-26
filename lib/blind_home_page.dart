@@ -113,6 +113,8 @@ class _BlindHomePageState extends State<BlindHomePage> {
     _sttAvailable = micStatus.isGranted && sttInitialized;
 
     if (mounted) {
+      // Temporarily mark processing true during startup intro text execution
+      _isProcessingVoice = true; 
       await Future.delayed(const Duration(milliseconds: 300));
       _speak(
         'Welcome to BlindFriend, ${widget.userName}. '
@@ -156,7 +158,11 @@ class _BlindHomePageState extends State<BlindHomePage> {
     if (mounted) setState(() => _isSpeaking = false);
 
     if (mounted && _sttAvailable && _shouldListen) {
-      await Future.delayed(const Duration(milliseconds: 300));
+      // ── THE ECHO FIX ──
+      // Give physical hardware audio components a 600ms clearing delay 
+      // before opening the microphone pipeline and dropping the processing lock.
+      await Future.delayed(const Duration(milliseconds: 600));
+      _isProcessingVoice = false; 
       _startListening();
     }
   }
@@ -171,6 +177,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
       await _stt.stop();
       setState(() => _isListening = false);
     } else if (_sttAvailable) {
+      _isProcessingVoice = false;
       _startListening();
     }
   }
@@ -198,9 +205,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
           }
         },
         listenFor: const Duration(seconds: 12),
-        // ── INCREASING PAUSE WINDOW ──
-        // Changed from 2 seconds to 4 seconds so the engine waits significantly 
-        // longer for you to finish complete words like "navigation" or "obstacle".
         pauseFor: const Duration(seconds: 4), 
         localeId: 'en_US',
         cancelOnError: true,
@@ -225,9 +229,8 @@ class _BlindHomePageState extends State<BlindHomePage> {
         command.contains('help request') ||
         command.contains('need help') ||
         command.contains('call help')) {
-      _speak('Opening request help page. Please describe your need.');
-      _navigateToSendHelpRequest();
-      _isProcessingVoice = false;
+      _speak('Opening request help page.');
+      _setSelectedIndex(4);
       return;
     }
 
@@ -235,20 +238,18 @@ class _BlindHomePageState extends State<BlindHomePage> {
     if (command.contains('track')) {
       _speak('Opening your help requests.');
       _navigateToTrackRequests();
-      _isProcessingVoice = false;
       return;
     }
 
-    // Path / Navigation (includes broader cutoff phrases)
+    // Path / Navigation
     if (command.contains('path') || 
         command.contains('pass') ||
         command.contains('pat') ||
-        command.contains('navig') || // Catches broken "navig" syllables
+        command.contains('navig') || 
         command.contains('direction') ||
         command.contains('tactile')) {
       _speak('Path detection activated.');
       _setSelectedIndex(3);
-      _isProcessingVoice = false;
       return;
     }
 
@@ -259,19 +260,17 @@ class _BlindHomePageState extends State<BlindHomePage> {
         command.contains('shop')) {
       _speak('Opening shopping helper.');
       _setSelectedIndex(1);
-      _isProcessingVoice = false;
       return;
     }
 
     // Obstacle
     if (command.contains('obstacle') || 
-        command.contains('obs') || // Catches cut-off "obs" syllables
+        command.contains('obs') || 
         command.contains('detection') ||
         command.contains('warning') ||
         command.contains('alert')) {
       _speak('Obstacle detection activated.');
       _setSelectedIndex(2);
-      _isProcessingVoice = false;
       return;
     }
 
@@ -279,9 +278,8 @@ class _BlindHomePageState extends State<BlindHomePage> {
     if (command.contains('volunteer') || 
         command.contains('find help') ||
         command.contains('helper')) {
-      _speak('Opening help center.');
+      _speak('Opening request help page.');
       _setSelectedIndex(4);
-      _isProcessingVoice = false;
       return;
     }
 
@@ -289,7 +287,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
     if (command.contains('home') || command.contains('dashboard')) {
       _speak('Returning home.');
       _setSelectedIndex(0);
-      _isProcessingVoice = false;
       return;
     }
 
@@ -308,7 +305,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
       );
       _shouldListen = true;
       _speak('Back on home page.');
-      _isProcessingVoice = false;
       return;
     }
 
@@ -319,7 +315,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
         command.contains('font')) {
       _speak('Opening settings.');
       await _navigateToAccessibilitySettings();
-      _isProcessingVoice = false;
       return;
     }
 
@@ -327,7 +322,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
     if (command.contains('notification') || command.contains('update')) {
       _speak('Opening notifications.');
       _navigateToNotifications();
-      _isProcessingVoice = false;
       return;
     }
 
@@ -343,7 +337,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
           (route) => false,
         );
       }
-      _isProcessingVoice = false;
       return;
     }
 
@@ -353,13 +346,11 @@ class _BlindHomePageState extends State<BlindHomePage> {
         'Available commands: Shopping, Obstacle, Path, Request Help, '
         'Track Requests, Volunteers, Profile, Settings, Notifications, and Logout.'
       );
-      _isProcessingVoice = false;
       return;
     }
 
-    // Fallback
+    // Fallback if nothing matched
     _speak('Command not recognized. Say Repeat to list options.');
-    _isProcessingVoice = false;
   }
 
   void _setSelectedIndex(int index) {
@@ -371,25 +362,13 @@ class _BlindHomePageState extends State<BlindHomePage> {
 
   void _openHelpCenter() {
     _setSelectedIndex(4);
-    _speak('Help center loaded.');
+    _speak('Request help page loaded.');
   }
 
   void _onNavBarTap(int index) {
     _setSelectedIndex(index);
-    String pageName = ['Home', 'Shopping Helper', 'Obstacle Detection', 'Navigation', 'Help Center'][index];
+    String pageName = ['Home', 'Shopping Helper', 'Obstacle Detection', 'Navigation', 'Request Help'][index];
     _speak('Opened $pageName');
-  }
-
-  void _navigateToSendHelpRequest() async {
-    _shouldListen = false;
-    if (_stt.isListening) await _stt.stop();
-    if (!mounted) return;
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const BlindSendHelpRequestScreen()),
-    );
-    _shouldListen = true;
-    if (mounted) _speak('Back on help center page.');
   }
 
   void _navigateToTrackRequests() async {
@@ -401,7 +380,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
       MaterialPageRoute(builder: (_) => const BlindTrackRequestsScreen()),
     );
     _shouldListen = true;
-    if (mounted) _speak('Back on help center page.');
+    if (mounted) _speak('Back on home page.');
   }
 
   Future<void> _navigateToAccessibilitySettings() async {
@@ -560,7 +539,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
                   _buildShoppingHelper(),
                   _buildObstacleDetection(),
                   _buildPathDetection(),
-                  _buildFindVolunteers(),
+                  const BlindSendHelpRequestScreen(),
                 ],
               ),
             ),
@@ -795,17 +774,4 @@ class _BlindHomePageState extends State<BlindHomePage> {
   Widget _buildShoppingHelper() => ShoppingHelperPage(onBackToHome: () => _setSelectedIndex(0));
   Widget _buildObstacleDetection() => ObstacleDetectionPage(onBackToHome: () => _setSelectedIndex(0));
   Widget _buildPathDetection() => TactilePathPage(onBackToHome: () => _setSelectedIndex(0));
-
-  Widget _buildFindVolunteers() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          ElevatedButton(onPressed: _navigateToSendHelpRequest, child: const Text('Request Help')),
-          const SizedBox(height: 12),
-          ElevatedButton(onPressed: _navigateToTrackRequests, child: const Text('Track Requests')),
-        ],
-      ),
-    );
-  }
 }

@@ -42,8 +42,8 @@ class _BlindSendHelpRequestScreenState
   bool _shouldListen = true;
   int _speakGeneration = 0;
   bool _isProcessingVoice = false;
+  
   // Guided voice flow: type -> language -> description -> confirm
-  // (location is detected automatically via GPS, not asked in the flow)
   String _currentVoiceStep = 'type';
 
   final Map<String, IconData> _requestTypes = {
@@ -99,10 +99,12 @@ class _BlindSendHelpRequestScreenState
             debugPrint('STT error: ${error.errorMsg}');
             if (mounted) setState(() => _isListening = false);
           },
+          debugLogging: false,
         );
 
     if (mounted) {
-      await _speak(
+      _isProcessingVoice = true; 
+      _speak(
         'This is the request help page. Your location is detected automatically. '
         'Tap the voice button and I will guide you through choosing the type of help '
         'you need and your preferred language. '
@@ -112,41 +114,50 @@ class _BlindSendHelpRequestScreenState
   }
 
   Future<void> _askCurrentStep() async {
+    if (!mounted) return;
+    _isProcessingVoice = true; 
+
     switch (_currentVoiceStep) {
       case 'type':
-        await _speak(
+        _speak(
           'What type of help do you need? You can say shopping, navigation, '
           'reading, tech support, emergency assistance, medical support, or transportation.',
         );
         break;
       case 'language':
-        await _speak(
+        _speak(
           'What language do you prefer? You can say English, Spanish, '
           'Mandarin, French, German, or Korean.',
         );
         break;
       case 'description':
-        await _speak('Please describe what you need help with.');
+        _speak('Please describe what you need help with.');
         break;
       case 'confirm':
-        await _speak(
+        _speak(
           'Request type $_selectedRequestType. Language ${_languages[_selectedLanguage]}. '
-          'Location ${_locationController.text}. Description ${_descriptionController.text}. '
+          'Description ${_descriptionController.text}. '
           'Say submit to send your request, or say cancel to start over.',
         );
         break;
     }
-    await _startListening();
   }
 
   Future<void> _speak(String text) async {
     final myGen = ++_speakGeneration;
-    if (_stt.isListening) await _stt.cancel();
+    
+    if (_stt.isListening) {
+      await _stt.stop();
+    }
+    if (mounted) {
+      setState(() => _isListening = false);
+    }
+
     await _tts.stop();
     await Future.delayed(const Duration(milliseconds: 50));
     if (myGen != _speakGeneration) return;
 
-    setState(() => _isSpeaking = true);
+    if (mounted) setState(() => _isSpeaking = true);
     final completer = Completer<void>();
 
     _tts.setCompletionHandler(() {
@@ -157,28 +168,49 @@ class _BlindSendHelpRequestScreenState
     });
 
     await _tts.speak(text);
-    await completer.future
-        .timeout(const Duration(seconds: 90), onTimeout: () {});
+    
+    await completer.future.timeout(
+      const Duration(seconds: 12),
+      onTimeout: () {},
+    );
 
     if (mounted) setState(() => _isSpeaking = false);
+
+    if (mounted && _sttAvailable && _shouldListen) {
+      await Future.delayed(const Duration(milliseconds: 500));
+      _isProcessingVoice = false; 
+      _startListening();
+    }
   }
 
   Future<void> _startListening() async {
-    if (!_sttAvailable || !mounted || !_shouldListen || _stt.isListening)
-      return;
+    if (!_sttAvailable || !mounted || !_shouldListen || _stt.isListening) return;
 
     setState(() => _isListening = true);
-    await _stt.listen(
-      onResult: (result) {
-        if (!mounted) return;
-        if (result.finalResult) {
-          _processVoiceCommand(result.recognizedWords.toLowerCase());
-        }
-      },
-      listenFor: const Duration(seconds: 30),
-      pauseFor: const Duration(seconds: 10),
-      localeId: 'en_US',
-    );
+    try {
+      await _stt.listen(
+        onResult: (result) async {
+          if (!mounted) return;
+          if (result.recognizedWords.isNotEmpty) {
+            final commandStr = result.recognizedWords.toLowerCase().trim();
+            if (result.finalResult) {
+              setState(() => _isListening = false);
+              await _stt.stop();
+              scheduleMicrotask(() => _processVoiceCommand(commandStr));
+            }
+          }
+        },
+        listenFor: const Duration(seconds: 15),
+        pauseFor: const Duration(seconds: 5),
+        localeId: 'en_US',
+        cancelOnError: true,
+        partialResults: false,
+        listenMode: ListenMode.confirmation,
+      );
+    } catch (e) {
+      debugPrint('STT listen error: $e');
+      if (mounted) setState(() => _isListening = false);
+    }
   }
 
   Future<void> _processVoiceCommand(String command) async {
@@ -186,15 +218,13 @@ class _BlindSendHelpRequestScreenState
     _isProcessingVoice = true;
 
     if (command.contains('back') && command.contains('home')) {
-      await _speak('Returning to home page.');
-      _isProcessingVoice = false;
+      _speak('Returning to home page.');
       if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
       return;
     }
 
     if (command.contains('cancel')) {
-      await _speak('Cancelling request. Going back.');
-      _isProcessingVoice = false;
+      _speak('Cancelling request. Going back.');
       if (mounted) Navigator.pop(context);
       return;
     }
@@ -202,14 +232,12 @@ class _BlindSendHelpRequestScreenState
     if (command.contains('help') ||
         command.contains('repeat') ||
         command.contains('commands')) {
-      _isProcessingVoice = false;
       await _askCurrentStep();
       return;
     }
 
     if (command.contains('submit') || command.contains('send')) {
-      await _speak('Submitting your help request.');
-      _isProcessingVoice = false;
+      // Hand over execution entirely to your submission logic function
       await _submitHelpRequest();
       return;
     }
@@ -219,74 +247,75 @@ class _BlindSendHelpRequestScreenState
         for (var type in _requestTypes.keys) {
           if (command.contains(type)) {
             setState(() => _selectedRequestType = type);
-            await _speak('Selected $type.');
             _currentVoiceStep = 'language';
-            _isProcessingVoice = false;
+            await _speak('Selected $type.');
             await _askCurrentStep();
             return;
           }
         }
+        _isProcessingVoice = false; 
         await _speak(
           'I did not catch that. What type of help do you need? Say shopping, '
           'navigation, reading, tech support, emergency assistance, medical support, or transportation.',
         );
-        _isProcessingVoice = false;
-        await _startListening();
         return;
 
       case 'language':
         for (var lang in _languages.keys) {
           if (command.contains(lang)) {
             setState(() => _selectedLanguage = lang);
-            await _speak('Language set to ${_languages[lang]}.');
             _currentVoiceStep = 'description';
-            _isProcessingVoice = false;
+            await _speak('Language set to ${_languages[lang]}.');
             await _askCurrentStep();
             return;
           }
         }
+        _isProcessingVoice = false;
         await _speak(
           'I did not catch that. Please say your preferred language: '
           'English, Spanish, Mandarin, French, German, or Korean.',
         );
-        _isProcessingVoice = false;
-        await _startListening();
         return;
 
       case 'description':
         if (command.trim().length > 2) {
           _descriptionController.text = command;
-          await _speak('Got it.');
           _currentVoiceStep = 'confirm';
-          _isProcessingVoice = false;
+          await _speak('Got description.');
           await _askCurrentStep();
           return;
         }
-        await _speak('Please describe what you need help with.');
         _isProcessingVoice = false;
-        await _startListening();
+        await _speak('Please describe what you need help with.');
         return;
 
       case 'confirm':
+        _isProcessingVoice = false;
         await _speak(
           'Say submit to send your request, or say cancel to start over.',
         );
-        _isProcessingVoice = false;
-        await _startListening();
         return;
     }
 
-    await _speak('Command not recognized. Say Help for available commands.');
     _isProcessingVoice = false;
+    await _speak('Command not recognized. Say Help for available commands.');
   }
 
   void _onMicTap() {
-    if (!_isProcessingVoice && _sttAvailable && !_isSpeaking) {
+    if (_isSpeaking) {
+      _tts.stop();
+      setState(() => _isSpeaking = false);
+    }
+    
+    if (_stt.isListening) {
+      _stt.stop();
+      setState(() => _isListening = false);
+    } else if (_sttAvailable) {
+      _isProcessingVoice = false;
       _askCurrentStep();
     }
   }
 
-  // Best-effort: a missing/denied location should never block the request.
   Future<Position?> _getCurrentPosition() async {
     try {
       LocationPermission permission = await Geolocator.checkPermission();
@@ -345,22 +374,31 @@ class _BlindSendHelpRequestScreenState
   }
 
   Future<void> _submitHelpRequest() async {
-    setState(() => _errorMessage = null);
+    if (!mounted) return;
+    setState(() {
+      _errorMessage = null;
+      _isSubmitting = true;
+    });
 
     if (_descriptionController.text.trim().isEmpty) {
-      setState(() => _errorMessage = 'Please describe your request');
+      setState(() {
+        _errorMessage = 'Please describe your request';
+        _isSubmitting = false;
+      });
+      _isProcessingVoice = false; // Release channel gate lock on errors
       await _speak('Please describe your request');
       return;
     }
 
     if (_locationController.text.trim().isEmpty) {
-      setState(() =>
-          _errorMessage = 'We could not detect your location. Please type it.');
+      setState(() {
+        _errorMessage = 'We could not detect your location. Please type it.';
+        _isSubmitting = false;
+      });
+      _isProcessingVoice = false; 
       await _speak('We could not detect your location. Please type it.');
       return;
     }
-
-    setState(() => _isSubmitting = true);
 
     try {
       final user = auth.currentUser;
@@ -403,23 +441,32 @@ class _BlindSendHelpRequestScreenState
       await firestore.collection('help_requests').add(helpRequestData);
 
       if (mounted) {
-        await _speak('Help request sent successfully!');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Help request sent successfully!'),
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.pop(context);
+        
+        // Prevent background loop handlers from starting a recording on a disappearing screen
+        _shouldListen = false; 
+        
+        // Announce the success fully before executing navigation popping
+        await _speak('Help request sent successfully!');
+        
+        if (mounted) {
+          Navigator.pop(context);
+        }
       }
     } catch (e) {
       if (mounted) {
-        setState(
-            () => _errorMessage = 'Failed to send request. Please try again.');
+        setState(() {
+          _errorMessage = 'Failed to send request. Please try again.';
+          _isSubmitting = false;
+        });
+        _isProcessingVoice = false; // Reset lock so user can retry command safely
         await _speak('Failed to send request. Please try again.');
       }
-    } finally {
-      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
