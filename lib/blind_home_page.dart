@@ -25,8 +25,9 @@ class BlindHomePage extends StatefulWidget {
   State<BlindHomePage> createState() => _BlindHomePageState();
 }
 
-class _BlindHomePageState extends State<BlindHomePage> {
+class _BlindHomePageState extends State<BlindHomePage> with TickerProviderStateMixin {
   int _selectedIndex = 0; 
+  late TabController _helpTabController; // Added for inner help switcher tracking
 
   final FlutterTts _tts = FlutterTts();
   final SpeechToText _stt = SpeechToText();
@@ -46,6 +47,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
   @override
   void initState() {
     super.initState();
+    _helpTabController = TabController(length: 2, vsync: this);
     _initVoice();
     _listenForUnreadNotifications();
   }
@@ -114,7 +116,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
     _sttAvailable = micStatus.isGranted && sttInitialized;
 
     if (mounted) {
-      // Temporarily mark processing true during startup intro text execution
       _isProcessingVoice = true;
       await Future.delayed(const Duration(milliseconds: 300));
       await _speak(
@@ -263,14 +264,16 @@ class _BlindHomePageState extends State<BlindHomePage> {
         command.contains('help request') ||
         command.contains('need help') ||
         command.contains('call help')) {
-      _speak('Opening request help page.');
+      _speak('Opening request help center.');
       _setSelectedIndex(4);
+      _helpTabController.animateTo(0);
       return;
     }
 
-    if (command.contains('track')) {
-      _speak('Opening your help requests.');
-      _navigateToTrackRequests();
+    if (command.contains('track') || command.contains('status')) {
+      _speak('Opening help tracking status.');
+      _setSelectedIndex(4);
+      _helpTabController.animateTo(1);
       return;
     }
 
@@ -285,7 +288,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
       return;
     }
 
-    // Shopping
     if (command.contains('shopping') ||
         command.contains('scan') ||
         command.contains('barcode') ||
@@ -310,8 +312,9 @@ class _BlindHomePageState extends State<BlindHomePage> {
     if (command.contains('volunteer') || 
         command.contains('find help') ||
         command.contains('helper')) {
-      _speak('Opening request help page.');
+      _speak('Opening volunteer request panel.');
       _setSelectedIndex(4);
+      _helpTabController.animateTo(0);
       return;
     }
 
@@ -387,25 +390,14 @@ class _BlindHomePageState extends State<BlindHomePage> {
 
   void _openHelpCenter() {
     _setSelectedIndex(4);
+    _helpTabController.animateTo(0);
     _speak('Request help page loaded.');
   }
 
   void _onNavBarTap(int index) {
     _setSelectedIndex(index);
-    String pageName = ['Home', 'Shopping Helper', 'Obstacle Detection', 'Navigation', 'Request Help'][index];
+    String pageName = ['Home', 'Shopping Helper', 'Obstacle Detection', 'Navigation', 'Help Center'][index];
     _speak('Opened $pageName');
-  }
-
-  void _navigateToTrackRequests() async {
-    _shouldListen = false;
-    if (_stt.isListening) await _stt.stop();
-    if (!mounted) return;
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const BlindTrackRequestsScreen()),
-    );
-    _shouldListen = true;
-    if (mounted) _speak('Back on home page.');
   }
 
   Future<void> _navigateToAccessibilitySettings() async {
@@ -426,6 +418,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
     _stt.stop();
     _tts.stop();
     _unreadNotificationsSub?.cancel();
+    _helpTabController.dispose();
     super.dispose();
   }
 
@@ -436,7 +429,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
       body: SafeArea(
         child: Column(
           children: [
-            // Top Header Configuration
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
               decoration: BoxDecoration(
@@ -500,15 +492,10 @@ class _BlindHomePageState extends State<BlindHomePage> {
                       ),
                       IconButton(
                         onPressed: () async {
-                          // 1. Capture the navigator state before async gaps if needed,
-                          // or just rely on the mounted check securely.
                           _shouldListen = false;
                           await _tts.stop();
                           await FirebaseAuth.instance.signOut();
-                          
-                          // 2. Check if the widget is still in the tree before navigating
                           if (!mounted) return;
-                          
                           Navigator.of(context).pushReplacement(
                             MaterialPageRoute(builder: (_) => const LoginPage()),
                           );
@@ -525,7 +512,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
               ),
             ),
 
-            // Main Stack Container Page Switcher
             Expanded(
               child: IndexedStack(
                 index: _selectedIndex,
@@ -534,12 +520,11 @@ class _BlindHomePageState extends State<BlindHomePage> {
                   _buildShoppingHelper(),
                   _buildObstacleDetection(),
                   _buildPathDetection(),
-                  const BlindSendHelpRequestScreen(),
+                  _buildHelpCenter(), // Upgraded combined view rendering tracking alongside help screen
                 ],
               ),
             ),
 
-            // Bottom Navigation Setup
             Container(
               decoration: BoxDecoration(
                 color: kNavyMid,
@@ -572,7 +557,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
     );
   }
 
-  // ===================== HOME PAGE ARRANGE MATRIX =====================
   Widget _buildHomePage() {
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
@@ -580,7 +564,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // [1] VOICE CARD (SPEAK NOW INTERACTION FIELD)
           GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: _onVoiceButtonTap,
@@ -651,11 +634,9 @@ class _BlindHomePageState extends State<BlindHomePage> {
           ),
           const SizedBox(height: 28),
 
-          // [2] MAP CARD PLACED RIGHT AFTER SPEAK NOW PANEL
           _buildLiveLocationCard(),
           const SizedBox(height: 28),
 
-          // [3] FEATURE GRID WIDGETS SECTION
           const Text(
             'Explore Navigation Utilities',
             style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 0.5),
@@ -703,7 +684,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
           ),
           const SizedBox(height: 28),
 
-          // [4] NOTIFICATIONS SYSTEM COMPONENT
           GestureDetector(
             onTap: _navigateToNotifications,
             child: Container(
@@ -752,7 +732,37 @@ class _BlindHomePageState extends State<BlindHomePage> {
     );
   }
 
-  // Helper builder for the visual location telemetry block matching dashboard photo
+  // ===================== UNIFIED SUB-TAB LAYOUT MANAGER =====================
+  Widget _buildHelpCenter() {
+    return Column(
+      children: [
+        Container(
+          color: kNavyMid,
+          child: TabBar(
+            controller: _helpTabController,
+            labelColor: kPinkBright,
+            unselectedLabelColor: Colors.white38,
+            indicatorColor: kPinkBright,
+            indicatorWeight: 3,
+            tabs: const [
+              Tab(icon: Icon(Icons.send_outlined), text: 'New Request'),
+              Tab(icon: Icon(Icons.assignment_outlined), text: 'Track Requests'),
+            ],
+          ),
+        ),
+        Expanded(
+          child: TabBarView(
+            controller: _helpTabController,
+            children: const [
+              BlindSendHelpRequestScreen(),
+              BlindTrackRequestsScreen(),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildLiveLocationCard() {
     return Container(
       width: double.infinity,
@@ -804,7 +814,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
           ),
           const SizedBox(height: 16),
 
-          // Vector Dark Map Container Mockup with FIXED Border.all decoration logic
           Container(
             height: 150,
             width: double.infinity,

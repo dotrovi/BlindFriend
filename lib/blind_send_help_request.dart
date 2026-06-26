@@ -11,7 +11,10 @@ import 'package:permission_handler/permission_handler.dart';
 import 'theme/app_palette.dart';
 
 class BlindSendHelpRequestScreen extends StatefulWidget {
-  const BlindSendHelpRequestScreen({super.key});
+  final VoidCallback? onSuccess; // 1. Define the callback property here
+
+  // 2. Add it to the constructor parameters
+  const BlindSendHelpRequestScreen({super.key, this.onSuccess}); 
 
   @override
   State<BlindSendHelpRequestScreen> createState() =>
@@ -448,23 +451,39 @@ class _BlindSendHelpRequestScreenState
           ),
         );
         
-        // Prevent background loop handlers from starting a recording on a disappearing screen
+        // 1. Immediately turn off voice processing loops permanently
         _shouldListen = false; 
         
-        // Announce the success fully before executing navigation popping
+        // 2. Clear out TTS and announce success
         await _speak('Help request sent successfully!');
         
         if (mounted) {
-          Navigator.pop(context);
+          setState(() {
+            _descriptionController.clear();
+            _currentVoiceStep = 'type';
+            _isSubmitting = false;
+          });
+
+          // 3. Handle navigation safely
+          if (widget.onSuccess != null) {
+            widget.onSuccess!.call();
+          } else if (Navigator.canPop(context)) {
+            Navigator.pop(context);
+          }
+          
+          // 4. CRITICAL: Return immediately so the code stops executing 
+          // and never falls down into the catch block during page disposal!
+          return; 
         }
       }
     } catch (e) {
+      // This will now ONLY catch real database/network exceptions!
       if (mounted) {
         setState(() {
           _errorMessage = 'Failed to send request. Please try again.';
           _isSubmitting = false;
         });
-        _isProcessingVoice = false; // Reset lock so user can retry command safely
+        _isProcessingVoice = false; 
         await _speak('Failed to send request. Please try again.');
       }
     }
