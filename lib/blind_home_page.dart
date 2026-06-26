@@ -9,8 +9,8 @@ import 'package:speech_to_text/speech_to_text.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'login_page.dart';
 import 'user_profile_page.dart';
-import 'blind_send_help_request.dart'; // Add this import
-import 'blind_track_help_request.dart'; // Add this import
+import 'blind_send_help_request.dart'; 
+import 'blind_track_help_request.dart'; 
 import 'blind_notifications_page.dart';
 import 'obstacle_detection_page.dart';
 import 'tactile_path_page.dart';
@@ -26,7 +26,7 @@ class BlindHomePage extends StatefulWidget {
 }
 
 class _BlindHomePageState extends State<BlindHomePage> {
-  int _selectedIndex = 0; // 0=Home, 1=Shopping, 2=Obstacles, 3=Path, 4=Help
+  int _selectedIndex = 0; 
 
   final FlutterTts _tts = FlutterTts();
   final SpeechToText _stt = SpeechToText();
@@ -37,7 +37,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
   bool _shouldListen = true;
   int _speakGeneration = 0;
 
-  // Track if voice is currently processing to prevent duplicates
   bool _isProcessingVoice = false;
 
   StreamSubscription? _unreadNotificationsSub;
@@ -67,14 +66,17 @@ class _BlindHomePageState extends State<BlindHomePage> {
 
   void _navigateToNotifications() async {
     _shouldListen = false;
-    await _stt.stop();
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const BlindNotificationsPage()),
-    );
+    if (_stt.isListening) await _stt.stop();
+    
+    if (mounted) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const BlindNotificationsPage()),
+      );
+    }
     _shouldListen = true;
     if (mounted) {
-      await _speak('Back on home page. Tap the voice button to speak.');
+      _speak('Back on home page. Tap the voice button to speak.');
     }
   }
 
@@ -89,12 +91,11 @@ class _BlindHomePageState extends State<BlindHomePage> {
     await _tts.setPitch(1.0);
 
     final micStatus = await Permission.microphone.request();
-    print(
-        '🎤 Mic permission status: $micStatus (granted=${micStatus.isGranted})');
     if (!mounted) return;
 
     final sttInitialized = await _stt.initialize(
       onStatus: (status) {
+        print('🎤 STT Status Update: $status');
         if (!mounted) return;
         if (status == 'listening') {
           setState(() => _isListening = true);
@@ -106,15 +107,16 @@ class _BlindHomePageState extends State<BlindHomePage> {
         debugPrint('STT error: ${error.errorMsg}');
         if (mounted) setState(() => _isListening = false);
       },
+      debugLogging: false,
     );
-    print('🎤 STT initialize result: $sttInitialized');
+
     _sttAvailable = micStatus.isGranted && sttInitialized;
-    print('🎤 _sttAvailable: $_sttAvailable');
 
     if (mounted) {
-      await _speak(
+      await Future.delayed(const Duration(milliseconds: 300));
+      _speak(
         'Welcome to BlindFriend, ${widget.userName}. '
-        'Tap the voice button and say: Shopping, Obstacle, Path, Request Help, Track Requests, Volunteers, '
+        'Say: Shopping, Obstacle, Path, Request Help, Track Requests, Volunteers, '
         'Profile, Settings, Notifications, or Logout.',
       );
     }
@@ -122,12 +124,20 @@ class _BlindHomePageState extends State<BlindHomePage> {
 
   Future<void> _speak(String text) async {
     final myGen = ++_speakGeneration;
-    if (_stt.isListening) await _stt.cancel();
+    
+    // Kill STT instantly before talking
+    if (_stt.isListening) {
+      await _stt.stop();
+    }
+    if (mounted) {
+      setState(() => _isListening = false);
+    }
+
     await _tts.stop();
     await Future.delayed(const Duration(milliseconds: 50));
     if (myGen != _speakGeneration) return;
 
-    setState(() => _isSpeaking = true);
+    if (mounted) setState(() => _isSpeaking = true);
     final completer = Completer<void>();
 
     _tts.setCompletionHandler(() {
@@ -138,97 +148,195 @@ class _BlindHomePageState extends State<BlindHomePage> {
     });
 
     await _tts.speak(text);
+    
+    // Lowered timeout to prevent long system hangs
     await completer.future.timeout(
-      const Duration(seconds: 90),
+      const Duration(seconds: 6),
       onTimeout: () {},
     );
 
     if (mounted) setState(() => _isSpeaking = false);
+
+    // Dynamic quick-start listening turnaround
+    if (mounted && _sttAvailable && _shouldListen) {
+      await Future.delayed(const Duration(milliseconds: 200));
+      _startListening();
+    }
   }
 
-  void _onVoiceButtonTap() {
-    if (!_isProcessingVoice && _sttAvailable && !_isSpeaking) {
+  void _onVoiceButtonTap() async {
+    // Unconditional hard reset for the buttons if things freeze
+    if (_isSpeaking) {
+      await _tts.stop();
+      setState(() => _isSpeaking = false);
+    }
+    
+    if (_stt.isListening) {
+      await _stt.stop();
+      setState(() => _isListening = false);
+    } else if (_sttAvailable) {
       _startListening();
     }
   }
 
   Future<void> _startListening() async {
-    if (!_sttAvailable || !mounted || !_shouldListen || _stt.isListening) {
-      return;
-    }
+    if (!_sttAvailable || !mounted || !_shouldListen) return;
+    if (_stt.isListening) return;
 
     setState(() => _isListening = true);
-    await _stt.listen(
-      onResult: (result) async {
-        if (!mounted) return;
-        if (result.finalResult) {
-          await _processCommand(result.recognizedWords.toLowerCase());
-          // Loop only while on Help Center tab — reuses _selectedIndex.
-          if (_selectedIndex == 4 &&
-              _shouldListen &&
-              mounted &&
-              !_stt.isListening) {
-            await _startListening();
+
+    try {
+      await _stt.listen(
+        onResult: (result) async {
+          if (!mounted) return;
+          if (result.recognizedWords.isNotEmpty) {
+            final commandStr = result.recognizedWords.toLowerCase().trim();
+            
+            if (result.finalResult) {
+              print('🎤 Final recognized command: $commandStr');
+              setState(() => _isListening = false);
+              await _stt.stop();
+              
+              // Non-blocking processing kickoff
+              scheduleMicrotask(() => _processCommand(commandStr));
+            }
           }
-        }
-      },
-      listenFor: const Duration(seconds: 30),
-      pauseFor: const Duration(seconds: 10),
-      localeId: 'en_US',
-    );
+        },
+        listenFor: const Duration(seconds: 10),
+        pauseFor: const Duration(seconds: 2), // Faster feedback loop when user stops talking
+        localeId: 'en_US',
+        cancelOnError: true,
+        partialResults: false,
+        listenMode: ListenMode.confirmation, // Snappy hardware audio channel configuration
+      );
+    } catch (e) {
+      print('❌ Error calling stt.listen: $e');
+      if (mounted) setState(() => _isListening = false);
+    }
   }
 
   Future<void> _processCommand(String command) async {
     if (_isProcessingVoice) return;
     _isProcessingVoice = true;
 
-    if (command.contains('shopping') || command.contains('scan')) {
-      await _speak('Opening shopping helper. Barcode scanner activated.');
-      _setSelectedIndex(1);
-    } else if (command.contains('obstacle')) {
-      await _speak('Obstacle detection. Real-time voice alerts for obstacles.');
-      _setSelectedIndex(2);
-    } else if (command.contains('path') || command.contains('navigation')) {
-      await _speak('Path detection. Tactile path guidance recognition.');
-      _setSelectedIndex(3);
-    } else if (command.contains('request help') ||
-        (command.contains('send') && command.contains('help'))) {
-      await _speak('Opening request help page. Please describe your need.');
+    print('🎤 Processing command: "$command"');
+
+    // Direct navigation for "Request Help" - goes straight to send request
+    if (command.contains('request help') || 
+        command.contains('send help') ||
+        command.contains('help request') ||
+        command.contains('need help') ||
+        command.contains('call help')) {
+      _speak('Opening request help page. Please describe your need.');
       _navigateToSendHelpRequest();
-    } else if (command.contains('track') && command.contains('request')) {
-      await _speak(
-          'Opening your help requests. Here are your recent requests.');
+      _isProcessingVoice = false;
+      return;
+    }
+
+    // Direct navigation for "Track Requests"
+    if (command.contains('track')) {
+      _speak('Opening your help requests.');
       _navigateToTrackRequests();
-    } else if (command.contains('volunteer') || command.contains('help')) {
-      await _speak(
-          'Finding volunteers. You can request help or track your requests.');
+      _isProcessingVoice = false;
+      return;
+    }
+
+    // Broader matching for "Path" - catches various pronunciations
+    if (command.contains('path') || 
+        command.contains('pass') ||
+        command.contains('pat') ||
+        command.contains('navigation') ||
+        command.contains('navigate') ||
+        command.contains('direction') ||
+        command.contains('tactile')) {
+      _speak('Path detection activated.');
+      _setSelectedIndex(3);
+      _isProcessingVoice = false;
+      return;
+    }
+
+    // Shopping
+    if (command.contains('shopping') || 
+        command.contains('scan') ||
+        command.contains('barcode') ||
+        command.contains('shop')) {
+      _speak('Opening shopping helper.');
+      _setSelectedIndex(1);
+      _isProcessingVoice = false;
+      return;
+    }
+
+    // Obstacle
+    if (command.contains('obstacle') || 
+        command.contains('detection') ||
+        command.contains('warning') ||
+        command.contains('alert')) {
+      _speak('Obstacle detection activated.');
+      _setSelectedIndex(2);
+      _isProcessingVoice = false;
+      return;
+    }
+
+    // Volunteers / Help Center
+    if (command.contains('volunteer') || 
+        command.contains('find help') ||
+        command.contains('helper')) {
+      _speak('Opening help center.');
       _setSelectedIndex(4);
-    } else if (command.contains('home') || command.contains('dashboard')) {
-      await _speak('Returning to home page.');
+      _isProcessingVoice = false;
+      return;
+    }
+
+    // Home
+    if (command.contains('home') || command.contains('dashboard')) {
+      _speak('Returning home.');
       _setSelectedIndex(0);
-    } else if (command.contains('profile')) {
+      _isProcessingVoice = false;
+      return;
+    }
+
+    // Profile
+    if (command.contains('profile') || command.contains('account')) {
       _shouldListen = false;
-      await _speak('Opening your profile.');
-      await _stt.stop();
-      if (!mounted) return;
+      _speak('Opening your profile.');
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (!mounted) {
+        _isProcessingVoice = false;
+        return;
+      }
       await Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const UserProfilePage()),
       );
       _shouldListen = true;
-      _speak('Back on home page. Tap the voice button to speak.');
-    } else if (command.contains('setting') ||
+      _speak('Back on home page.');
+      _isProcessingVoice = false;
+      return;
+    }
+
+    // Settings
+    if (command.contains('setting') || 
         command.contains('accessibility') ||
         command.contains('contrast') ||
         command.contains('font')) {
-      _speak('Opening accessibility settings.');
+      _speak('Opening settings.');
       await _navigateToAccessibilitySettings();
-    } else if (command.contains('notification')) {
-      await _speak('Opening your notifications.');
+      _isProcessingVoice = false;
+      return;
+    }
+
+    // Notifications
+    if (command.contains('notification') || command.contains('update')) {
+      _speak('Opening notifications.');
       _navigateToNotifications();
-    } else if (command.contains('logout') || command.contains('sign out')) {
+      _isProcessingVoice = false;
+      return;
+    }
+
+    // Logout
+    if (command.contains('logout') || command.contains('sign out')) {
       _shouldListen = false;
-      await _speak('Logging out. Goodbye, ${widget.userName}.');
+      await _speak('Logging out.');
       await FirebaseAuth.instance.signOut();
       if (mounted) {
         Navigator.pushAndRemoveUntil(
@@ -237,117 +345,84 @@ class _BlindHomePageState extends State<BlindHomePage> {
           (route) => false,
         );
       }
+      _isProcessingVoice = false;
       return;
-    } else if (command.contains('repeat') || command.contains('commands')) {
-      await _speak(
-        'You can say: Shopping to scan barcodes. '
-        'Obstacle for obstacle detection. '
-        'Path for path detection. '
-        'Request Help to send a new help request. '
-        'Track Requests to see your request status. '
-        'Volunteers to find help nearby. '
-        'Profile to view your account. '
-        'Settings to adjust font size and contrast. '
-        'Notifications to check your updates. '
-        'Or Logout to sign out.',
-      );
-    } else {
-      await _speak(
-        'Command not recognized. Say Repeat to hear available commands.',
-      );
     }
 
+    // Repeat commands
+    if (command.contains('repeat') || command.contains('commands') || command.contains('help')) {
+      _speak(
+        'Available commands: Shopping, Obstacle, Path, Request Help, '
+        'Track Requests, Volunteers, Profile, Settings, Notifications, and Logout.'
+      );
+      _isProcessingVoice = false;
+      return;
+    }
+
+    // Fallback
+    _speak('Command not recognized. Say Repeat to list options.');
     _isProcessingVoice = false;
   }
 
   void _setSelectedIndex(int index) {
+    if (!mounted) return;
     setState(() {
       _selectedIndex = index;
     });
   }
 
-  void _openHelpCenter() async {
+  void _openHelpCenter() {
     _setSelectedIndex(4);
-    await _speak(
-      'Help center. Say Request Help to send a new request, '
-      'or say Track Requests to see your existing requests.',
-    );
-    // Reuse existing listening — just open the mic after speaking.
-    if (_sttAvailable && _shouldListen && mounted && !_stt.isListening) {
-      await _startListening();
-    }
+    _speak('Help center loaded.');
   }
 
   void _onNavBarTap(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-    // Speak the page name
-    String pageName = '';
-    switch (index) {
-      case 0:
-        pageName = 'Home';
-        break;
-      case 1:
-        pageName = 'Shopping Helper';
-        break;
-      case 2:
-        pageName = 'Obstacle Detection';
-        break;
-      case 3:
-        pageName = 'Path Detection';
-        break;
-      case 4:
-        pageName = 'Help Center';
-        break;
-    }
-    _speak('Opened $pageName page');
+    _setSelectedIndex(index);
+    String pageName = ['Home', 'Shopping Helper', 'Obstacle Detection', 'Navigation', 'Help Center'][index];
+    _speak('Opened $pageName');
   }
 
   void _navigateToSendHelpRequest() async {
     _shouldListen = false;
-    await _stt.stop();
+    if (_stt.isListening) await _stt.stop();
+    if (!mounted) return;
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const BlindSendHelpRequestScreen()),
     );
     _shouldListen = true;
-    if (mounted) {
-      await _speak('Back on help center page.');
-    }
+    if (mounted) _speak('Back on help center page.');
   }
 
   void _navigateToTrackRequests() async {
     _shouldListen = false;
-    await _stt.stop();
+    if (_stt.isListening) await _stt.stop();
+    if (!mounted) return;
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const BlindTrackRequestsScreen()),
     );
     _shouldListen = true;
-    if (mounted) {
-      await _speak('Back on help center page.');
-    }
+    if (mounted) _speak('Back on help center page.');
   }
 
   Future<void> _navigateToAccessibilitySettings() async {
-    if (!mounted) return;
     _shouldListen = false;
-    await _stt.stop();
+    if (_stt.isListening) await _stt.stop();
+    if (!mounted) return;
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const AccessibilitySettingsPage()),
     );
     _shouldListen = true;
-    if (mounted) {
-      await _speak('Back on home page. Tap the voice button to speak.');
-    }
+    if (mounted) _speak('Back on home page.');
   }
 
   @override
   void dispose() {
     _shouldListen = false;
     _stt.stop();
+    _tts.stop();
     _unreadNotificationsSub?.cancel();
     super.dispose();
   }
@@ -439,16 +514,15 @@ class _BlindHomePageState extends State<BlindHomePage> {
                       _headerIconButton(
                         icon: Icons.person,
                         color: kBlueAccent,
-                        onPressed: () async {
+                        onPressed: () {
                           _shouldListen = false;
                           _speak('Opening your profile.');
-                          await Navigator.push(
+                          Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (context) => const UserProfilePage(),
                             ),
-                          );
-                          _shouldListen = true;
+                          ).then((_) => _shouldListen = true);
                         },
                       ),
                       _headerIconButton(
@@ -456,8 +530,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
                         color: kPurpleAccent,
                         tooltip: 'Accessibility Settings',
                         onPressed: () {
-                          _shouldListen = false;
-                          _speak('Opening accessibility settings.');
                           _navigateToAccessibilitySettings();
                         },
                       ),
@@ -465,37 +537,13 @@ class _BlindHomePageState extends State<BlindHomePage> {
                         icon: Icons.logout,
                         color: kRedAccent,
                         onPressed: () async {
-                          try {
-                            await _tts.stop();
-                            await _tts.speak(
-                              'Logging out. Goodbye, ${widget.userName}.',
+                          _shouldListen = false;
+                          await _tts.stop();
+                          await FirebaseAuth.instance.signOut();
+                          if (mounted) {
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(builder: (_) => const LoginPage()),
                             );
-                            await Future.delayed(
-                              const Duration(milliseconds: 800),
-                            );
-
-                            await FirebaseAuth.instance.signOut();
-
-                            // Force navigation to login page
-                            if (mounted) {
-                              Navigator.of(
-                                context,
-                              ).popUntil((route) => route.isFirst);
-                              Navigator.of(context).pushReplacement(
-                                MaterialPageRoute(
-                                  builder: (_) => const LoginPage(),
-                                ),
-                              );
-                            }
-                          } catch (e) {
-                            // Force navigation even on error
-                            if (mounted) {
-                              Navigator.of(context).pushReplacement(
-                                MaterialPageRoute(
-                                  builder: (_) => const LoginPage(),
-                                ),
-                              );
-                            }
                           }
                         },
                       ),
@@ -538,23 +586,11 @@ class _BlindHomePageState extends State<BlindHomePage> {
                 unselectedFontSize: 12,
                 elevation: 0,
                 items: const [
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.home),
-                    label: 'Home',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.qr_code_scanner),
-                    label: 'Shopping',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.warning),
-                    label: 'Obstacles',
-                  ),
+                  BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+                  BottomNavigationBarItem(icon: Icon(Icons.qr_code_scanner), label: 'Shopping'),
+                  BottomNavigationBarItem(icon: Icon(Icons.warning), label: 'Obstacles'),
                   BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Path'),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.people),
-                    label: 'Help',
-                  ),
+                  BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Help'),
                 ],
               ),
             ),
@@ -570,7 +606,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // Voice Command Card
           GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: _onVoiceButtonTap,
@@ -581,8 +616,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
                 color: kCardFill.withValues(alpha: 0.6),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: (_isListening ? Colors.greenAccent : kPinkBright)
-                      .withValues(alpha: 0.4),
+                  color: (_isListening ? Colors.greenAccent : kPinkBright).withValues(alpha: 0.4),
                 ),
               ),
               child: Row(
@@ -595,14 +629,11 @@ class _BlindHomePageState extends State<BlindHomePage> {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       gradient: _isListening
-                          ? const LinearGradient(
-                              colors: [Colors.green, Colors.lightGreen],
-                            )
+                          ? const LinearGradient(colors: [Colors.green, Colors.lightGreen])
                           : kAccentGradient,
                       boxShadow: [
                         BoxShadow(
-                          color: (_isListening ? Colors.green : kPinkBright)
-                              .withValues(alpha: 0.5),
+                          color: (_isListening ? Colors.green : kPinkBright).withValues(alpha: 0.5),
                           blurRadius: 22,
                           spreadRadius: 2,
                         ),
@@ -626,11 +657,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
                       children: [
                         Text(
                           _isListening ? 'Listening...' : 'Tap to Speak',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 4),
                         const Text(
@@ -647,7 +674,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
           ),
           const SizedBox(height: 20),
 
-          // Feature Cards
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -655,7 +681,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
                 child: _buildFeatureCard(
                   icon: Icons.qr_code_scanner,
                   title: 'Shopping Helper',
-                  description: 'Scan barcodes and get audio feedback',
+                  description: 'Scan barcodes',
                   color: kPurpleAccent,
                   index: 1,
                 ),
@@ -664,8 +690,8 @@ class _BlindHomePageState extends State<BlindHomePage> {
               Expanded(
                 child: _buildFeatureCard(
                   icon: Icons.warning_amber,
-                  title: 'Obstacle Detection',
-                  description: 'Real-time voice alerts for obstacles',
+                  title: 'Obstacles',
+                  description: 'Alert alerts',
                   color: kAmberAccent,
                   index: 2,
                 ),
@@ -674,8 +700,8 @@ class _BlindHomePageState extends State<BlindHomePage> {
               Expanded(
                 child: _buildFeatureCard(
                   icon: Icons.map_outlined,
-                  title: 'Path Detection',
-                  description: 'Tactile path guidance recognition',
+                  title: 'Path',
+                  description: 'Tactile path',
                   color: kTealAccent,
                   index: 3,
                 ),
@@ -684,8 +710,8 @@ class _BlindHomePageState extends State<BlindHomePage> {
               Expanded(
                 child: _buildFeatureCard(
                   icon: Icons.people_alt,
-                  title: 'Find Volunteers',
-                  description: 'Get help from verified volunteers nearby',
+                  title: 'Volunteers',
+                  description: 'Find help',
                   color: kTealAccent,
                   index: 4,
                   onTapOverride: _openHelpCenter,
@@ -695,7 +721,6 @@ class _BlindHomePageState extends State<BlindHomePage> {
           ),
           const SizedBox(height: 16),
 
-          // Notifications Section
           GestureDetector(
             onTap: _navigateToNotifications,
             child: Container(
@@ -706,186 +731,37 @@ class _BlindHomePageState extends State<BlindHomePage> {
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: kBlueAccent.withValues(alpha: 0.4)),
               ),
-              child: Stack(
+              child: Row(
                 children: [
-                  Positioned(
-                    right: -10,
-                    top: 0,
-                    bottom: 0,
-                    child: Icon(
-                      Icons.notifications_outlined,
-                      size: 70,
-                      color: kBlueAccent.withValues(alpha: 0.12),
+                  Icon(Icons.notifications, size: 28, color: kBlueAccent),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      _unreadNotifications > 0 ? '$_unreadNotifications updates pending' : 'No new notifications',
+                      style: const TextStyle(fontSize: 14, color: Colors.white),
                     ),
-                  ),
-                  Row(
-                    children: [
-                      Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          Container(
-                            width: 56,
-                            height: 56,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: kBlueAccent.withValues(alpha: 0.18),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: kBlueAccent.withValues(alpha: 0.4),
-                                  blurRadius: 16,
-                                ),
-                              ],
-                            ),
-                            child: const Icon(
-                              Icons.notifications,
-                              size: 28,
-                              color: kBlueAccent,
-                            ),
-                          ),
-                          if (_unreadNotifications > 0)
-                            Positioned(
-                              right: -2,
-                              top: -2,
-                              child: Container(
-                                padding: const EdgeInsets.all(5),
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: kPinkBright,
-                                ),
-                                constraints: const BoxConstraints(
-                                  minWidth: 20,
-                                  minHeight: 20,
-                                ),
-                                child: Text(
-                                  '$_unreadNotifications',
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Notifications',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                                color: Colors.white,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              _unreadNotifications > 0
-                                  ? '$_unreadNotifications new update${_unreadNotifications == 1 ? '' : 's'} on your requests'
-                                  : 'No new updates right now',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.white60,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Icon(
-                        Icons.chevron_right,
-                        color: Colors.white38,
-                      ),
-                    ],
                   ),
                 ],
               ),
             ),
           ),
-
-          const SizedBox(height: 16),
-
-          // Voice Commands Grid
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: kCardFill.withValues(alpha: 0.6),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(
-                  children: [
-                    Icon(Icons.graphic_eq, color: kPinkBright, size: 18),
-                    SizedBox(width: 8),
-                    Text(
-                      'Voice Commands',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    _buildCommandTile(Icons.shopping_cart, kBlueAccent,
-                        'Shopping', 'Open shopping helper'),
-                    _buildCommandTile(Icons.warning_amber, kAmberAccent,
-                        'Obstacle', 'Start obstacle detection'),
-                    _buildCommandTile(Icons.map, kTealAccent, 'Path',
-                        'Activate path detection'),
-                    _buildCommandTile(Icons.chat_bubble_outline, kPurpleAccent,
-                        'Request Help', 'Send a new help request'),
-                    _buildCommandTile(Icons.list_alt, kTealAccent,
-                        'Track Requests', 'View your request status'),
-                    _buildCommandTile(Icons.people_alt, kTealAccent,
-                        'Volunteers or Help', 'Find volunteers nearby'),
-                    _buildCommandTile(Icons.person, kBlueAccent, 'Profile',
-                        'Open your profile'),
-                    _buildCommandTile(
-                        Icons.logout, kRedAccent, 'Logout', 'Sign out'),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 80), // Bottom padding for nav bar
+          const SizedBox(height: 80),
         ],
       ),
     );
   }
 
   Widget _buildVoiceWaveBars({required bool reversed, required bool compact}) {
-    final heights = compact
-        ? [6.0, 10.0, 14.0, 10.0, 6.0]
-        : [10.0, 18.0, 28.0, 20.0, 30.0, 16.0, 10.0];
-    final active = _isListening;
+    final heights = compact ? [6.0, 10.0, 14.0, 10.0, 6.0] : [10.0, 18.0, 28.0, 20.0, 10.0];
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: heights
-          .map(
-            (h) => AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              margin: const EdgeInsets.symmetric(horizontal: 1.5),
-              width: 3,
-              height: active ? h : h * 0.55,
-              decoration: BoxDecoration(
-                color: kBlueAccent.withValues(alpha: active ? 0.9 : 0.4),
-                borderRadius: BorderRadius.circular(3),
-              ),
-            ),
-          )
+          .map((h) => Container(
+                margin: const EdgeInsets.symmetric(horizontal: 1.5),
+                width: 3,
+                height: _isListening ? h : h * 0.5,
+                decoration: BoxDecoration(color: kBlueAccent.withValues(alpha: 0.7), borderRadius: BorderRadius.circular(3)),
+              ))
           .toList(),
     );
   }
@@ -902,50 +778,15 @@ class _BlindHomePageState extends State<BlindHomePage> {
       color: kCardFill.withValues(alpha: 0.6),
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
-        onTap: onTapOverride ?? () => _setSelectedIndex(index),
+        onTap: onTapOverride ?? () => _onNavBarTap(index),
         borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-          ),
+          padding: const EdgeInsets.all(12),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: color, size: 24),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                  const Icon(
-                    Icons.arrow_forward_ios,
-                    size: 12,
-                    color: Colors.white38,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                description,
-                style: const TextStyle(color: Colors.white54, fontSize: 11),
-              ),
+              Icon(icon, color: color, size: 24),
+              const SizedBox(height: 8),
+              Text(title, style: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
             ],
           ),
         ),
@@ -953,229 +794,19 @@ class _BlindHomePageState extends State<BlindHomePage> {
     );
   }
 
-  Widget _buildCommandTile(
-      IconData icon, Color color, String command, String description) {
-    return Container(
-      width: 160,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.35)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 18),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  command,
-                  style: TextStyle(
-                    color: color,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12,
-                  ),
-                ),
-                Text(
-                  description,
-                  style: const TextStyle(fontSize: 10, color: Colors.white54),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _buildShoppingHelper() => ShoppingHelperPage(onBackToHome: () => _setSelectedIndex(0));
+  Widget _buildObstacleDetection() => ObstacleDetectionPage(onBackToHome: () => _setSelectedIndex(0));
+  Widget _buildPathDetection() => TactilePathPage(onBackToHome: () => _setSelectedIndex(0));
 
-  // ===================== SHOPPING HELPER PAGE =====================
-  Widget _buildShoppingHelper() {
-    return ShoppingHelperPage(
-      onBackToHome: () => _setSelectedIndex(0),
-      isActive: _selectedIndex == 1,
-    );
-  }
-
-  // ===================== OBSTACLE DETECTION PAGE =====================
-  Widget _buildObstacleDetection() {
-    return ObstacleDetectionPage(
-      onBackToHome: () => _setSelectedIndex(0),
-      isActive: _selectedIndex == 2,
-    );
-  }
-
-  // ===================== PATH DETECTION PAGE =====================
-  Widget _buildPathDetection() {
-    return TactilePathPage(
-      onBackToHome: () => _setSelectedIndex(0),
-      isActive: _selectedIndex == 3,
-    );
-  }
-
-  // ===================== FIND VOLUNTEERS PAGE (UPDATED) =====================
   Widget _buildFindVolunteers() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+    return Center(
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Header
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: kAccentGradient,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.people_alt,
-                      color: Colors.white, size: 28),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Help Center',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Get help from verified volunteers',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.white.withValues(alpha: 0.8),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Request Help Button
-          _buildHelpActionCard(
-            icon: Icons.add_circle_outline,
-            title: 'Request Help',
-            description: 'Send a new help request to nearby volunteers',
-            color: kBlueAccent,
-            onTap: _navigateToSendHelpRequest,
-          ),
-          const SizedBox(height: 16),
-
-          // Track Requests Button
-          _buildHelpActionCard(
-            icon: Icons.track_changes,
-            title: 'Track My Requests',
-            description: 'View status of your help requests',
-            color: kAmberAccent,
-            onTap: _navigateToTrackRequests,
-          ),
-          const SizedBox(height: 16),
-
-          // Information Card
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: kTealAccent.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: kTealAccent.withValues(alpha: 0.4)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.info_outline, color: kTealAccent),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Text(
-                    'When you request help, nearby volunteers will be notified and can respond to your request. You can track the status in real-time.',
-                    style: TextStyle(fontSize: 14, color: Colors.white70),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 80), // Bottom padding
+          ElevatedButton(onPressed: _navigateToSendHelpRequest, child: const Text('Request Help')),
+          const SizedBox(height: 12),
+          ElevatedButton(onPressed: _navigateToTrackRequests, child: const Text('Track Requests')),
         ],
-      ),
-    );
-  }
-
-  Widget _buildHelpActionCard({
-    required IconData icon,
-    required String title,
-    required String description,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: kCardFill.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(icon, color: color, size: 28),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        description,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: Colors.white54,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.arrow_forward_ios,
-                    size: 16, color: Colors.white38),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }
