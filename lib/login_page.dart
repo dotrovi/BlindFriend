@@ -154,7 +154,6 @@ class _LoginPageState extends State<LoginPage> {
     if (mounted) setState(() => _isSpeaking = false);
 
     // ── AUTOMATICALLY START LISTENING AFTER SPEAKING FINISHES ──
-    // This removes the requirement for the user to manually find and tap the mic button.
     if (mounted && _shouldListen && _currentStep != 'done' && !_stt.isListening) {
       _startListening();
     }
@@ -182,6 +181,7 @@ class _LoginPageState extends State<LoginPage> {
     });
   }
 
+  // ===================== ADJUSTED TIMEOUT TIMING =====================
   Future<void> _startListening() async {
     if (!_sttAvailable || !mounted || !_shouldListen || _stt.isListening) {
       return;
@@ -190,9 +190,11 @@ class _LoginPageState extends State<LoginPage> {
     _cancelledBySpeech = false;
     _reaskScheduled = false;
     setState(() => _isListening = true);
-    final pauseFor = _currentStep == 'email'
-        ? const Duration(seconds: 12)
-        : const Duration(seconds: 8);
+
+    // Adjusted to 5 seconds of continuous silence before closing,
+    // giving ample time to formulate and pronounce long email addresses comfortably.
+    const pauseFor = Duration(seconds: 5);
+
     await _stt.listen(
       onResult: (result) {
         if (!mounted) return;
@@ -304,7 +306,7 @@ class _LoginPageState extends State<LoginPage> {
   void _handleLogin() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
-    final selectedType = _selectedUserType ?? 'blind'; // Default to blind
+    final selectedType = _selectedUserType ?? 'blind';
 
     if (email.isEmpty || password.isEmpty) {
       _currentStep = 'email';
@@ -328,7 +330,6 @@ class _LoginPageState extends State<LoginPage> {
       if (mounted) Navigator.pop(context);
 
       if (user != null) {
-        // ✅ FETCH USER TYPE FROM FIRESTORE 'users' COLLECTION
         String userType = 'blind';
         String userName = user.displayName ?? 'User';
 
@@ -341,11 +342,8 @@ class _LoginPageState extends State<LoginPage> {
           if (userDoc.exists) {
             userType = userDoc.data()?['userType'] ?? 'blind';
             userName = userDoc.data()?['name'] ?? user.displayName ?? 'User';
-            print(
-              '✅ User found in users collection. Type: $userType, Name: $userName',
-            );
+            print('User found in users collection. Type: $userType, Name: $userName');
 
-            // If user selected volunteer but type is blind, show error
             if (selectedType == 'volunteer' && userType != 'volunteer') {
               await _speak(
                 'This account is not registered as a volunteer. '
@@ -356,7 +354,6 @@ class _LoginPageState extends State<LoginPage> {
               return;
             }
 
-            // If user selected blind but type is volunteer, show error
             if (selectedType == 'blind' && userType == 'volunteer') {
               await _speak(
                 'This account is registered as a volunteer. '
@@ -367,8 +364,6 @@ class _LoginPageState extends State<LoginPage> {
               return;
             }
           } else {
-            // User exists in Firebase Auth but not in Firestore
-            print('❌ User document not found in Firestore');
             await _speak(
               'Your account is not fully registered. Please register first.',
             );
@@ -377,14 +372,12 @@ class _LoginPageState extends State<LoginPage> {
             return;
           }
         } catch (e) {
-          print('Error fetching user type: $e');
           await _speak('Error verifying account. Please try again.');
           _currentStep = 'email';
           _shouldListen = true;
           return;
         }
 
-        // ✅ CHECK EMAIL VERIFICATION FOR VOLUNTEERS
         if (userType == 'volunteer' && !user.emailVerified) {
           await FirebaseAuth.instance.signOut();
           _currentStep = 'email';
@@ -399,7 +392,6 @@ class _LoginPageState extends State<LoginPage> {
 
         await _saveCredentials();
 
-        // Stop TTS/STT
         _tts.setCompletionHandler(() {});
         _tts.setErrorHandler((_) {});
         if (_stt.isListening) await _stt.cancel();
@@ -407,9 +399,7 @@ class _LoginPageState extends State<LoginPage> {
 
         if (!mounted) return;
 
-        // ✅ NAVIGATE BASED ON USER TYPE
         if (userType == 'volunteer') {
-          print('✅ Navigating to VolunteerHomePage');
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
@@ -417,7 +407,6 @@ class _LoginPageState extends State<LoginPage> {
             ),
           );
         } else {
-          print('✅ Navigating to BlindHomePage');
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
@@ -502,7 +491,6 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   void dispose() {
-    // ── CRITICAL DISPOSE ADDITION FOR LOCAL CONTROLLER ──
     _tts.stop();
     _shouldListen = false;
     _emailController.dispose();
@@ -511,8 +499,6 @@ class _LoginPageState extends State<LoginPage> {
     _stt.stop();
     super.dispose();
   }
-
-  // ── UI ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -533,7 +519,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // ── Section 1: voice / splash ────────────────────────────────────────────
   Widget _buildVoiceSection(double screenHeight) {
     return Container(
       height: screenHeight,
@@ -558,14 +543,8 @@ class _LoginPageState extends State<LoginPage> {
                           letterSpacing: 0.2,
                         ),
                         children: [
-                          TextSpan(
-                            text: 'Blind',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                          TextSpan(
-                            text: 'Friend',
-                            style: TextStyle(color: kPinkBright),
-                          ),
+                          TextSpan(text: 'Blind', style: TextStyle(color: Colors.white)),
+                          TextSpan(text: 'Friend', style: TextStyle(color: kPinkBright)),
                         ],
                       ),
                     ),
@@ -621,10 +600,7 @@ class _LoginPageState extends State<LoginPage> {
                                           : _currentStep == 'password'
                                               ? 'Press to say your password'
                                               : 'Processing...'),
-                              style: const TextStyle(
-                                color: Colors.white60,
-                                fontSize: 14,
-                              ),
+                              style: const TextStyle(color: Colors.white60, fontSize: 14),
                               textAlign: TextAlign.center,
                             ),
                           ],
@@ -640,11 +616,7 @@ class _LoginPageState extends State<LoginPage> {
                     const SizedBox(height: 14),
                     GestureDetector(
                       onTap: _scrollToForm,
-                      child: const Icon(
-                        Icons.keyboard_arrow_up,
-                        color: Colors.white54,
-                        size: 26,
-                      ),
+                      child: const Icon(Icons.keyboard_arrow_up, color: Colors.white54, size: 26),
                     ),
                     const SizedBox(height: 8),
                   ],
@@ -669,7 +641,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // ── Section 2: login form ────────────────────────────────────────────────
   Widget _buildFormSection(double screenHeight) {
     return Container(
       constraints: BoxConstraints(minHeight: screenHeight),
@@ -702,11 +673,7 @@ class _LoginPageState extends State<LoginPage> {
                     children: [
                       const Text(
                         'Welcome Back!',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 26,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 6),
                       const Text(
@@ -722,20 +689,14 @@ class _LoginPageState extends State<LoginPage> {
                         decoration: BoxDecoration(
                           color: kCardFill.withOpacity(0.65),
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.08),
-                          ),
+                          border: Border.all(color: Colors.white.withOpacity(0.08)),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Text(
                               'I am a:',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                              ),
+                              style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
                             ),
                             const SizedBox(height: 10),
                             Row(
@@ -744,11 +705,8 @@ class _LoginPageState extends State<LoginPage> {
                                   child: _buildRoleButton(
                                     label: 'Blind User',
                                     icon: Icons.visibility,
-                                    selected: (_selectedUserType ?? 'blind') ==
-                                        'blind',
-                                    onTap: () => setState(
-                                      () => _selectedUserType = 'blind',
-                                    ),
+                                    selected: (_selectedUserType ?? 'blind') == 'blind',
+                                    onTap: () => setState(() => _selectedUserType = 'blind'),
                                   ),
                                 ),
                                 const SizedBox(width: 12),
@@ -757,9 +715,7 @@ class _LoginPageState extends State<LoginPage> {
                                     label: 'Volunteer',
                                     icon: Icons.people_alt,
                                     selected: _selectedUserType == 'volunteer',
-                                    onTap: () => setState(
-                                      () => _selectedUserType = 'volunteer',
-                                    ),
+                                    onTap: () => setState(() => _selectedUserType = 'volunteer'),
                                   ),
                                 ),
                               ],
@@ -767,11 +723,7 @@ class _LoginPageState extends State<LoginPage> {
                             const SizedBox(height: 20),
                             const Text(
                               'Email',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                              ),
+                              style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
                             ),
                             const SizedBox(height: 8),
                             _buildDarkField(
@@ -779,19 +731,12 @@ class _LoginPageState extends State<LoginPage> {
                               hint: 'Enter your email',
                               icon: Icons.mail_outline,
                               keyboardType: TextInputType.emailAddress,
-                              validator: (value) =>
-                                  (value == null || value.isEmpty)
-                                      ? 'Please enter your email'
-                                      : null,
+                              validator: (value) => (value == null || value.isEmpty) ? 'Please enter your email' : null,
                             ),
                             const SizedBox(height: 18),
                             const Text(
                               'Password',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                              ),
+                              style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
                             ),
                             const SizedBox(height: 8),
                             _buildDarkField(
@@ -800,21 +745,10 @@ class _LoginPageState extends State<LoginPage> {
                               icon: Icons.lock_outline,
                               obscureText: _obscurePassword,
                               suffixIcon: IconButton(
-                                icon: Icon(
-                                  _obscurePassword
-                                      ? Icons.visibility_off
-                                      : Icons.visibility,
-                                  color: Colors.white54,
-                                  size: 20,
-                                ),
-                                onPressed: () => setState(
-                                  () => _obscurePassword = !_obscurePassword,
-                                ),
+                                icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility, color: Colors.white54, size: 20),
+                                onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                               ),
-                              validator: (value) =>
-                                  (value == null || value.isEmpty)
-                                      ? 'Please enter your password'
-                                      : null,
+                              validator: (value) => (value == null || value.isEmpty) ? 'Please enter your password' : null,
                             ),
                             const SizedBox(height: 8),
                             Row(
@@ -825,21 +759,11 @@ class _LoginPageState extends State<LoginPage> {
                                     value: _rememberMe,
                                     activeColor: kPinkBright,
                                     checkColor: Colors.white,
-                                    side: const BorderSide(
-                                      color: Colors.white54,
-                                    ),
-                                    onChanged: (value) => setState(
-                                      () => _rememberMe = value ?? false,
-                                    ),
+                                    side: const BorderSide(color: Colors.white54),
+                                    onChanged: (value) => setState(() => _rememberMe = value ?? false),
                                   ),
                                 ),
-                                const Text(
-                                  'Remember me',
-                                  style: TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 13,
-                                  ),
-                                ),
+                                const Text('Remember me', style: TextStyle(color: Colors.white70, fontSize: 13)),
                                 const Spacer(),
                                 TextButton(
                                   onPressed: () {
@@ -847,19 +771,10 @@ class _LoginPageState extends State<LoginPage> {
                                     _speak('Opening forgot password page.');
                                     Navigator.push(
                                       context,
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            const ForgotPasswordPage(),
-                                      ),
+                                      MaterialPageRoute(builder: (_) => const ForgotPasswordPage()),
                                     ).then((_) => _resumeOnReturn(_loginGuide));
                                   },
-                                  child: const Text(
-                                    'Forgot Password?',
-                                    style: TextStyle(
-                                      color: kPinkBright,
-                                      fontSize: 13,
-                                    ),
-                                  ),
+                                  child: const Text('Forgot Password?', style: TextStyle(color: kPinkBright, fontSize: 13)),
                                 ),
                               ],
                             ),
@@ -880,26 +795,12 @@ class _LoginPageState extends State<LoginPage> {
                             const SizedBox(height: 18),
                             Row(
                               children: [
-                                Expanded(
-                                  child: Divider(
-                                    color: Colors.white.withOpacity(0.2),
-                                  ),
-                                ),
+                                Expanded(child: Divider(color: Colors.white.withOpacity(0.2))),
                                 const Padding(
                                   padding: EdgeInsets.symmetric(horizontal: 10),
-                                  child: Text(
-                                    'OR',
-                                    style: TextStyle(
-                                      color: Colors.white54,
-                                      fontSize: 12,
-                                    ),
-                                  ),
+                                  child: Text('OR', style: TextStyle(color: Colors.white54, fontSize: 12)),
                                 ),
-                                Expanded(
-                                  child: Divider(
-                                    color: Colors.white.withOpacity(0.2),
-                                  ),
-                                ),
+                                Expanded(child: Divider(color: Colors.white.withOpacity(0.2))),
                               ],
                             ),
                             const SizedBox(height: 18),
@@ -908,35 +809,16 @@ class _LoginPageState extends State<LoginPage> {
                               child: OutlinedButton.icon(
                                 onPressed: () {
                                   _scrollToVoice();
-                                  Future.delayed(
-                                    const Duration(milliseconds: 550),
-                                    _pressToSpeak,
-                                  );
+                                  Future.delayed(const Duration(milliseconds: 550), _pressToSpeak);
                                 },
                                 style: OutlinedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 14,
-                                  ),
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
                                   backgroundColor: kNavyMid.withOpacity(0.6),
-                                  side: BorderSide(
-                                    color: Colors.white.withOpacity(0.25),
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(30),
-                                  ),
+                                  side: BorderSide(color: Colors.white.withOpacity(0.25)),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                                 ),
-                                icon: const Icon(
-                                  Icons.mic,
-                                  color: Colors.white,
-                                  size: 18,
-                                ),
-                                label: const Text(
-                                  'Login with Voice',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
+                                icon: const Icon(Icons.mic, color: Colors.white, size: 18),
+                                label: const Text('Login with Voice', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
                               ),
                             ),
                             const SizedBox(height: 16),
@@ -946,26 +828,15 @@ class _LoginPageState extends State<LoginPage> {
                                   _shouldListen = false;
                                   Navigator.push(
                                     context,
-                                    MaterialPageRoute(
-                                      builder: (_) => const RegisterPage(),
-                                    ),
+                                    MaterialPageRoute(builder: (_) => const RegisterPage()),
                                   ).then((_) => _resumeOnReturn(_loginGuide));
                                 },
                                 child: RichText(
                                   text: const TextSpan(
-                                    style: TextStyle(
-                                      color: Colors.white60,
-                                      fontSize: 13,
-                                    ),
+                                    style: TextStyle(color: Colors.white60, fontSize: 13),
                                     children: [
                                       TextSpan(text: "Don't have an account? "),
-                                      TextSpan(
-                                        text: 'Register',
-                                        style: TextStyle(
-                                          color: kPinkBright,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
+                                      TextSpan(text: 'Register', style: TextStyle(color: kPinkBright, fontWeight: FontWeight.w600)),
                                     ],
                                   ),
                                 ),
@@ -977,10 +848,7 @@ class _LoginPageState extends State<LoginPage> {
                       const SizedBox(height: 16),
                       TextButton(
                         onPressed: () => Navigator.pushNamed(context, '/admin'),
-                        child: const Text(
-                          'Admin Portal',
-                          style: TextStyle(color: Colors.white38, fontSize: 12),
-                        ),
+                        child: const Text('Admin Portal', style: TextStyle(color: Colors.white38, fontSize: 12)),
                       ),
                       const SizedBox(height: 70),
                     ],
@@ -1006,8 +874,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // ── Reusable pieces ───────────────────────────────────────────────────────
-
   Widget _buildAppIcon() {
     return Container(
       width: 84,
@@ -1016,27 +882,13 @@ class _LoginPageState extends State<LoginPage> {
         gradient: kAccentGradient,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(
-            color: kPinkBright.withOpacity(0.45),
-            blurRadius: 24,
-            spreadRadius: 2,
-          ),
+          BoxShadow(color: kPinkBright.withOpacity(0.45), blurRadius: 24, spreadRadius: 2),
         ],
       ),
       child: const Stack(
         children: [
-          Center(
-            child: Icon(
-              Icons.visibility_off_rounded,
-              color: Colors.white,
-              size: 38,
-            ),
-          ),
-          Positioned(
-            right: 10,
-            top: 10,
-            child: Icon(Icons.graphic_eq, color: Colors.white70, size: 14),
-          ),
+          Center(child: Icon(Icons.visibility_off_rounded, color: Colors.white, size: 38)),
+          Positioned(right: 10, top: 10, child: Icon(Icons.graphic_eq, color: Colors.white70, size: 14)),
         ],
       ),
     );
@@ -1072,9 +924,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Widget _buildWaveBars({required bool reversed}) {
-    final heights = reversed
-        ? [10.0, 18.0, 28.0, 18.0, 10.0]
-        : [10.0, 18.0, 28.0, 18.0, 10.0];
+    final heights = [10.0, 18.0, 28.0, 18.0, 10.0];
     final active = _isListening;
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -1086,8 +936,7 @@ class _LoginPageState extends State<LoginPage> {
               width: 4,
               height: active ? h : h * 0.5,
               decoration: BoxDecoration(
-                color: (reversed ? kBlueAccent : kPinkBright)
-                    .withOpacity(active ? 0.9 : 0.4),
+                color: (reversed ? kBlueAccent : kPinkBright).withOpacity(active ? 0.9 : 0.4),
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
@@ -1104,9 +953,7 @@ class _LoginPageState extends State<LoginPage> {
           width: width,
           height: 1,
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Colors.transparent, kPinkBright.withOpacity(0.6)],
-            ),
+            gradient: LinearGradient(colors: [Colors.transparent, kPinkBright.withOpacity(0.6)]),
           ),
         ),
         Padding(
@@ -1117,9 +964,7 @@ class _LoginPageState extends State<LoginPage> {
           width: width,
           height: 1,
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [kPinkBright.withOpacity(0.6), Colors.transparent],
-            ),
+            gradient: LinearGradient(colors: [kPinkBright.withOpacity(0.6), Colors.transparent]),
           ),
         ),
       ],
@@ -1139,18 +984,9 @@ class _LoginPageState extends State<LoginPage> {
       decoration: BoxDecoration(
         gradient: filled ? kAccentGradient : null,
         color: filled ? null : Colors.transparent,
-        border:
-            filled ? null : Border.all(color: Colors.white.withOpacity(0.4)),
+        border: filled ? null : Border.all(color: Colors.white.withOpacity(0.4)),
         borderRadius: BorderRadius.circular(30),
-        boxShadow: filled
-            ? [
-                BoxShadow(
-                  color: kPinkBright.withOpacity(0.35),
-                  blurRadius: 16,
-                  spreadRadius: 1,
-                ),
-              ]
-            : null,
+        boxShadow: filled ? [BoxShadow(color: kPinkBright.withOpacity(0.35), blurRadius: 16, spreadRadius: 1)] : null,
       ),
       child: Row(
         mainAxisSize: fullWidth ? MainAxisSize.max : MainAxisSize.min,
@@ -1158,14 +994,7 @@ class _LoginPageState extends State<LoginPage> {
         children: [
           Icon(icon, color: Colors.white, size: 18),
           const SizedBox(width: 10),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
-              fontSize: 16,
-            ),
-          ),
+          Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16)),
         ],
       ),
     );
@@ -1187,18 +1016,12 @@ class _LoginPageState extends State<LoginPage> {
         decoration: BoxDecoration(
           gradient: selected ? kAccentGradient : null,
           color: selected ? null : Colors.white.withOpacity(0.04),
-          border: selected
-              ? null
-              : Border.all(color: Colors.white.withOpacity(0.25)),
+          border: selected ? null : Border.all(color: Colors.white.withOpacity(0.25)),
           borderRadius: BorderRadius.circular(14),
         ),
         child: Column(
           children: [
-            Icon(
-              icon,
-              color: selected ? Colors.white : Colors.white70,
-              size: 20,
-            ),
+            Icon(icon, color: selected ? Colors.white : Colors.white70, size: 20),
             const SizedBox(height: 6),
             Text(
               label,
@@ -1236,10 +1059,7 @@ class _LoginPageState extends State<LoginPage> {
         suffixIcon: suffixIcon,
         filled: true,
         fillColor: Colors.white.withOpacity(0.05),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 14,
-        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: Colors.white.withOpacity(0.15)),
@@ -1259,7 +1079,7 @@ class _LoginPageState extends State<LoginPage> {
 
   List<Widget> _decorativeBokeh() {
     final specs = <List<double>>[
-      [40, 0.08, 30, 30], // size, opacity, top, left
+      [40, 0.08, 30, 30],
       [16, 0.5, 70, 260],
       [10, 0.6, 130, 60],
       [22, 0.12, 220, 320],
