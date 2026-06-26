@@ -452,23 +452,42 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
 
   Widget _sortChip(String label, String sortValue) {
     final isSelected = _sortBy == sortValue;
-    return FilterChip(
-      label: Text(label),
-      selected: isSelected,
-      onSelected: (selected) {
+    return GestureDetector(
+      onTap: () {
         setState(() {
-          if (selected) {
-            _sortBy = sortValue;
-            // Default: name ascending, date descending (newest first)
-            _sortAscending = sortValue == 'name';
-          }
+          _sortBy = sortValue;
+          // Default: name ascending, date descending (newest first)
+          _sortAscending = sortValue == 'name';
         });
       },
-      labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.white70),
-      backgroundColor: Colors.white.withValues(alpha: 0.05),
-      selectedColor: kPinkBright.withValues(alpha: 0.3),
-      checkmarkColor: Colors.white,
-      side: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? kPinkBright : Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? kPinkBright : Colors.white.withValues(alpha: 0.25),
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (isSelected) ...[
+              const Icon(Icons.check, size: 14, color: Colors.white),
+              const SizedBox(width: 4),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? Colors.white : Colors.white70,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

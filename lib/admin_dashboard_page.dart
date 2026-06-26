@@ -1,10 +1,10 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'pending_verifications_page.dart';
 import 'admin_users_page.dart';
 import 'admin_volunteers_page.dart';
-import 'admin_statistics_page.dart';
+import 'admin_overview_page.dart';
+import 'admin_reports_page.dart';
 import 'theme/app_palette.dart';
 
 class AdminDashboardPage extends StatefulWidget {
@@ -89,9 +89,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           _navItem(
               icon: Icons.person_outline, label: 'Users', pageKey: 'users'),
           _navItem(
-              icon: Icons.analytics_outlined,
-              label: 'Statistics',
-              pageKey: 'statistics'),
+              icon: Icons.flag_outlined,
+              label: 'Reports',
+              pageKey: 'reports'),
 
           const Spacer(),
           Divider(height: 1, color: Colors.white.withValues(alpha: 0.08)),
@@ -166,153 +166,21 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   Widget _buildCurrentPage() {
     switch (_activePage) {
       case 'overview':
-        return _buildOverviewPage();
+        return AdminOverviewPage(
+          onNavigate: (pageKey) => setState(() => _activePage = pageKey),
+        );
       case 'verification':
         return const PendingVerificationsPage();
       case 'volunteers':
         return const AdminVolunteersPage();
       case 'users':
         return const AdminUsersPage();
-      case 'statistics':
-        return const AdminStatisticsPage();
+      case 'reports':
+        return const AdminReportsPage();
       default:
-        return _buildOverviewPage();
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // OVERVIEW PAGE
-  // ---------------------------------------------------------------------------
-
-  Widget _buildOverviewPage() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Overview',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-              )),
-          const SizedBox(height: 4),
-          const Text('Welcome to the BlindFriend Admin Portal',
-              style: TextStyle(fontSize: 15, color: Colors.white60)),
-          const SizedBox(height: 28),
-          _buildStatCards(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatCards() {
-    return FutureBuilder<Map<String, int>>(
-      future: _fetchStats(),
-      builder: (context, snapshot) {
-        final stats =
-            snapshot.data ?? {'volunteers': 0, 'verified': 0, 'blindUsers': 0};
-
-        return GridView.count(
-          crossAxisCount: 2,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          childAspectRatio: 2.5,
-          children: [
-            _statCard(
-              icon: Icons.volunteer_activism,
-              iconColor: kBlueAccent,
-              label: 'Total Volunteers',
-              value: '${stats['volunteers']}',
-            ),
-            _statCard(
-              icon: Icons.verified,
-              iconColor: kTealAccent,
-              label: 'Verified Volunteers',
-              value: '${stats['verified']}',
-            ),
-            _statCard(
-              icon: Icons.accessibility_new,
-              iconColor: kAmberAccent,
-              label: 'Blind Users',
-              value: '${stats['blindUsers']}',
-            ),
-            _statCard(
-              icon: Icons.flag_outlined,
-              iconColor: kRedAccent,
-              label: 'Reports Made',
-              value: '0',
-            ),
-          ],
+        return AdminOverviewPage(
+          onNavigate: (pageKey) => setState(() => _activePage = pageKey),
         );
-      },
-    );
-  }
-
-  // Fetches counts from Firestore in one go
-  Future<Map<String, int>> _fetchStats() async {
-    final firestore = FirebaseFirestore.instance;
-
-    final volunteersSnap = await firestore.collection('volunteers').get();
-    final verifiedSnap = await firestore
-        .collection('volunteers')
-        .where('status', isEqualTo: 'approved')
-        .get();
-    final blindUsersSnap = await firestore
-        .collection('users')
-        .where('userType', isEqualTo: 'blind')
-        .get();
-
-    return {
-      'volunteers': volunteersSnap.docs.length,
-      'verified': verifiedSnap.docs.length,
-      'blindUsers': blindUsersSnap.docs.length,
-    };
-  }
-
-  Widget _statCard({
-    required IconData icon,
-    required Color iconColor,
-    required String label,
-    required String value,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: kCardFill.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, color: iconColor, size: 22),
-          ),
-          const SizedBox(width: 14),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(label,
-                  style: const TextStyle(fontSize: 13, color: Colors.white60)),
-              const SizedBox(height: 2),
-              Text(value,
-                  style: const TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  )),
-            ],
-          ),
-        ],
-      ),
-    );
+    }
   }
 }
