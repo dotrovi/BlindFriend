@@ -30,8 +30,8 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
   bool _isListening = false;
 
   static const String _voiceInstruction =
-      'Tap the mic and say rescan, read details, ingredients, allergens, '
-      'or go back.';
+      'Tap the mic and say stop to pause scanning, rescan, read details, '
+      'ingredients, allergens, or go back.';
 
   @override
   void initState() {
@@ -89,6 +89,8 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
         command.contains('exit')) {
       _speak('Closing scanner.');
       Navigator.pop(context);
+    } else if (command.contains('stop')) {
+      _stopScanning();
     } else if (command.contains('rescan') ||
         command.contains('scan again') ||
         command.contains('try again')) {
@@ -235,6 +237,16 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
     });
     _scannerController.start();
     _speak('Ready to scan another barcode.');
+  }
+
+  void _stopScanning() {
+    if (!_isScanning) {
+      _speak('Scanning is already stopped.');
+      return;
+    }
+    setState(() => _isScanning = false);
+    _scannerController.stop();
+    _speak('Barcode scanning stopped. Say rescan to start scanning again.');
   }
 
   void _readProductDetails() {

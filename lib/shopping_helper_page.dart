@@ -9,11 +9,15 @@ import 'theme/app_palette.dart';
 class ShoppingHelperPage extends StatefulWidget {
   final VoidCallback? onBackToHome;
   final bool isActive;
+  final bool autoStartScan;
+  final VoidCallback? onAutoScanHandled;
 
   const ShoppingHelperPage({
     super.key,
     this.onBackToHome,
     this.isActive = true,
+    this.autoStartScan = false,
+    this.onAutoScanHandled,
   });
 
   @override
@@ -36,6 +40,26 @@ class _ShoppingHelperPageState extends State<ShoppingHelperPage> {
     super.initState();
     _initTts();
     _initVoice();
+    if (widget.autoStartScan) {
+      widget.onAutoScanHandled?.call();
+      Future.microtask(_openScanner);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant ShoppingHelperPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // This page lives inside an IndexedStack, so switching tabs doesn't
+    // dispose it — without this, voice activity keeps running and bleeds
+    // into whichever tab the user switches to.
+    if (oldWidget.isActive && !widget.isActive) {
+      _stt.stop();
+      _tts.stop();
+    }
+    if (!oldWidget.autoStartScan && widget.autoStartScan) {
+      widget.onAutoScanHandled?.call();
+      Future.microtask(_openScanner);
+    }
   }
 
   Future<void> _initTts() async {
@@ -146,17 +170,6 @@ class _ShoppingHelperPageState extends State<ShoppingHelperPage> {
     _stt.stop();
     _tts.stop();
     super.dispose();
-  }
-
-  @override
-  void didUpdateWidget(covariant ShoppingHelperPage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // This page lives inside an IndexedStack, so switching tabs doesn't
-    // dispose it — stop any in-flight voice activity when it's hidden.
-    if (oldWidget.isActive && !widget.isActive) {
-      _stt.stop();
-      _tts.stop();
-    }
   }
 
   @override

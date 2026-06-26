@@ -70,7 +70,7 @@ class _TactilePathPageState extends State<TactilePathPage>
 
   static const String _voiceInstruction =
       'Tap the button and say start guidance to start scanning, '
-      'or say back to home page to return.';
+      'stop to stop guidance, or back to home page to return.';
 
   CameraController? _controller;
   List<CameraDescription> _cameras = [];
@@ -199,6 +199,12 @@ class _TactilePathPageState extends State<TactilePathPage>
     if (command.contains('back') && command.contains('home')) {
       _speak('Returning to home page.');
       widget.onBackToHome?.call();
+    } else if (command.contains('stop')) {
+      if (_isDetecting) {
+        _stopDetection();
+      } else {
+        _speak('Guidance is not currently running.');
+      }
     } else if (command.contains('start guidance') ||
         command.contains('start') ||
         command.contains('guidance')) {

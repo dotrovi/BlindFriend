@@ -41,6 +41,7 @@ class _BlindHomePageState extends State<BlindHomePage> {
 
   StreamSubscription? _unreadNotificationsSub;
   int _unreadNotifications = 0;
+  bool _autoStartScan = false;
 
   @override
   void initState() {
@@ -114,13 +115,50 @@ class _BlindHomePageState extends State<BlindHomePage> {
 
     if (mounted) {
       // Temporarily mark processing true during startup intro text execution
-      _isProcessingVoice = true; 
+      _isProcessingVoice = true;
       await Future.delayed(const Duration(milliseconds: 300));
-      _speak(
+      await _speak(
         'Welcome to BlindFriend, ${widget.userName}. '
         'Say: Shopping, Obstacle, Path, Request Help, Track Requests, Volunteers, '
         'Profile, Settings, Notifications, or Logout.',
       );
+      await _announceUnreadNotifications();
+    }
+  }
+
+  Future<void> _announceUnreadNotifications() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || !mounted) return;
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('notifications')
+          .doc(uid)
+          .collection('messages')
+          .where('read', isEqualTo: false)
+          .get();
+      if (!mounted || snapshot.docs.isEmpty) return;
+
+      final docs = snapshot.docs.toList()
+        ..sort((a, b) {
+          final tsA = a.data()['createdAt'] as Timestamp?;
+          final tsB = b.data()['createdAt'] as Timestamp?;
+          if (tsA == null || tsB == null) return 0;
+          return tsB.compareTo(tsA);
+        });
+
+      final count = docs.length;
+      final buffer = StringBuffer(
+        'You have $count unread notification${count == 1 ? '' : 's'}. ',
+      );
+      for (final doc in docs.take(5)) {
+        final data = doc.data();
+        final title = data['title'] ?? '';
+        final body = data['body'] ?? '';
+        buffer.write('$title. $body. ');
+      }
+      await _speak(buffer.toString());
+    } catch (e) {
+      debugPrint('Error announcing unread notifications: $e');
     }
   }
 
@@ -254,11 +292,13 @@ class _BlindHomePageState extends State<BlindHomePage> {
     }
 
     // Shopping
-    if (command.contains('shopping') || 
+    if (command.contains('shopping') ||
         command.contains('scan') ||
         command.contains('barcode') ||
         command.contains('shop')) {
-      _speak('Opening shopping helper.');
+      final autoStart = command.contains('scan') || command.contains('barcode');
+      _speak(autoStart ? 'Opening barcode scanner.' : 'Opening shopping helper.');
+      setState(() => _autoStartScan = autoStart);
       _setSelectedIndex(1);
       return;
     }
@@ -771,7 +811,11 @@ class _BlindHomePageState extends State<BlindHomePage> {
     );
   }
 
-  Widget _buildShoppingHelper() => ShoppingHelperPage(onBackToHome: () => _setSelectedIndex(0));
+  Widget _buildShoppingHelper() => ShoppingHelperPage(
+        onBackToHome: () => _setSelectedIndex(0),
+        autoStartScan: _autoStartScan,
+        onAutoScanHandled: () => setState(() => _autoStartScan = false),
+      );
   Widget _buildObstacleDetection() => ObstacleDetectionPage(onBackToHome: () => _setSelectedIndex(0));
   Widget _buildPathDetection() => TactilePathPage(onBackToHome: () => _setSelectedIndex(0));
 }

@@ -37,7 +37,7 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
 
   static const String _voiceInstruction =
       'Tap the button and say start detection to start scanning, '
-      'or say back to home page to return.';
+      'stop to stop detection, or back to home page to return.';
 
   CameraController? _controller;
   ObjectDetector? _detector;
@@ -137,6 +137,12 @@ class _ObstacleDetectionPageState extends State<ObstacleDetectionPage>
     if (command.contains('back') && command.contains('home')) {
       _speak('Returning to home page.');
       widget.onBackToHome?.call();
+    } else if (command.contains('stop')) {
+      if (_isDetecting) {
+        _stopDetection();
+      } else {
+        _speak('Detection is not currently running.');
+      }
     } else if (command.contains('start detection') ||
         command.contains('start') ||
         command.contains('detection')) {
